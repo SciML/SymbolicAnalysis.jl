@@ -1,7 +1,7 @@
 name = "SymbolicAnalysis"
 uuid = "4297ee4d-0239-47d8-ba5d-195ecdf594fe"
 authors = ["Vaibhav Dixit <vaibhavyashdixit@gmail.com>", "Shashi Gowda <gowda@mit.edu>"]
-version = "0.3.1"
+version = "0.3.2"
 
 [deps]
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
