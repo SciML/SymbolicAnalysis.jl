@@ -19,6 +19,7 @@ include("rules.jl")
 include("atoms.jl")
 include("gdcp/gdcp_rules.jl")
 include("gdcp/spd.jl")
+include("gdcp/lorentz.jl")
 include("canon.jl")
 
 struct AnalysisResult
@@ -32,7 +33,7 @@ end
     analyze(ex, M)
 
 Analyze the expression `ex` and return the curvature and sign of the expression. If a manifold `M` from [Manifolds.jl](https://juliamanifolds.github.io/Manifolds.jl/stable/) is provided, also return the geodesic curvature of the expression.
-Currently only supports the `SymmetricPositiveDefinite` manifold.
+Currently supports the `SymmetricPositiveDefinite` and `Lorentz` manifolds.
 
 The returned `AnalysisResult` contains the following fields:
 - `curvature::SymbolicAnalysis.Curvature`: The curvature of the expression.
@@ -47,7 +48,7 @@ function analyze(ex, M::Union{AbstractManifold,Nothing} = nothing)
     if isnothing(M)
         return AnalysisResult(getcurvature(ex), getsign(ex), nothing)
     else
-        @assert M isa SymmetricPositiveDefinite
+        @assert M isa SymmetricPositiveDefinite || M isa Lorentz "Only SymmetricPositiveDefinite and Lorentz manifolds are currently supported"
         ex = propagate_gcurvature(ex, M)
         return AnalysisResult(getcurvature(ex), getsign(ex), getgcurvature(ex))
     end

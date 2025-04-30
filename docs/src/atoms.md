@@ -96,3 +96,16 @@ This page is intended to be a reference for the atoms that are currently impleme
 | sum_log_eigmax | Positive | GConvex | GIncreasing |
 | affine_map | Positive | GConvex | GIncreasing |
 | hadamard_product | Positive | GConvex | GIncreasing |
+
+## DGCP Atoms (Lorentz Model)
+
+| Atom | Sign | Geodesic Curvature | Monotonicity |
+|:-----|:-----|:-------------------|:-------------|
+| lorentz_distance | Positive | GConvex | GAnyMono |
+| lorentz_log_barrier | Positive | GConvex | GIncreasing |
+| lorentz_homogeneous_quadratic | Positive | GConvex | GAnyMono |
+| lorentz_homogeneous_diagonal | Positive | GConvex | GAnyMono |
+| lorentz_least_squares | Positive | GConvex | GAnyMono |
+| lorentz_transform | - | - | - |
+
+Note: `lorentz_transform` does not have specific geodesic curvature properties by itself, but it preserves geodesic convexity when applied to geodesically convex functions.
