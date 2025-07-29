@@ -14,18 +14,19 @@ function add_gdcprule(f, manifold, sign, curvature, monotonicity)
     end
     gdcprules_dict[f] = makegrule(manifold, sign, curvature, monotonicity)
 end
-makegrule(manifold, sign, curvature, monotonicity) =
+function makegrule(manifold, sign, curvature, monotonicity)
     (manifold = manifold, sign = sign, gcurvature = curvature, gmonotonicity = monotonicity)
+end
 
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
 hasgdcprule(f) = false
 gdcprule(f, args...) = gdcprules_dict[f], args
 
-setgcurvature(ex::Union{Symbolic,Num}, curv) = setmetadata(ex, GCurvature, curv)
+setgcurvature(ex::Union{Symbolic, Num}, curv) = setmetadata(ex, GCurvature, curv)
 setgcurvature(ex, curv) = ex
-getgcurvature(ex::Union{Symbolic,Num}) = getmetadata(ex, GCurvature)
+getgcurvature(ex::Union{Symbolic, Num}) = getmetadata(ex, GCurvature)
 getgcurvature(ex) = GLinear
-hasgcurvature(ex::Union{Symbolic,Num}) = hasmetadata(ex, GCurvature)
+hasgcurvature(ex::Union{Symbolic, Num}) = hasmetadata(ex, GCurvature)
 hasgcurvature(ex) = ex isa Real
 
 function mul_gcurvature(args)
@@ -199,11 +200,9 @@ function find_gcurvature(ex)
 end
 
 function propagate_gcurvature(ex, M::AbstractManifold)
-    r = [
-        @rule *(~~x) => setgcurvature(~MATCH, mul_gcurvature(~~x))
-        @rule +(~~x) => setgcurvature(~MATCH, add_gcurvature(~~x))
-        @rule ~x => setgcurvature(~x, find_gcurvature(~x))
-    ]
+    r = [@rule *(~~x) => setgcurvature(~MATCH, mul_gcurvature(~~x))
+         @rule +(~~x) => setgcurvature(~MATCH, add_gcurvature(~~x))
+         @rule ~x => setgcurvature(~x, find_gcurvature(~x))]
     ex = Postwalk(Chain(r))(ex)
     ex = Prewalk(Chain(r))(ex)
     return ex

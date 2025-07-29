@@ -25,7 +25,7 @@ include("canon.jl")
 struct AnalysisResult
     curvature::SymbolicAnalysis.Curvature
     sign::SymbolicAnalysis.Sign
-    gcurvature::Union{SymbolicAnalysis.GCurvature,Nothing}
+    gcurvature::Union{SymbolicAnalysis.GCurvature, Nothing}
 end
 
 """
@@ -36,11 +36,12 @@ Analyze the expression `ex` and return the curvature and sign of the expression.
 Currently supports the `SymmetricPositiveDefinite` and `Lorentz` manifolds.
 
 The returned `AnalysisResult` contains the following fields:
-- `curvature::SymbolicAnalysis.Curvature`: The curvature of the expression.
-- `sign::SymbolicAnalysis.Sign`: The sign of the expression.
-- `gcurvature::Union{SymbolicAnalysis.GCurvature,Nothing}`: The geodesic curvature of the expression if `M` is provided. Otherwise, `nothing`.
+
+  - `curvature::SymbolicAnalysis.Curvature`: The curvature of the expression.
+  - `sign::SymbolicAnalysis.Sign`: The sign of the expression.
+  - `gcurvature::Union{SymbolicAnalysis.GCurvature,Nothing}`: The geodesic curvature of the expression if `M` is provided. Otherwise, `nothing`.
 """
-function analyze(ex, M::Union{AbstractManifold,Nothing} = nothing)
+function analyze(ex, M::Union{AbstractManifold, Nothing} = nothing)
     ex = unwrap(ex)
     ex = canonize(ex)
     ex = propagate_sign(ex)
@@ -48,7 +49,7 @@ function analyze(ex, M::Union{AbstractManifold,Nothing} = nothing)
     if isnothing(M)
         return AnalysisResult(getcurvature(ex), getsign(ex), nothing)
     else
-        @assert M isa SymmetricPositiveDefinite || M isa Lorentz "Only SymmetricPositiveDefinite and Lorentz manifolds are currently supported"
+        @assert M isa SymmetricPositiveDefinite||M isa Lorentz "Only SymmetricPositiveDefinite and Lorentz manifolds are currently supported"
         ex = propagate_gcurvature(ex, M)
         return AnalysisResult(getcurvature(ex), getsign(ex), getgcurvature(ex))
     end

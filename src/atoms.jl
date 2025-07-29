@@ -10,7 +10,7 @@ add_dcprule(
     (array_domain(RealLine()), array_domain(RealLine())),
     AnySign,
     Affine,
-    Increasing,
+    Increasing
 )
 
 """
@@ -19,6 +19,7 @@ add_dcprule(
 Sorts `x` and `y` and returns the dot product of the sorted vectors.
 
 # Arguments
+
     - `x::AbstractVector`: A vector.
     - `y::AbstractVector`: A vector.
 """
@@ -34,22 +35,22 @@ add_dcprule(
     (array_domain(RealLine(), 1), array_domain(RealLine(), 1)),
     AnySign,
     Convex,
-    (AnyMono, increasing_if_positive ∘ minimum),
+    (AnyMono, increasing_if_positive ∘ minimum)
 )
 
 add_dcprule(
     StatsBase.geomean,
-    array_domain(HalfLine{Real,:open}(), 1),
+    array_domain(HalfLine{Real, :open}(), 1),
     Positive,
     Concave,
-    Increasing,
+    Increasing
 )
 add_dcprule(
     StatsBase.harmmean,
-    array_domain(HalfLine{Real,:open}(), 1),
+    array_domain(HalfLine{Real, :open}(), 1),
     Positive,
     Concave,
-    Increasing,
+    Increasing
 )
 
 """
@@ -58,6 +59,7 @@ add_dcprule(
 Returns the inverse of the product of the elements of `x`.
 
 # Arguments
+
     - `x::AbstractVector`: A vector.
 """
 function invprod(x::AbstractVector)
@@ -68,7 +70,7 @@ function invprod(x::AbstractVector)
 end
 Symbolics.@register_symbolic invprod(x::AbstractVector)
 
-add_dcprule(invprod, array_domain(HalfLine{Real,:open}()), Positive, Convex, Decreasing)
+add_dcprule(invprod, array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing)
 
 add_dcprule(eigmax, symmetric_domain(), AnySign, Convex, AnyMono)
 
@@ -80,6 +82,7 @@ add_dcprule(eigmin, symmetric_domain(), AnySign, Concave, AnyMono)
 Returns the sum of the `k` largest eigenvalues of `m`.
 
 # Arguments
+
     - `m::Symmetric`: A symmetric matrix.
     - `k::Int`: The Real of largest eigenvalues to sum.
 """
@@ -88,7 +91,7 @@ function eigsummax(m::Symmetric, k::Int)
         throw(DomainError(k, "k must be between 1 and size(m, 1)"))
     end
     nrows = size(m, 1)
-    return sum(eigvals(m, nrows-k+1:nrows))
+    return sum(eigvals(m, (nrows - k + 1):nrows))
 end
 Symbolics.@register_symbolic eigsummax(m::Matrix, k::Int)
 add_dcprule(eigsummax, (array_domain(RealLine(), 2), RealLine()), AnySign, Convex, AnyMono)
@@ -99,6 +102,7 @@ add_dcprule(eigsummax, (array_domain(RealLine(), 2), RealLine()), AnySign, Conve
 Returns the sum of the `k` smallest eigenvalues of `m`.
 
 # Arguments
+
     - `m::Symmetric`: A symmetric matrix.
     - `k::Int`: The Real of smallest eigenvalues to sum.
 """
@@ -118,7 +122,7 @@ add_dcprule(
     array_domain(RealLine(), 2),
     AnySign,
     Convex,
-    Increasing,
+    Increasing
 )
 
 """
@@ -127,6 +131,7 @@ add_dcprule(
 Returns the quadratic form `x' * P^{-1} * x`.
 
 # Arguments
+
     - `x::AbstractVector`: A vector.
     - `P::AbstractMatrix`: A matrix.
 """
@@ -142,7 +147,7 @@ add_dcprule(
     (array_domain(RealLine(), 1), definite_domain()),
     AnySign,
     Convex,
-    AnyMono,
+    AnyMono
 )
 
 add_dcprule(maximum, array_domain(RealLine()), AnySign, Convex, Increasing)
@@ -152,17 +157,17 @@ add_dcprule(minimum, array_domain(RealLine()), AnySign, Concave, Increasing)
 #incorrect for p<1
 add_dcprule(
     norm,
-    (array_domain(RealLine()), Interval{:closed,:open}(1, Inf)),
+    (array_domain(RealLine()), Interval{:closed, :open}(1, Inf)),
     Positive,
     Convex,
-    increasing_if_positive,
+    increasing_if_positive
 )
 add_dcprule(
     norm,
-    (array_domain(RealLine()), Interval{:closed,:open}(0, 1)),
+    (array_domain(RealLine()), Interval{:closed, :open}(0, 1)),
     Positive,
     Convex,
-    increasing_if_positive,
+    increasing_if_positive
 )
 
 """
@@ -171,6 +176,7 @@ add_dcprule(
 Returns the perspective function `s * f(x / s)`.
 
 # Arguments
+
     - `f::Function`: A function.
     - `x`: A Real.
     - `s::Real`: A positive Real.
@@ -190,7 +196,7 @@ add_dcprule(
     (function_domain(), RealLine(), Positive),
     getsign,
     getcurvature,
-    AnyMono,
+    AnyMono
 )
 
 """
@@ -199,6 +205,7 @@ add_dcprule(
 Returns the quadratic form `x' * P * x`.
 
 # Arguments
+
     - `x::AbstractVector`: A vector.
     - `P::AbstractMatrix`: A matrix.
 """
@@ -214,7 +221,7 @@ add_dcprule(
     (array_domain(RealLine(), 1), semidefinite_domain()),
     Positive,
     Convex,
-    (increasing_if_positive, Increasing),
+    (increasing_if_positive, Increasing)
 )
 
 function quad_over_lin(x::Vector{<:Real}, y::Real)
@@ -232,6 +239,7 @@ Symbolics.@register_symbolic quad_over_lin(x::AbstractVector, y::Real) false
 Returns the quadratic over linear form `x^2 / y`.
 
 # Arguments
+
     - `x`: A Real or a vector.
     - `y::Real`: A positive Real.
 """
@@ -246,18 +254,18 @@ Symbolics.@register_symbolic quad_over_lin(x::Real, y::Real)
 
 add_dcprule(
     quad_over_lin,
-    (array_domain(RealLine()), HalfLine{Real,:open}()),
+    (array_domain(RealLine()), HalfLine{Real, :open}()),
     Positive,
     Convex,
-    (increasing_if_positive, Decreasing),
+    (increasing_if_positive, Decreasing)
 )
 
 add_dcprule(
     quad_over_lin,
-    (RealLine(), HalfLine{Real,:open}()),
+    (RealLine(), HalfLine{Real, :open}()),
     Positive,
     Convex,
-    (increasing_if_positive, Decreasing),
+    (increasing_if_positive, Decreasing)
 )
 
 add_dcprule(sum, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
@@ -268,11 +276,12 @@ add_dcprule(sum, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 Returns the sum of the `k` largest elements of `x`.
 
 # Arguments
+
     - `x::AbstractMatrix`: A matrix.
     - `k::Int`: The Real of largest elements to sum.
 """
 function sum_largest(x::AbstractMatrix, k::Integer)
-    return sum(sort(vec(x))[end-k:end])
+    return sum(sort(vec(x))[(end - k):end])
 end
 Symbolics.@register_symbolic sum_largest(x::AbstractMatrix, k::Integer)
 add_dcprule(sum_largest, (array_domain(RealLine(), 2), ℤ), AnySign, Convex, Increasing)
@@ -283,6 +292,7 @@ add_dcprule(sum_largest, (array_domain(RealLine(), 2), ℤ), AnySign, Convex, In
 Returns the sum of the `k` smallest elements of `x`.
 
 # Arguments
+
     - `x::AbstractMatrix`: A matrix.
     - `k::Int`: The Real of smallest elements to sum.
 """
@@ -301,6 +311,7 @@ add_dcprule(tr, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 Returns the trace of the inverse of `x`.
 
 # Arguments
+
     - `x::AbstractMatrix`: A matrix.
 """
 function trinv(x::AbstractMatrix)
@@ -315,10 +326,11 @@ add_dcprule(trinv, definite_domain(), Positive, Convex, AnyMono)
 Returns the total variation of `x`, defined as `sum_i |x_{i+1} - x_i|`.
 
 # Arguments
+
     - `x::AbstractVector`: A vector.
 """
 function tv(x::Vector{<:Real})
-    return sum(abs.(x[2:end] - x[1:end-1]))
+    return sum(abs.(x[2:end] - x[1:(end - 1)]))
 end
 Symbolics.@register_symbolic tv(x::AbstractVector) false
 add_dcprule(tv, array_domain(RealLine(), 1), Positive, Convex, AnyMono)
@@ -329,12 +341,13 @@ add_dcprule(tv, array_domain(RealLine(), 1), Positive, Convex, AnyMono)
 Returns the total variation of `x`, defined as `sum_{i,j} |x_{k+1}[i,j] - x_k[i,j]|`.
 
 # Arguments
+
     - `x::AbstractVector`: A vector of matrices.
 """
 function tv(x::AbstractVector{<:AbstractMatrix})
-    return sum(map(1:size(x, 1)-1) do i
-        map(1:size(x, 2)-1) do j
-            norm([x[k][i+1, j] - x[k][i, j] for k in eachindex(x)])
+    return sum(map(1:(size(x, 1) - 1)) do i
+        map(1:(size(x, 2) - 1)) do j
+            norm([x[k][i + 1, j] - x[k][i, j] for k in eachindex(x)])
         end
     end)
 end
@@ -355,6 +368,7 @@ add_dcprule(xlogx, RealLine(), AnySign, Convex, AnyMono)
 Returns the Huber loss function of `x` with threshold `M`.
 
 # Arguments
+
     - `x::Real`: A Real.
     - `M::Real`: The threshold.
 """
@@ -374,8 +388,8 @@ add_dcprule(huber, (RealLine(), HalfLine()), Positive, Convex, increasing_if_pos
 
 add_dcprule(imag, ℂ, AnySign, Affine, AnyMono)
 
-add_dcprule(inv, HalfLine{Real,:open}(), Positive, Convex, Decreasing)
-add_dcprule(log, HalfLine{Real,:open}(), AnySign, Concave, Increasing)
+add_dcprule(inv, HalfLine{Real, :open}(), Positive, Convex, Decreasing)
+add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 
 @register_symbolic Base.log(A::Symbolics.Arr)
 add_dcprule(log, array_domain(RealLine(), 2), Positive, Concave, Increasing)
@@ -388,10 +402,10 @@ add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
 
 add_dcprule(
     kldivergence,
-    (array_domain(HalfLine{Real,:open}, 1), array_domain(HalfLine{Real,:open}, 1)),
+    (array_domain(HalfLine{Real, :open}, 1), array_domain(HalfLine{Real, :open}, 1)),
     Positive,
     Convex,
-    AnyMono,
+    AnyMono
 )
 
 """
@@ -400,6 +414,7 @@ add_dcprule(
 Returns the log of the normal cumulative distribution function of `x`.
 
 # Arguments
+
     - `x::Real`: A Real.
 """
 function lognormcdf(x::Real)
@@ -408,7 +423,7 @@ end
 Symbolics.@register_symbolic lognormcdf(x::Real)
 add_dcprule(lognormcdf, RealLine(), Negative, Concave, Increasing)
 
-add_dcprule(log1p, Interval{:open,:open}(-1, Inf), Negative, Concave, Increasing)
+add_dcprule(log1p, Interval{:open, :open}(-1, Inf), Negative, Concave, Increasing)
 
 add_dcprule(logistic, RealLine(), Positive, Convex, Increasing)
 
@@ -429,7 +444,7 @@ function dcprule(::typeof(^), x::Symbolic, i)
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing), args
     elseif i < 0
-        return makerule(HalfLine{Float64,:closed}(), Positive, Convex, Increasing), args
+        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing), args
     end
 end
 dcprule(::typeof(Base.literal_pow), f, x...) = dcprule(^, x...)
@@ -450,10 +465,10 @@ end
 Symbolics.@register_symbolic rel_entr(x::Real, y::Real)
 add_dcprule(
     rel_entr,
-    (HalfLine{Real,:open}(), HalfLine{Real,:open}()),
+    (HalfLine{Real, :open}(), HalfLine{Real, :open}()),
     AnySign,
     Convex,
-    (AnyMono, Decreasing),
+    (AnyMono, Decreasing)
 )
 
 add_dcprule(sqrt, HalfLine(), Positive, Concave, Increasing)
@@ -465,7 +480,7 @@ add_dcprule(
     (array_domain(RealLine(), 1), array_domain(RealLine(), 1)),
     AnySign,
     Affine,
-    AnyMono,
+    AnyMono
 )
 
 add_dcprule(cumsum, array_domain(RealLine()), AnySign, Affine, Increasing)
@@ -483,7 +498,7 @@ add_dcprule(
     (array_domain(RealLine(), 2), array_domain(RealLine(), 2)),
     AnySign,
     Affine,
-    Increasing,
+    Increasing
 )
 
 add_dcprule(reshape, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
