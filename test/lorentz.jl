@@ -51,7 +51,6 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
     ex = propagate_gcurvature(ex, M)
     @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
 
-
     @testset "Least Squares Problem" begin
         # Define variables for symbolic testing
         @variables p[1:3]
@@ -87,9 +86,8 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
         # @test isequal(simplify(expr), simplify(direct_expr))
     end
     # Test composition of functions
-    ex =
-        2.0 * Manifolds.distance(M, q, p) + SymbolicAnalysis.lorentz_log_barrier(p) |>
-        unwrap
+    ex = 2.0 * Manifolds.distance(M, q, p) + SymbolicAnalysis.lorentz_log_barrier(p) |>
+         unwrap
     ex = propagate_sign(ex)
     ex = propagate_gcurvature(ex, M)
     @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
