@@ -47,13 +47,13 @@ We can also assert the domain of the variable by assigning `VarDomain` metadata 
 x = setmetadata(
     x,
     SymbolicAnalysis.VarDomain,
-    OpenInterval(0,1),
+    OpenInterval(0, 1)
 )
 
 y = setmetadata(
     y,
     SymbolicAnalysis.VarDomain,
-    OpenInterval(0,1),
+    OpenInterval(0, 1)
 )
 
 ex = SymbolicAnalysis.quad_over_lin(x - y, 1 - max(x, y))
@@ -78,7 +78,7 @@ M = Lorentz(2)
 q = [0.0, 0.0, 1.0]  # A point on the Lorentz model
 
 # Create a composite function from Lorentz atoms
-ex = 2.0 * Manifolds.distance(M, q, p) + 
+ex = 2.0 * Manifolds.distance(M, q, p) +
      SymbolicAnalysis.lorentz_log_barrier(p)
 
 # Analyze the expression

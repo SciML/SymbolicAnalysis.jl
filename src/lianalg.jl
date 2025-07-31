@@ -6,7 +6,8 @@ function LinearAlgebra.ishermitian(A::AbstractMatrix{Num}; kwargs...)
     if indsm != indsn
         return false
     end
-    for i in indsn, j = i:last(indsn)
+    for i in indsn, j in i:last(indsn)
+
         d = simplify(A[i, j] - adjoint(A[j, i]))
         if !isapprox(d, 0.0; kwargs...)
             return false

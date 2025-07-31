@@ -7,7 +7,7 @@ using LinearAlgebra, Test
 y = setmetadata(
     y,
     SymbolicAnalysis.VarDomain,
-    Symbolics.DomainSets.HalfLine{Number,:open}(),
+    Symbolics.DomainSets.HalfLine{Number, :open}()
 )
 ex1 = exp(y) - log(y) |> unwrap
 ex1 = propagate_curvature(propagate_sign(ex1))
@@ -62,10 +62,8 @@ ex = propagate_curvature(propagate_sign(obj))
 @test_broken getcurvature(ex) == SymbolicAnalysis.Convex
 @test getsign(ex) == SymbolicAnalysis.Positive
 
-cons = [
-    x + y + z ~ 10
-    log1p(x)^2 - log1p(z) ≲ 0
-]
+cons = [x + y + z ~ 10
+        log1p(x)^2 - log1p(z) ≲ 0]
 
 ex = propagate_curvature(propagate_sign(cons[1].lhs |> unwrap))
 @test getcurvature(ex) == SymbolicAnalysis.Affine

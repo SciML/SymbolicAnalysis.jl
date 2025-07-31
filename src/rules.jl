@@ -16,29 +16,29 @@ function array_domain(element_domain)
 end
 
 function array_domain(element_domain, N)
-    CustomDomain{AbstractArray{<:Any,N}}() do xs
+    CustomDomain{AbstractArray{<:Any, N}}() do xs
         ndims(xs) == N && all(in(element_domain), xs)
     end
 end
 
 function symmetric_domain()
-    CustomDomain{AbstractArray{<:Any,2}}(issymmetric)
+    CustomDomain{AbstractArray{<:Any, 2}}(issymmetric)
 end
 
 function semidefinite_domain()
-    CustomDomain{AbstractArray{<:Any,2}}(isposdef) #not semi so needs to change
+    CustomDomain{AbstractArray{<:Any, 2}}(isposdef) #not semi so needs to change
 end
 
 function negsemidefinite_domain()
-    CustomDomain{AbstractArray{<:Any,2}}(isposdef ∘ -) #not semi so needs to change
+    CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -) #not semi so needs to change
 end
 
 function definite_domain()
-    CustomDomain{AbstractArray{<:Any,2}}(isposdef)
+    CustomDomain{AbstractArray{<:Any, 2}}(isposdef)
 end
 
 function negdefinite_domain()
-    CustomDomain{AbstractArray{<:Any,2}}(isposdef ∘ -)
+    CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -)
 end
 
 function function_domain()
@@ -57,20 +57,20 @@ function add_dcprule(f, domain, sign, curvature, monotonicity)
         monotonicity = (monotonicity,)
     end
     if f in keys(dcprules_dict)
-        dcprules_dict[f] =
-            vcat(dcprules_dict[f], makerule(domain, sign, curvature, monotonicity))
+        dcprules_dict[f] = vcat(dcprules_dict[f], makerule(domain, sign, curvature, monotonicity))
     else
         dcprules_dict[f] = makerule(domain, sign, curvature, monotonicity)
     end
 end
 
-makerule(domain, sign, curvature, monotonicity) =
+function makerule(domain, sign, curvature, monotonicity)
     (; domain = domain, sign = sign, curvature = curvature, monotonicity = monotonicity)
+end
 
 hasdcprule(f::Function) = haskey(dcprules_dict, f)
 hasdcprule(f) = false
 
-Symbolics.hasmetadata(::Union{Real,AbstractArray{<:Real}}, args...) = false
+Symbolics.hasmetadata(::Union{Real, AbstractArray{<:Real}}, args...) = false
 
 function dcprule(f, args...)
     if all(hasmetadata.(args, Ref(VarDomain)))
@@ -84,7 +84,7 @@ function dcprule(f, args...)
     end
 
     if dcprules_dict[f] isa Vector
-        for i = 1:length(dcprules_dict[f])
+        for i in 1:length(dcprules_dict[f])
             if (dcprules_dict[f][i].domain isa Domain) &&
                all(issubset.(argsdomain, Ref(dcprules_dict[f][i].domain)))
                 return dcprules_dict[f][i], args
@@ -94,8 +94,8 @@ function dcprule(f, args...)
             else
                 throw(
                     ArgumentError(
-                        "No DCP rule found for $f with arguments $args with domain $argsdomain",
-                    ),
+                    "No DCP rule found for $f with arguments $args with domain $argsdomain",
+                ),
                 )
             end
         end
@@ -111,17 +111,17 @@ function dcprule(f, args...)
 end
 
 ### Sign ###
-setsign(ex::Union{Num,Symbolic}, sign) = setmetadata(ex, Sign, sign)
+setsign(ex::Union{Num, Symbolic}, sign) = setmetadata(ex, Sign, sign)
 setsign(ex, sign) = ex
 
-function getsign(ex::Union{Num,Symbolic})
+function getsign(ex::Union{Num, Symbolic})
     if hasmetadata(ex, Sign)
         return getmetadata(ex, Sign)
     end
     return AnySign
 end
 
-getsign(ex::Union{AbstractFloat,Integer}) = ex < 0 ? Negative : Positive
+getsign(ex::Union{AbstractFloat, Integer}) = ex < 0 ? Negative : Positive
 
 function getsign(ex::AbstractArray)
     if all(x -> getsign(x) == Negative, ex)
@@ -133,7 +133,7 @@ function getsign(ex::AbstractArray)
     end
 end
 
-hassign(ex::Union{Num,Symbolic}) = hasmetadata(ex, Sign)
+hassign(ex::Union{Num, Symbolic}) = hasmetadata(ex, Sign)
 hassign(ex) = ex isa Real
 
 hassign(ex::typeof(Base.broadcast)) = true
@@ -175,22 +175,20 @@ end
 
 function propagate_sign(ex)
     # Step 1: set the sign of all variables to be AnySign
-    rs = [
-        @rule ~x::issym => setsign(~x, AnySign) where {hassign(~x)}
-        @rule ~x::iscall => setsign(~x, AnySign) where {hassign(~x)}
-        @rule ~x::issym => setsign(~x, (dcprule(~x))[1].sign) where {hasdcprule(~x)}
-        @rule ~x::issym => setsign(~x, (gdcprule(~x))[1].sign) where {hasgdcprule(~x)}
-        @rule ~x::iscall => setsign(
-            ~x,
-            (dcprule(operation(~x), arguments(~x)...)[1].sign),
-        ) where {hasdcprule(operation(~x))}
-        @rule ~x::iscall => setsign(
-            ~x,
-            (gdcprule(operation(~x), arguments(~x)...)[1].sign),
-        ) where {hasgdcprule(operation(~x))}
-        @rule *(~~x) => setsign(~MATCH, mul_sign(~~x))
-        @rule +(~~x) => setsign(~MATCH, add_sign(~~x))
-    ]
+    rs = [@rule ~x::issym => setsign(~x, AnySign) where {hassign(~x)}
+          @rule ~x::iscall => setsign(~x, AnySign) where {hassign(~x)}
+          @rule ~x::issym => setsign(~x, (dcprule(~x))[1].sign) where {hasdcprule(~x)}
+          @rule ~x::issym => setsign(~x, (gdcprule(~x))[1].sign) where {hasgdcprule(~x)}
+          @rule ~x::iscall => setsign(
+              ~x,
+              (dcprule(operation(~x), arguments(~x)...)[1].sign)
+          ) where {hasdcprule(operation(~x))}
+          @rule ~x::iscall => setsign(
+              ~x,
+              (gdcprule(operation(~x), arguments(~x)...)[1].sign)
+          ) where {hasgdcprule(operation(~x))}
+          @rule *(~~x) => setsign(~MATCH, mul_sign(~~x))
+          @rule +(~~x) => setsign(~MATCH, add_sign(~~x))]
     rc = Chain(rs)
     ex = Postwalk(rc)(ex)
     ex = Prewalk(rc)(ex)
@@ -199,11 +197,11 @@ end
 
 ### Curvature ###
 
-setcurvature(ex::Union{Num,Symbolic}, curv) = setmetadata(ex, Curvature, curv)
+setcurvature(ex::Union{Num, Symbolic}, curv) = setmetadata(ex, Curvature, curv)
 setcurvature(ex, curv) = ex
-getcurvature(ex::Union{Num,Symbolic}) = getmetadata(ex, Curvature)
+getcurvature(ex::Union{Num, Symbolic}) = getmetadata(ex, Curvature)
 getcurvature(ex) = Affine
-hascurvature(ex::Union{Num,Symbolic}) = hasmetadata(ex, Curvature)
+hascurvature(ex::Union{Num, Symbolic}) = hasmetadata(ex, Curvature)
 hascurvature(ex) = ex isa Real
 
 function mul_curvature(args)
@@ -239,11 +237,9 @@ function add_curvature(args)
 end
 
 function propagate_curvature(ex)
-    rs = [
-        @rule *(~~x) => setcurvature(~MATCH, mul_curvature(~~x))
-        @rule +(~~x) => setcurvature(~MATCH, add_curvature(~~x))
-        @rule ~x => setcurvature(~x, find_curvature(~x))
-    ]
+    rs = [@rule *(~~x) => setcurvature(~MATCH, mul_curvature(~~x))
+          @rule +(~~x) => setcurvature(~MATCH, add_curvature(~~x))
+          @rule ~x => setcurvature(~x, find_curvature(~x))]
     rc = Chain(rs)
     ex = Postwalk(rc)(ex)
     ex = Prewalk(rc)(ex)
