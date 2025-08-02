@@ -21,7 +21,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 DSP = "0.7"
-DataStructures = "0.18"
+DataStructures = "0.18, 0.19"
 Dictionaries = "0.4"
 Distributions = "0.25"
 DomainSets = "0.7"
