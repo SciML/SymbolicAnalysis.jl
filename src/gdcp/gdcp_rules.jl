@@ -36,7 +36,7 @@ function mul_gcurvature(args)
         @assert length(non_constants) <= 1
     catch
         @warn "DGCP does not support multiple non-constant arguments in multiplication"
-        return UnknownGCurvature
+        return GUnknownCurvature
     end
     if !isempty(non_constants)
         expr = args[first(non_constants)]
@@ -139,7 +139,7 @@ function find_gcurvature(ex)
                 end
             else
                 @warn "Disciplined Programming does not support multiple non-constant arguments in multiplication"
-                return UnknownGCurvature
+                return GUnknownCurvature
             end
         end
 
