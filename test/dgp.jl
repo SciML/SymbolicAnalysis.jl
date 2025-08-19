@@ -84,9 +84,9 @@ analyze_res = analyze(objective_expr, M)
 @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
 
 @variables Y[1:5, 1:5]
-ex = sqrt(X * Y) |> unwrap
-ex = SymbolicAnalysis.propagate_sign(ex)
-@test_throws SymbolicUtils.RuleRewriteError SymbolicAnalysis.propagate_gcurvature(ex, M)
+ex = sqrt(X * Y)
+analyze_res = analyze(ex, M)
+@test analyze_res.gcurvature == SymbolicAnalysis.GUnknownCurvature
 
 # ex = exp(X*Y) |> unwrap
 # ex = SymbolicAnalysis.propagate_sign(ex)
