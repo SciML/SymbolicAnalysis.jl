@@ -197,6 +197,7 @@ function find_gcurvature(ex)
     else
         return GLinear
     end
+    return GUnknownCurvature
 end
 
 function propagate_gcurvature(ex, M::AbstractManifold)
