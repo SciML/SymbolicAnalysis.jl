@@ -27,7 +27,7 @@ function dotsort(x::AbstractVector, y::AbstractVector)
     if length(x) != length(y)
         throw(DimensionMismatch("AbstractVectors must have same length"))
     end
-    return dot(sort.(x), sort.(y))
+    return dot(sort(x), sort(y))
 end
 Symbolics.@register_symbolic dotsort(x::AbstractVector, y::AbstractVector)
 add_dcprule(
@@ -224,7 +224,7 @@ add_dcprule(
     (increasing_if_positive, Increasing)
 )
 
-function quad_over_lin(x::Vector{<:Real}, y::Real)
+function quad_over_lin(x::AbstractVector{<:Real}, y::Real)
     if getsign(y) == Negative
         throw(DomainError(y, "y must be positive"))
     end
@@ -329,7 +329,7 @@ Returns the total variation of `x`, defined as `sum_i |x_{i+1} - x_i|`.
 
     - `x::AbstractVector`: A vector.
 """
-function tv(x::Vector{<:Real})
+function tv(x::AbstractVector{<:Real})
     return sum(abs.(x[2:end] - x[1:(end - 1)]))
 end
 Symbolics.@register_symbolic tv(x::AbstractVector) false

@@ -19,3 +19,7 @@ end
 @testset "DGCP - Lorentz Manifold" begin
     include("lorentz.jl")
 end
+
+@testset "Interface Compatibility" begin
+    include("interface_tests.jl")
+end
