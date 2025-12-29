@@ -84,7 +84,7 @@ Returns the sum of the `k` largest eigenvalues of `m`.
 # Arguments
 
     - `m::Symmetric`: A symmetric matrix.
-    - `k::Int`: The Real of largest eigenvalues to sum.
+    - `k::Int`: The number of largest eigenvalues to sum.
 """
 function eigsummax(m::Symmetric, k::Int)
     if k < 1 || k > size(m, 1)
@@ -104,7 +104,7 @@ Returns the sum of the `k` smallest eigenvalues of `m`.
 # Arguments
 
     - `m::Symmetric`: A symmetric matrix.
-    - `k::Int`: The Real of smallest eigenvalues to sum.
+    - `k::Int`: The number of smallest eigenvalues to sum.
 """
 function eigsummin(m::Symmetric, k::Int)
     if k < 1 || k > size(m, 1)
@@ -278,7 +278,7 @@ Returns the sum of the `k` largest elements of `x`.
 # Arguments
 
     - `x::AbstractMatrix`: A matrix.
-    - `k::Int`: The Real of largest elements to sum.
+    - `k::Int`: The number of largest elements to sum.
 """
 function sum_largest(x::AbstractMatrix, k::Integer)
     return sum(sort(vec(x))[(end - k):end])
@@ -294,7 +294,7 @@ Returns the sum of the `k` smallest elements of `x`.
 # Arguments
 
     - `x::AbstractMatrix`: A matrix.
-    - `k::Int`: The Real of smallest elements to sum.
+    - `k::Int`: The number of smallest elements to sum.
 """
 function sum_smallest(x::AbstractMatrix, k::Integer)
     return sum(sort(vec(x))[1:k])

@@ -5,5 +5,5 @@ we have implemented them here.
 
 ```@autodocs
 Modules=[SymbolicAnalysis]
-Pages=["atoms.jl", "spd.jl"]
+Pages=["atoms.jl", "gdcp/spd.jl", "gdcp/lorentz.jl"]
 ```

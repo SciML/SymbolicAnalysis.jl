@@ -1,6 +1,6 @@
 # SymbolicAnalysis.jl
 
-<a href="https://vaibhavdixit02.github.io/SymbolicAnalysis.jl/dev/"><img src='https://img.shields.io/badge/docs-dev-blue.svg'/></a>
+<a href="https://sciml.github.io/SymbolicAnalysis.jl/dev/"><img src='https://img.shields.io/badge/docs-dev-blue.svg'/></a>
 
 Symbolics.jl based function property propagation for optimization
 
