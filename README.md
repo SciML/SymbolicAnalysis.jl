@@ -14,3 +14,4 @@ propagation of several of these properties - limited right now to Euclidean Conv
 Positive Definite manifold. This package provides an easier to expand implementation of functional properties than the previous
 implementations [CVXPY](https://www.cvxpy.org/index.html) and [Convex.jl](https://github.com/jump-dev/Convex.jl) as well as a
 more performant implementation of the function property propagation.
+
