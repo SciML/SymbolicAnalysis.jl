@@ -86,7 +86,10 @@ analyze_res = analyze(objective_expr, M)
 @variables Y[1:5, 1:5]
 ex = sqrt(X * Y) |> unwrap
 ex = SymbolicAnalysis.propagate_sign(ex)
-@test_throws SymbolicUtils.RuleRewriteError SymbolicAnalysis.propagate_gcurvature(ex, M)
+# DGCP doesn't support multiple non-constant arguments in multiplication
+# so the result should be GUnknownCurvature
+ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
+@test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GUnknownCurvature
 
 # ex = exp(X*Y) |> unwrap
 # ex = SymbolicAnalysis.propagate_sign(ex)

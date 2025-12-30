@@ -19,3 +19,11 @@ end
 @testset "DGCP - Lorentz Manifold" begin
     include("lorentz.jl")
 end
+
+# AllocCheck tests - run separately to avoid precompilation overhead
+# These tests verify that key operations have minimal allocations
+if get(ENV, "SYMBOLICANALYSIS_TEST_ALLOC", "true") == "true"
+    @testset "Allocation Tests" begin
+        include("alloc_tests.jl")
+    end
+end
