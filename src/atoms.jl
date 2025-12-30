@@ -27,7 +27,7 @@ function dotsort(x::AbstractVector, y::AbstractVector)
     if length(x) != length(y)
         throw(DimensionMismatch("AbstractVectors must have same length"))
     end
-    return dot(sort.(x), sort.(y))
+    return dot(sort(x), sort(y))
 end
 Symbolics.@register_symbolic dotsort(x::AbstractVector, y::AbstractVector)
 add_dcprule(
