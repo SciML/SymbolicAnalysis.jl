@@ -66,7 +66,7 @@ function invprod(x::AbstractVector)
     if any(iszero(x))
         throw(DivideError())
     end
-    inv(prod(x))
+    return inv(prod(x))
 end
 Symbolics.@register_symbolic invprod(x::AbstractVector)
 
@@ -188,7 +188,7 @@ function perspective(f::Function, x, s::Real)
     if s == 0
         return zero(typeof(f(x)))
     end
-    s * f(x / s)
+    return s * f(x / s)
 end
 Symbolics.@register_symbolic perspective(f::Function, x, s::Real)
 add_dcprule(
@@ -345,11 +345,13 @@ Returns the total variation of `x`, defined as `sum_{i,j} |x_{k+1}[i,j] - x_k[i,
     - `x::AbstractVector`: A vector of matrices.
 """
 function tv(x::AbstractVector{<:AbstractMatrix})
-    return sum(map(1:(size(x, 1) - 1)) do i
-        map(1:(size(x, 2) - 1)) do j
-            norm([x[k][i + 1, j] - x[k][i, j] for k in eachindex(x)])
+    return sum(
+        map(1:(size(x, 1) - 1)) do i
+            map(1:(size(x, 2) - 1)) do j
+                norm([x[k][i + 1, j] - x[k][i, j] for k in eachindex(x)])
+            end
         end
-    end)
+    )
 end
 add_dcprule(tv, array_domain(array_domain(RealLine(), 2), 1), Positive, Convex, AnyMono)
 
@@ -460,7 +462,7 @@ function rel_entr(x::Real, y::Real)
     if x == 0
         return 0
     end
-    x * log(x / y)
+    return x * log(x / y)
 end
 Symbolics.@register_symbolic rel_entr(x::Real, y::Real)
 add_dcprule(
