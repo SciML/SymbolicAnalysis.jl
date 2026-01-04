@@ -1,4 +1,3 @@
-
 @enum Sign Positive Negative AnySign
 @enum Curvature Convex Concave Affine UnknownCurvature
 @enum Monotonicity Increasing Decreasing AnyMono
@@ -10,44 +9,44 @@ end
 Base.in(x, c::CustomDomain) = c.in(x)
 
 function array_domain(element_domain)
-    CustomDomain{AbstractArray}() do xs
+    return CustomDomain{AbstractArray}() do xs
         all(in(element_domain), xs)
     end
 end
 
 function array_domain(element_domain, N)
-    CustomDomain{AbstractArray{<:Any, N}}() do xs
+    return CustomDomain{AbstractArray{<:Any, N}}() do xs
         ndims(xs) == N && all(in(element_domain), xs)
     end
 end
 
 function symmetric_domain()
-    CustomDomain{AbstractArray{<:Any, 2}}(issymmetric)
+    return CustomDomain{AbstractArray{<:Any, 2}}(issymmetric)
 end
 
 function semidefinite_domain()
-    CustomDomain{AbstractArray{<:Any, 2}}(isposdef) #not semi so needs to change
+    return CustomDomain{AbstractArray{<:Any, 2}}(isposdef) #not semi so needs to change
 end
 
 function negsemidefinite_domain()
-    CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -) #not semi so needs to change
+    return CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -) #not semi so needs to change
 end
 
 function definite_domain()
-    CustomDomain{AbstractArray{<:Any, 2}}(isposdef)
+    return CustomDomain{AbstractArray{<:Any, 2}}(isposdef)
 end
 
 function negdefinite_domain()
-    CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -)
+    return CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -)
 end
 
 function function_domain()
-    CustomDomain{Function}(x -> typeassert(x, Function))
+    return CustomDomain{Function}(x -> typeassert(x, Function))
 end
 
 function increasing_if_positive(x)
     sign = getsign(x)
-    sign == AnySign ? AnyMono : sign == Positive ? Increasing : Decreasing
+    return sign == AnySign ? AnyMono : sign == Positive ? Increasing : Decreasing
 end
 
 const dcprules_dict = Dict()
@@ -56,7 +55,7 @@ function add_dcprule(f, domain, sign, curvature, monotonicity)
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
     end
-    if f in keys(dcprules_dict)
+    return if f in keys(dcprules_dict)
         dcprules_dict[f] = vcat(dcprules_dict[f], makerule(domain, sign, curvature, monotonicity))
     else
         dcprules_dict[f] = makerule(domain, sign, curvature, monotonicity)
@@ -64,7 +63,7 @@ function add_dcprule(f, domain, sign, curvature, monotonicity)
 end
 
 function makerule(domain, sign, curvature, monotonicity)
-    (; domain = domain, sign = sign, curvature = curvature, monotonicity = monotonicity)
+    return (; domain = domain, sign = sign, curvature = curvature, monotonicity = monotonicity)
 end
 
 hasdcprule(f::Function) = haskey(dcprules_dict, f)
@@ -86,24 +85,24 @@ function dcprule(f, args...)
     if dcprules_dict[f] isa Vector
         for i in 1:length(dcprules_dict[f])
             if (dcprules_dict[f][i].domain isa Domain) &&
-               all(issubset.(argsdomain, Ref(dcprules_dict[f][i].domain)))
+                    all(issubset.(argsdomain, Ref(dcprules_dict[f][i].domain)))
                 return dcprules_dict[f][i], args
             elseif !(dcprules_dict[f][i].domain isa Domain) &&
-                   all(issubset.(argsdomain, dcprules_dict[f][i].domain))
+                    all(issubset.(argsdomain, dcprules_dict[f][i].domain))
                 return dcprules_dict[f][i], args
             else
                 throw(
                     ArgumentError(
-                    "No DCP rule found for $f with arguments $args with domain $argsdomain",
-                ),
+                        "No DCP rule found for $f with arguments $args with domain $argsdomain",
+                    ),
                 )
             end
         end
     elseif (dcprules_dict[f].domain isa Domain) &&
-           all(issubset.(argsdomain, Ref(dcprules_dict[f].domain)))
+            all(issubset.(argsdomain, Ref(dcprules_dict[f].domain)))
         return dcprules_dict[f], args
     elseif dcprules_dict[f].domain isa Tuple &&
-           all(issubset.(argsdomain, dcprules_dict[f].domain))
+            all(issubset.(argsdomain, dcprules_dict[f].domain))
         return dcprules_dict[f], args
     else
         throw(ArgumentError("No DCP rule found for $f with arguments $args"))
@@ -151,7 +150,7 @@ function add_sign(args)
         end
     end
     signs = reduce(vcat, getsign.(args))
-    if any(==(AnySign), signs)
+    return if any(==(AnySign), signs)
         AnySign
     elseif all(==(Negative), signs)
         Negative
@@ -164,7 +163,7 @@ end
 
 function mul_sign(args)
     signs = getsign.(args)
-    if any(==(AnySign), signs)
+    return if any(==(AnySign), signs)
         AnySign
     elseif isodd(count(==(Negative), signs))
         Negative
@@ -175,20 +174,22 @@ end
 
 function propagate_sign(ex)
     # Step 1: set the sign of all variables to be AnySign
-    rs = [@rule ~x::issym => setsign(~x, AnySign) where {hassign(~x)}
-          @rule ~x::iscall => setsign(~x, AnySign) where {hassign(~x)}
-          @rule ~x::issym => setsign(~x, (dcprule(~x))[1].sign) where {hasdcprule(~x)}
-          @rule ~x::issym => setsign(~x, (gdcprule(~x))[1].sign) where {hasgdcprule(~x)}
-          @rule ~x::iscall => setsign(
-              ~x,
-              (dcprule(operation(~x), arguments(~x)...)[1].sign)
-          ) where {hasdcprule(operation(~x))}
-          @rule ~x::iscall => setsign(
-              ~x,
-              (gdcprule(operation(~x), arguments(~x)...)[1].sign)
-          ) where {hasgdcprule(operation(~x))}
-          @rule *(~~x) => setsign(~MATCH, mul_sign(~~x))
-          @rule +(~~x) => setsign(~MATCH, add_sign(~~x))]
+    rs = [
+        @rule ~x::issym => setsign(~x, AnySign) where {hassign(~x)}
+        @rule ~x::iscall => setsign(~x, AnySign) where {hassign(~x)}
+        @rule ~x::issym => setsign(~x, (dcprule(~x))[1].sign) where {hasdcprule(~x)}
+        @rule ~x::issym => setsign(~x, (gdcprule(~x))[1].sign) where {hasgdcprule(~x)}
+        @rule ~x::iscall => setsign(
+            ~x,
+            (dcprule(operation(~x), arguments(~x)...)[1].sign)
+        ) where {hasdcprule(operation(~x))}
+        @rule ~x::iscall => setsign(
+            ~x,
+            (gdcprule(operation(~x), arguments(~x)...)[1].sign)
+        ) where {hasgdcprule(operation(~x))}
+        @rule *(~~x) => setsign(~MATCH, mul_sign(~~x))
+        @rule +(~~x) => setsign(~MATCH, add_sign(~~x))
+    ]
     rc = Chain(rs)
     ex = Postwalk(rc)(ex)
     ex = Prewalk(rc)(ex)
@@ -237,9 +238,11 @@ function add_curvature(args)
 end
 
 function propagate_curvature(ex)
-    rs = [@rule *(~~x) => setcurvature(~MATCH, mul_curvature(~~x))
-          @rule +(~~x) => setcurvature(~MATCH, add_curvature(~~x))
-          @rule ~x => setcurvature(~x, find_curvature(~x))]
+    rs = [
+        @rule *(~~x) => setcurvature(~MATCH, mul_curvature(~~x))
+        @rule +(~~x) => setcurvature(~MATCH, add_curvature(~~x))
+        @rule ~x => setcurvature(~x, find_curvature(~x))
+    ]
     rc = Chain(rs)
     ex = Postwalk(rc)(ex)
     ex = Prewalk(rc)(ex)
@@ -249,7 +252,7 @@ end
 
 function get_arg_property(monotonicity, i, args)
     @label start
-    if monotonicity isa Function
+    return if monotonicity isa Function
         monotonicity(args[i])
     elseif monotonicity isa Tuple && i <= length(monotonicity)
         monotonicity = monotonicity[i]
@@ -293,40 +296,40 @@ function find_curvature(ex)
 
         if f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                arg_curv = find_curvature(arg)
-                arg_curv == Affine
-            end
+                    arg_curv = find_curvature(arg)
+                    arg_curv == Affine
+                end
                 return Affine
             end
         elseif f_curvature == Convex || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                arg_curv = find_curvature(arg)
-                m = get_arg_property(f_monotonicity, i, args)
-                # @show f_monotonicity
-                # @show arg
-                # @show m
-                if arg_curv == Convex
-                    m == Increasing
-                elseif arg_curv == Concave
-                    m == Decreasing
-                else
-                    arg_curv == Affine
+                    arg_curv = find_curvature(arg)
+                    m = get_arg_property(f_monotonicity, i, args)
+                    # @show f_monotonicity
+                    # @show arg
+                    # @show m
+                    if arg_curv == Convex
+                        m == Increasing
+                    elseif arg_curv == Concave
+                        m == Decreasing
+                    else
+                        arg_curv == Affine
+                    end
                 end
-            end
                 return Convex
             end
         elseif f_curvature == Concave || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                arg_curv = find_curvature(arg)
-                m = f_monotonicity[i]
-                if arg_curv == Concave
-                    m == Increasing
-                elseif arg_curv == Convex
-                    m == Decreasing
-                else
-                    arg_curv == Affine
+                    arg_curv = find_curvature(arg)
+                    m = f_monotonicity[i]
+                    if arg_curv == Concave
+                        m == Increasing
+                    elseif arg_curv == Convex
+                        m == Decreasing
+                    else
+                        arg_curv == Affine
+                    end
                 end
-            end
                 return Concave
             end
         end
