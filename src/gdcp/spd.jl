@@ -263,7 +263,7 @@ Hadamard product or element-wise multiplication of a symmetric positive definite
 """
 function hadamard_product(X::AbstractMatrix, B::AbstractMatrix)
     if (!(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)) &&
-       !(any(prod(r) == 0.0 for r in eachrow(B)))
+            !(any(prod(r) == 0.0 for r in eachrow(B)))
         throw(DomainError(B, "B must be positive semi-definite and have no zero rows."))
     end
     return B .* X
