@@ -87,7 +87,7 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
     end
     # Test composition of functions
     ex = 2.0 * Manifolds.distance(M, q, p) + SymbolicAnalysis.lorentz_log_barrier(p) |>
-         unwrap
+        unwrap
     ex = propagate_sign(ex)
     ex = propagate_gcurvature(ex, M)
     @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex

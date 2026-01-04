@@ -15,7 +15,7 @@ makedocs(;
         "Home" => "index.md",
         "Examples" => "examples.md",
         "Atoms" => "atoms.md",
-        "Special Functions" => "functions.md"
+        "Special Functions" => "functions.md",
     ],
     warnonly = true
 )
