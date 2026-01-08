@@ -28,7 +28,7 @@ SymbolicAnalysis.getcurvature(ex)
 @variables Sigma[1:5, 1:5]
 xs = [rand(5) for i in 1:2]
 ex = sum(SymbolicAnalysis.log_quad_form(x, inv(Sigma)) for x in xs) +
-     1 / 5 * logdet(Sigma) |> Symbolics.unwrap
+    1 / 5 * logdet(Sigma) |> Symbolics.unwrap
 analyze_res = SymbolicAnalysis.analyze(ex, M)
 @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
 
@@ -84,9 +84,9 @@ analyze_res = analyze(objective_expr, M)
 @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
 
 @variables Y[1:5, 1:5]
-ex = sqrt(X * Y) |> unwrap
-ex = SymbolicAnalysis.propagate_sign(ex)
-@test_throws SymbolicUtils.RuleRewriteError SymbolicAnalysis.propagate_gcurvature(ex, M)
+ex = sqrt(X * Y)
+analyze_res = analyze(ex, M)
+@test analyze_res.gcurvature == SymbolicAnalysis.GUnknownCurvature
 
 # ex = exp(X*Y) |> unwrap
 # ex = SymbolicAnalysis.propagate_sign(ex)
@@ -115,7 +115,7 @@ ex = SymbolicAnalysis.propagate_sign(ex)
 
 # ################################
 using Optimization,
-      OptimizationManopt, Symbolics, Manifolds, Random, LinearAlgebra, SymbolicAnalysis
+    OptimizationManopt, Symbolics, Manifolds, Random, LinearAlgebra, SymbolicAnalysis
 
 M = SymmetricPositiveDefinite(5)
 m = 100
@@ -130,14 +130,14 @@ prob = OptimizationProblem(optf, data2[1]; manifold = M, structural_analysis = t
 
 opt = OptimizationManopt.GradientDescentOptimizer()
 @time sol = solve(prob, opt, maxiters = 100)
-@test sol.objective < 1e-2
+@test sol.objective < 1.0e-2
 
 M = SymmetricPositiveDefinite(5)
 xs = [rand(5) for i in 1:5]
 
 function f(S, p = nothing)
-    1 / length(xs) * sum(SymbolicAnalysis.log_quad_form(x, S) for x in xs) +
-    1 / 5 * logdet(inv(S))
+    return 1 / length(xs) * sum(SymbolicAnalysis.log_quad_form(x, S) for x in xs) +
+        1 / 5 * logdet(inv(S))
 end
 
 optf = OptimizationFunction(f, Optimization.AutoZygote())
@@ -156,7 +156,7 @@ A = A * A' #make it a SPD matrix
 
 function matsqrt(X, p = nothing) #setup objective function
     return SymbolicAnalysis.sdivergence(X, A) +
-           SymbolicAnalysis.sdivergence(X, Matrix{Float64}(LinearAlgebra.I(5)))
+        SymbolicAnalysis.sdivergence(X, Matrix{Float64}(LinearAlgebra.I(5)))
 end
 
 optf = OptimizationFunction(matsqrt, Optimization.AutoZygote()) #setup oracles
@@ -243,6 +243,6 @@ anres = analyze(ex, M)
 A = rand(5, 5)
 A = A * A'
 ex = logdet(SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, A, B)) |>
-     unwrap
+    unwrap
 anres = analyze(ex, M)
 @test anres.gcurvature == SymbolicAnalysis.GConvex

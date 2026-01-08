@@ -12,10 +12,10 @@ function add_gdcprule(f, manifold, sign, curvature, monotonicity)
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
     end
-    gdcprules_dict[f] = makegrule(manifold, sign, curvature, monotonicity)
+    return gdcprules_dict[f] = makegrule(manifold, sign, curvature, monotonicity)
 end
 function makegrule(manifold, sign, curvature, monotonicity)
-    (manifold = manifold, sign = sign, gcurvature = curvature, gmonotonicity = monotonicity)
+    return (manifold = manifold, sign = sign, gcurvature = curvature, gmonotonicity = monotonicity)
 end
 
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
@@ -36,7 +36,7 @@ function mul_gcurvature(args)
         @assert length(non_constants) <= 1
     catch
         @warn "DGCP does not support multiple non-constant arguments in multiplication"
-        return UnknownGCurvature
+        return GUnknownCurvature
     end
     if !isempty(non_constants)
         expr = args[first(non_constants)]
@@ -74,15 +74,15 @@ function find_gcurvature(ex)
             knowngcurv = true
         elseif f == LinearAlgebra.logdet
             if operation(args[1]) == conjugation ||
-               operation(args[1]) == LinearAlgebra.diag ||
-               Symbol(operation(args[1])) == :+ ||
-               operation(args[1]) == affine_map ||
-               operation(args[1]) == hadamard_product
+                    operation(args[1]) == LinearAlgebra.diag ||
+                    Symbol(operation(args[1])) == :+ ||
+                    operation(args[1]) == affine_map ||
+                    operation(args[1]) == hadamard_product
                 return GConvex
             end
         elseif f == log &&
-               iscall(args[1]) &&
-               (operation(args[1]) == LinearAlgebra.tr || operation(args[1]) == quad_form)
+                iscall(args[1]) &&
+                (operation(args[1]) == LinearAlgebra.tr || operation(args[1]) == quad_form)
             return GConvex
         elseif (f == schatten_norm || f == eigsummax) && operation(args[1]) == log
             return GConvex
@@ -139,7 +139,7 @@ function find_gcurvature(ex)
                 end
             else
                 @warn "Disciplined Programming does not support multiple non-constant arguments in multiplication"
-                return UnknownGCurvature
+                return GUnknownCurvature
             end
         end
 
@@ -151,38 +151,38 @@ function find_gcurvature(ex)
 
         if f_curvature == Convex || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                arg_curv = find_gcurvature(arg)
-                m = get_arg_property(f_monotonicity, i, args)
-                # @show arg
-                if arg_curv == GConvex
-                    m == Increasing
-                elseif arg_curv == GConcave
-                    m == Decreasing
-                else
-                    arg_curv == GLinear
+                    arg_curv = find_gcurvature(arg)
+                    m = get_arg_property(f_monotonicity, i, args)
+                    # @show arg
+                    if arg_curv == GConvex
+                        m == Increasing
+                    elseif arg_curv == GConcave
+                        m == Decreasing
+                    else
+                        arg_curv == GLinear
+                    end
                 end
-            end
                 return GConvex
             end
         elseif f_curvature == Concave || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                arg_curv = find_gcurvature(arg)
-                m = f_monotonicity[i]
-                if arg_curv == GConcave
-                    m == Increasing
-                elseif arg_curv == GConvex
-                    m == Decreasing
-                else
-                    arg_curv == GLinear
+                    arg_curv = find_gcurvature(arg)
+                    m = f_monotonicity[i]
+                    if arg_curv == GConcave
+                        m == Increasing
+                    elseif arg_curv == GConvex
+                        m == Decreasing
+                    else
+                        arg_curv == GLinear
+                    end
                 end
-            end
                 return GConcave
             end
         elseif f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                arg_curv = find_gcurvature(arg)
-                arg_curv == GLinear
-            end
+                    arg_curv = find_gcurvature(arg)
+                    arg_curv == GLinear
+                end
                 return GLinear
             end
         elseif f_curvature isa GCurvature
@@ -197,12 +197,15 @@ function find_gcurvature(ex)
     else
         return GLinear
     end
+    return GUnknownCurvature
 end
 
 function propagate_gcurvature(ex, M::AbstractManifold)
-    r = [@rule *(~~x) => setgcurvature(~MATCH, mul_gcurvature(~~x))
-         @rule +(~~x) => setgcurvature(~MATCH, add_gcurvature(~~x))
-         @rule ~x => setgcurvature(~x, find_gcurvature(~x))]
+    r = [
+        @rule *(~~x) => setgcurvature(~MATCH, mul_gcurvature(~~x))
+        @rule +(~~x) => setgcurvature(~MATCH, add_gcurvature(~~x))
+        @rule ~x => setgcurvature(~x, find_gcurvature(~x))
+    ]
     ex = Postwalk(Chain(r))(ex)
     ex = Prewalk(Chain(r))(ex)
     return ex

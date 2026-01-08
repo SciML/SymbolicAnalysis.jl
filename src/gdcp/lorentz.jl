@@ -57,7 +57,7 @@ function lorentz_homogeneous_quadratic(A::AbstractMatrix, p::AbstractVector)
     lambda_min = minimum(eigvals(A_bar))
 
     # Check conditions from Theorem 21
-    condition1 = isapprox(norm(a_vec), 0, atol = 1e-10) && sigma >= -lambda_min
+    condition1 = isapprox(norm(a_vec), 0, atol = 1.0e-10) && sigma >= -lambda_min
     condition2 = sigma + lambda_min > 2 * sqrt(dot(a_vec, a_vec))
 
     if !(condition1 || condition2)
@@ -92,8 +92,8 @@ function lorentz_homogeneous_diagonal(a::AbstractVector, p::AbstractVector)
     if minimum(a[1:(end - 1)]) + a[end] < 0
         throw(
             ArgumentError(
-            "For geodesic convexity, min(a[1:end-1]) + a[end] ≥ 0 is required",
-        ),
+                "For geodesic convexity, min(a[1:end-1]) + a[end] ≥ 0 is required",
+            ),
         )
     end
 
@@ -124,7 +124,7 @@ function lorentz_nonhomogeneous_quadratic(
         b::AbstractVector,
         c::Real,
         p::AbstractVector
-)
+    )
     # Check if b is in the Lorentz cone
     b_head = b[1:(end - 1)]
     b_tail = b[end]
@@ -162,10 +162,10 @@ Computes the least squares function `‖y - Xp‖²_2 = y'y - 2y'Xp + p'X'Xp` fo
 """
 function lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::AbstractVector)
     A = X' * X      # Homogeneous quadratic coefficient
-    b = -2 * X' * y # Linear coefficient 
+    b = -2 * X' * y # Linear coefficient
     c = y' * y      # Constant term
 
-    # This call will check the geodesic convexity conditions for both 
+    # This call will check the geodesic convexity conditions for both
     # the homogeneous part (via lorentz_homogeneous_quadratic) and the linear term
     return lorentz_nonhomogeneous_quadratic(A, b, c, p)
 end
@@ -189,7 +189,7 @@ function lorentz_transform(O::AbstractMatrix, p::AbstractVector)
     J = Diagonal([ones(d)..., -1])
 
     # Check if O is in the Lorentz group
-    if !isapprox(O' * J * O, J, rtol = 1e-10)
+    if !isapprox(O' * J * O, J, rtol = 1.0e-10)
         throw(ArgumentError("Matrix is not in the Lorentz group"))
     end
 

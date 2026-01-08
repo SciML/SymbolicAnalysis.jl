@@ -27,7 +27,7 @@ function dotsort(x::AbstractVector, y::AbstractVector)
     if length(x) != length(y)
         throw(DimensionMismatch("AbstractVectors must have same length"))
     end
-    return dot(sort.(x), sort.(y))
+    return dot(sort(x), sort(y))
 end
 Symbolics.@register_symbolic dotsort(x::AbstractVector, y::AbstractVector)
 add_dcprule(
@@ -66,7 +66,7 @@ function invprod(x::AbstractVector)
     if any(iszero(x))
         throw(DivideError())
     end
-    inv(prod(x))
+    return inv(prod(x))
 end
 Symbolics.@register_symbolic invprod(x::AbstractVector)
 
@@ -84,7 +84,7 @@ Returns the sum of the `k` largest eigenvalues of `m`.
 # Arguments
 
     - `m::Symmetric`: A symmetric matrix.
-    - `k::Int`: The Real of largest eigenvalues to sum.
+    - `k::Int`: The number of largest eigenvalues to sum.
 """
 function eigsummax(m::Symmetric, k::Int)
     if k < 1 || k > size(m, 1)
@@ -104,7 +104,7 @@ Returns the sum of the `k` smallest eigenvalues of `m`.
 # Arguments
 
     - `m::Symmetric`: A symmetric matrix.
-    - `k::Int`: The Real of smallest eigenvalues to sum.
+    - `k::Int`: The number of smallest eigenvalues to sum.
 """
 function eigsummin(m::Symmetric, k::Int)
     if k < 1 || k > size(m, 1)
@@ -188,7 +188,7 @@ function perspective(f::Function, x, s::Real)
     if s == 0
         return zero(typeof(f(x)))
     end
-    s * f(x / s)
+    return s * f(x / s)
 end
 Symbolics.@register_symbolic perspective(f::Function, x, s::Real)
 add_dcprule(
@@ -224,7 +224,7 @@ add_dcprule(
     (increasing_if_positive, Increasing)
 )
 
-function quad_over_lin(x::Vector{<:Real}, y::Real)
+function quad_over_lin(x::AbstractVector{<:Real}, y::Real)
     if getsign(y) == Negative
         throw(DomainError(y, "y must be positive"))
     end
@@ -278,7 +278,7 @@ Returns the sum of the `k` largest elements of `x`.
 # Arguments
 
     - `x::AbstractMatrix`: A matrix.
-    - `k::Int`: The Real of largest elements to sum.
+    - `k::Int`: The number of largest elements to sum.
 """
 function sum_largest(x::AbstractMatrix, k::Integer)
     return sum(sort(vec(x))[(end - k):end])
@@ -294,7 +294,7 @@ Returns the sum of the `k` smallest elements of `x`.
 # Arguments
 
     - `x::AbstractMatrix`: A matrix.
-    - `k::Int`: The Real of smallest elements to sum.
+    - `k::Int`: The number of smallest elements to sum.
 """
 function sum_smallest(x::AbstractMatrix, k::Integer)
     return sum(sort(vec(x))[1:k])
@@ -329,7 +329,7 @@ Returns the total variation of `x`, defined as `sum_i |x_{i+1} - x_i|`.
 
     - `x::AbstractVector`: A vector.
 """
-function tv(x::Vector{<:Real})
+function tv(x::AbstractVector{<:Real})
     return sum(abs.(x[2:end] - x[1:(end - 1)]))
 end
 Symbolics.@register_symbolic tv(x::AbstractVector) false
@@ -345,11 +345,13 @@ Returns the total variation of `x`, defined as `sum_{i,j} |x_{k+1}[i,j] - x_k[i,
     - `x::AbstractVector`: A vector of matrices.
 """
 function tv(x::AbstractVector{<:AbstractMatrix})
-    return sum(map(1:(size(x, 1) - 1)) do i
-        map(1:(size(x, 2) - 1)) do j
-            norm([x[k][i + 1, j] - x[k][i, j] for k in eachindex(x)])
+    return sum(
+        map(1:(size(x, 1) - 1)) do i
+            map(1:(size(x, 2) - 1)) do j
+                norm([x[k][i + 1, j] - x[k][i, j] for k in eachindex(x)])
+            end
         end
-    end)
+    )
 end
 add_dcprule(tv, array_domain(array_domain(RealLine(), 2), 1), Positive, Convex, AnyMono)
 
@@ -460,7 +462,7 @@ function rel_entr(x::Real, y::Real)
     if x == 0
         return 0
     end
-    x * log(x / y)
+    return x * log(x / y)
 end
 Symbolics.@register_symbolic rel_entr(x::Real, y::Real)
 add_dcprule(
