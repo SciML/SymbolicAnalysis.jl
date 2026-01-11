@@ -24,24 +24,36 @@ gdcprule(f, args...) = gdcprules_dict[f], args
 
 setgcurvature(ex::Union{Symbolic, Num}, curv) = setmetadata(ex, GCurvature, curv)
 setgcurvature(ex, curv) = ex
-getgcurvature(ex::Union{Symbolic, Num}) = getmetadata(ex, GCurvature)
+function getgcurvature(ex::Union{Symbolic, Num})
+    if hasmetadata(ex, GCurvature)
+        return getmetadata(ex, GCurvature)
+    end
+    return GUnknownCurvature
+end
 getgcurvature(ex) = GLinear
 hasgcurvature(ex::Union{Symbolic, Num}) = hasmetadata(ex, GCurvature)
 hasgcurvature(ex) = ex isa Real
 
 function mul_gcurvature(args)
-    non_constants = findall(x -> issym(x) || iscall(x), args)
-    constants = findall(x -> !issym(x) && !iscall(x), args)
-    try
-        @assert length(non_constants) <= 1
-    catch
-        @warn "DGCP does not support multiple non-constant arguments in multiplication"
-        return GUnknownCurvature
+    # Avoid allocations by not using findall
+    non_constant_expr = nothing
+    non_constant_count = 0
+    constant_prod = one(Float64)
+    for arg in args
+        if issym(arg) || iscall(arg)
+            non_constant_count += 1
+            non_constant_expr = arg
+            if non_constant_count > 1
+                @warn "DGCP does not support multiple non-constant arguments in multiplication"
+                return GUnknownCurvature
+            end
+        else
+            constant_prod *= arg
+        end
     end
-    if !isempty(non_constants)
-        expr = args[first(non_constants)]
-        curv = find_gcurvature(expr)
-        return if prod(args[constants]) < 0
+    if non_constant_expr !== nothing
+        curv = find_gcurvature(non_constant_expr)
+        return if constant_prod < 0
             # flip
             curv == GConvex ? GConcave : curv == GConcave ? GConvex : curv
         else
@@ -52,11 +64,34 @@ function mul_gcurvature(args)
 end
 
 function add_gcurvature(args)
-    curvs = find_gcurvature.(args)
-    all(==(GLinear), curvs) && return GLinear
-    all(x -> x == GConvex || x == GLinear, curvs) && return GConvex
-    all(x -> x == GConcave || x == GLinear, curvs) && return GConcave
-    return GUnknownCurvature
+    # Avoid allocating intermediate arrays - check curvatures in one pass
+    has_gconvex = false
+    has_gconcave = false
+    for arg in args
+        curv = find_gcurvature(arg)
+        if curv == GLinear
+            continue
+        elseif curv == GConvex
+            has_gconvex = true
+            if has_gconcave
+                return GUnknownCurvature
+            end
+        elseif curv == GConcave
+            has_gconcave = true
+            if has_gconvex
+                return GUnknownCurvature
+            end
+        else
+            return GUnknownCurvature
+        end
+    end
+    if has_gconvex
+        return GConvex
+    elseif has_gconcave
+        return GConcave
+    else
+        return GLinear
+    end
 end
 
 function find_gcurvature(ex)
@@ -163,6 +198,8 @@ function find_gcurvature(ex)
                     end
                 end
                 return GConvex
+            else
+                return GUnknownCurvature
             end
         elseif f_curvature == Concave || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
@@ -177,6 +214,8 @@ function find_gcurvature(ex)
                     end
                 end
                 return GConcave
+            else
+                return GUnknownCurvature
             end
         elseif f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
@@ -184,6 +223,8 @@ function find_gcurvature(ex)
                     arg_curv == GLinear
                 end
                 return GLinear
+            else
+                return GUnknownCurvature
             end
         elseif f_curvature isa GCurvature
             return f_curvature

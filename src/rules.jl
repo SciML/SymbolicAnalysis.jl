@@ -144,17 +144,34 @@ function add_sign(args)
     if hassign(args)
         return getsign(args)
     end
+    # Check signs without allocating intermediate arrays
+    has_anysign = false
+    all_negative = true
+    all_positive = true
     for i in eachindex(args)
-        if iscall(args[i])
-            args[i] = propagate_sign(args[i])
+        arg = args[i]
+        if iscall(arg)
+            arg = propagate_sign(arg)
+            args[i] = arg
+        end
+        s = getsign(arg)
+        if s == AnySign
+            has_anysign = true
+            break
+        elseif s == Negative
+            all_positive = false
+        elseif s == Positive
+            all_negative = false
+        else
+            all_negative = false
+            all_positive = false
         end
     end
-    signs = reduce(vcat, getsign.(args))
-    return if any(==(AnySign), signs)
+    return if has_anysign
         AnySign
-    elseif all(==(Negative), signs)
+    elseif all_negative
         Negative
-    elseif all(==(Positive), signs)
+    elseif all_positive
         Positive
     else
         AnySign
@@ -162,14 +179,17 @@ function add_sign(args)
 end
 
 function mul_sign(args)
-    signs = getsign.(args)
-    return if any(==(AnySign), signs)
-        AnySign
-    elseif isodd(count(==(Negative), signs))
-        Negative
-    else
-        Positive
+    # Avoid allocating intermediate arrays
+    neg_count = 0
+    for arg in args
+        s = getsign(arg)
+        if s == AnySign
+            return AnySign
+        elseif s == Negative
+            neg_count += 1
+        end
     end
+    return isodd(neg_count) ? Negative : Positive
 end
 
 function propagate_sign(ex)
@@ -206,20 +226,27 @@ hascurvature(ex::Union{Num, Symbolic}) = hasmetadata(ex, Curvature)
 hascurvature(ex) = ex isa Real
 
 function mul_curvature(args)
-    # all but one arg is constant
-    non_constants = findall(x -> issym(x) || iscall(x), args)
-    constants = findall(x -> !issym(x) && !iscall(x), args)
-    try
-        @assert length(non_constants) <= 1
-    catch
-        @warn "DCP does not support multiple non-constant arguments in multiplication"
-        return UnknownCurvature
+    # Avoid allocations by not using findall
+    # All but one arg must be constant
+    non_constant_expr = nothing
+    non_constant_count = 0
+    constant_prod = one(Float64)
+    for arg in args
+        if issym(arg) || iscall(arg)
+            non_constant_count += 1
+            non_constant_expr = arg
+            if non_constant_count > 1
+                @warn "DCP does not support multiple non-constant arguments in multiplication"
+                return UnknownCurvature
+            end
+        else
+            constant_prod *= arg
+        end
     end
 
-    if !isempty(non_constants)
-        expr = args[first(non_constants)]
-        curv = find_curvature(expr)
-        return if getsign(prod(args[constants])) == Negative
+    if non_constant_expr !== nothing
+        curv = find_curvature(non_constant_expr)
+        return if getsign(constant_prod) == Negative
             # flip
             curv == Convex ? Concave : curv == Concave ? Convex : curv
         else
@@ -230,11 +257,34 @@ function mul_curvature(args)
 end
 
 function add_curvature(args)
-    curvs = find_curvature.(args)
-    all(==(Affine), curvs) && return Affine
-    all(x -> x == Convex || x == Affine, curvs) && return Convex
-    all(x -> x == Concave || x == Affine, curvs) && return Concave
-    return UnknownCurvature
+    # Avoid allocating intermediate arrays - check curvatures in one pass
+    has_convex = false
+    has_concave = false
+    for arg in args
+        curv = find_curvature(arg)
+        if curv == Affine
+            continue
+        elseif curv == Convex
+            has_convex = true
+            if has_concave
+                return UnknownCurvature
+            end
+        elseif curv == Concave
+            has_concave = true
+            if has_convex
+                return UnknownCurvature
+            end
+        else
+            return UnknownCurvature
+        end
+    end
+    if has_convex
+        return Convex
+    elseif has_concave
+        return Concave
+    else
+        return Affine
+    end
 end
 
 function propagate_curvature(ex)
