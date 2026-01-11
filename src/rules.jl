@@ -167,7 +167,7 @@ function add_sign(args)
             all_positive = false
         end
     end
-    if has_anysign
+    return if has_anysign
         AnySign
     elseif all_negative
         Negative
@@ -189,7 +189,7 @@ function mul_sign(args)
             neg_count += 1
         end
     end
-    isodd(neg_count) ? Negative : Positive
+    return isodd(neg_count) ? Negative : Positive
 end
 
 function propagate_sign(ex)

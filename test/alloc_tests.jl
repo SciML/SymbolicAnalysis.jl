@@ -1,11 +1,11 @@
 using SymbolicAnalysis
 using SymbolicAnalysis: getsign, hassign, getcurvature, hascurvature, getgcurvature,
-                        hasgcurvature,
-                        add_sign, mul_sign, add_curvature, mul_curvature,
-                        add_gcurvature, mul_gcurvature,
-                        Sign, Positive, Negative, AnySign,
-                        Curvature, Convex, Concave, Affine, UnknownCurvature,
-                        GCurvature, GConvex, GConcave, GLinear, GUnknownCurvature
+    hasgcurvature,
+    add_sign, mul_sign, add_curvature, mul_curvature,
+    add_gcurvature, mul_gcurvature,
+    Sign, Positive, Negative, AnySign,
+    Curvature, Convex, Concave, Affine, UnknownCurvature,
+    GCurvature, GConvex, GConcave, GLinear, GUnknownCurvature
 using Symbolics
 using Test
 using AllocCheck
