@@ -3,6 +3,7 @@ module SymbolicAnalysis
 using DomainSets
 using LinearAlgebra
 using LogExpFunctions
+using PrecompileTools
 using StatsBase
 using Distributions
 using DSP, DataStructures
@@ -56,5 +57,27 @@ function analyze(ex, M::Union{AbstractManifold, Nothing} = nothing)
 end
 
 export analyze
+
+@setup_workload begin
+    @compile_workload begin
+        @variables x y
+        y_with_domain = setmetadata(
+            y, VarDomain, DomainSets.HalfLine{Number, :open}()
+        )
+
+        ex1 = exp(y_with_domain) - log(y_with_domain) |> unwrap
+        analyze(ex1)
+
+        ex2 = abs(x)^2 + abs(x)^3 |> unwrap
+        analyze(ex2)
+
+        ex3 = 2 * abs(x) - 1 |> unwrap
+        analyze(ex3)
+
+        @variables z[1:3]
+        ex4 = exp.(z) |> unwrap
+        analyze(ex4)
+    end
+end
 
 end
