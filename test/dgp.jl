@@ -86,7 +86,9 @@ analyze_res = analyze(objective_expr, M)
 @variables Y[1:5, 1:5]
 ex = sqrt(X * Y) |> unwrap
 ex = SymbolicAnalysis.propagate_sign(ex)
-@test_throws SymbolicUtils.RuleRewriteError SymbolicAnalysis.propagate_gcurvature(ex, M)
+# sqrt(X * Y) is not DGCP-verifiable, should return GUnknownCurvature
+ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
+@test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GUnknownCurvature
 
 # ex = exp(X*Y) |> unwrap
 # ex = SymbolicAnalysis.propagate_sign(ex)
@@ -163,7 +165,7 @@ optf = OptimizationFunction(matsqrt, Optimization.AutoZygote()) #setup oracles
 prob = OptimizationProblem(optf, A / 2, manifold = M, structural_analysis = true) #setup problem with manifold and initial point
 
 sol = solve(prob, GradientDescentOptimizer(), maxiters = 1000) #solve the problem
-@test sqrt(A) ≈ sol.minimizer rtol = 1e-3
+@test sqrt(A) ≈ sol.u rtol = 1e-3
 
 ex = matsqrt(X) |> unwrap
 ex = SymbolicAnalysis.propagate_sign(ex)

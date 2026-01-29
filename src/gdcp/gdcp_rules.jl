@@ -36,7 +36,7 @@ function mul_gcurvature(args)
         @assert length(non_constants) <= 1
     catch
         @warn "DGCP does not support multiple non-constant arguments in multiplication"
-        return UnknownGCurvature
+        return GUnknownCurvature
     end
     if !isempty(non_constants)
         expr = args[first(non_constants)]
@@ -139,7 +139,7 @@ function find_gcurvature(ex)
                 end
             else
                 @warn "Disciplined Programming does not support multiple non-constant arguments in multiplication"
-                return UnknownGCurvature
+                return GUnknownCurvature
             end
         end
 
@@ -158,11 +158,17 @@ function find_gcurvature(ex)
                     m == Increasing
                 elseif arg_curv == GConcave
                     m == Decreasing
+                elseif arg_curv == GLinear
+                    # GLinear (affine) argument: f ∘ Affine = Convex only if f is monotonic
+                    # If monotonicity is AnyMono, we cannot preserve convexity
+                    m == Increasing || m == Decreasing || m == GIncreasing || m == GDecreasing
                 else
-                    arg_curv == GLinear
+                    false  # GUnknownCurvature
                 end
             end
                 return GConvex
+            else
+                return GUnknownCurvature  # Composition failed
             end
         elseif f_curvature == Concave || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
@@ -172,11 +178,16 @@ function find_gcurvature(ex)
                     m == Increasing
                 elseif arg_curv == GConvex
                     m == Decreasing
+                elseif arg_curv == GLinear
+                    # GLinear (affine) argument: f ∘ Affine = Concave only if f is monotonic
+                    m == Increasing || m == Decreasing || m == GIncreasing || m == GDecreasing
                 else
-                    arg_curv == GLinear
+                    false  # GUnknownCurvature
                 end
             end
                 return GConcave
+            else
+                return GUnknownCurvature  # Composition failed
             end
         elseif f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
@@ -184,6 +195,8 @@ function find_gcurvature(ex)
                 arg_curv == GLinear
             end
                 return GLinear
+            else
+                return GUnknownCurvature  # Composition failed
             end
         elseif f_curvature isa GCurvature
             return f_curvature

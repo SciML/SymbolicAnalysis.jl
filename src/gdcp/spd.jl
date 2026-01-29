@@ -4,7 +4,7 @@
 add_gdcprule(
     LinearAlgebra.logdet,
     SymmetricPositiveDefinite,
-    Positive,
+    AnySign,  # logdet(X) can be negative when eigenvalues < 1
     GLinear,
     GIncreasing
 )
