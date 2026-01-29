@@ -186,36 +186,41 @@ function find_gcurvature(ex)
 
         if f_curvature == Convex || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_gcurvature(arg)
-                    m = get_arg_property(f_monotonicity, i, args)
-                    # @show arg
-                    if arg_curv == GConvex
-                        m == Increasing
-                    elseif arg_curv == GConcave
-                        m == Decreasing
-                    else
-                        arg_curv == GLinear
-                    end
+                arg_curv = find_gcurvature(arg)
+                m = get_arg_property(f_monotonicity, i, args)
+                # @show arg
+                if arg_curv == GConvex
+                    m == Increasing
+                elseif arg_curv == GConcave
+                    m == Decreasing
+                elseif arg_curv == GLinear
+                    # GLinear (affine) argument: f ∘ Affine = Convex only if f is monotonic
+                    # If monotonicity is AnyMono, we cannot preserve convexity
+                    m == Increasing || m == Decreasing || m == GIncreasing || m == GDecreasing
+                else
+                    false  # GUnknownCurvature
                 end
                 return GConvex
             else
-                return GUnknownCurvature
+                return GUnknownCurvature  # Composition failed
             end
         elseif f_curvature == Concave || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_gcurvature(arg)
-                    m = f_monotonicity[i]
-                    if arg_curv == GConcave
-                        m == Increasing
-                    elseif arg_curv == GConvex
-                        m == Decreasing
-                    else
-                        arg_curv == GLinear
-                    end
+                arg_curv = find_gcurvature(arg)
+                m = f_monotonicity[i]
+                if arg_curv == GConcave
+                    m == Increasing
+                elseif arg_curv == GConvex
+                    m == Decreasing
+                elseif arg_curv == GLinear
+                    # GLinear (affine) argument: f ∘ Affine = Concave only if f is monotonic
+                    m == Increasing || m == Decreasing || m == GIncreasing || m == GDecreasing
+                else
+                    false  # GUnknownCurvature
                 end
                 return GConcave
             else
-                return GUnknownCurvature
+                return GUnknownCurvature  # Composition failed
             end
         elseif f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
@@ -224,7 +229,7 @@ function find_gcurvature(ex)
                 end
                 return GLinear
             else
-                return GUnknownCurvature
+                return GUnknownCurvature  # Composition failed
             end
         elseif f_curvature isa GCurvature
             return f_curvature
