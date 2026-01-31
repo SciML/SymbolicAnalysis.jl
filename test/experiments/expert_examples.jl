@@ -57,8 +57,8 @@ function run_expert_examples()
     println("Case 1: Tyler's M-Estimator")
     println("-"^70)
     
-    expr = sum(SymbolicAnalysis.log_quad_form(xi, inv(X)) for xi in xs) + 
-           (1/5) * logdet(X) |> Symbolics.unwrap
+    expr = (sum(SymbolicAnalysis.log_quad_form(xi, inv(X)) for xi in xs) +
+           (1/5) * logdet(X)) |> Symbolics.unwrap
     
     t = @elapsed result = analyze(expr, M)
     
@@ -89,7 +89,7 @@ function run_expert_examples()
     println("Case 2: Brascamp-Lieb Constant Bound")
     println("-"^70)
     
-    expr = logdet(SymbolicAnalysis.conjugation(X, A)) - logdet(X) |> Symbolics.unwrap
+    expr = (logdet(SymbolicAnalysis.conjugation(X, A)) - logdet(X)) |> Symbolics.unwrap
     
     t = @elapsed result = analyze(expr, M)
     
@@ -119,8 +119,8 @@ function run_expert_examples()
     println("Case 3: Matrix Square Root via S-Divergence")
     println("-"^70)
     
-    expr = SymbolicAnalysis.sdivergence(X, A) + 
-           SymbolicAnalysis.sdivergence(X, Matrix{Float64}(I(5))) |> Symbolics.unwrap
+    expr = (SymbolicAnalysis.sdivergence(X, A) +
+           SymbolicAnalysis.sdivergence(X, Matrix{Float64}(I(5)))) |> Symbolics.unwrap
     
     t = @elapsed result = analyze(expr, M)
     
@@ -181,7 +181,7 @@ function run_expert_examples()
     println("-"^70)
     
     γ = 0.5
-    expr = tr(inv(X)) + logdet(X) + γ * tr(X) |> Symbolics.unwrap
+    expr = (tr(inv(X)) + logdet(X) + γ * tr(X)) |> Symbolics.unwrap
     
     t = @elapsed result = analyze(expr, M)
     
