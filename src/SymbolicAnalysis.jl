@@ -3,10 +3,13 @@ module SymbolicAnalysis
 using DomainSets
 using LinearAlgebra
 using LogExpFunctions
+using MathOptInterface
 using PrecompileTools
 using StatsBase
 using Distributions
 using DSP, DataStructures
+
+const MOI = MathOptInterface
 
 using Symbolics
 import Symbolics: Symbolic, issym, Term
@@ -57,6 +60,9 @@ function analyze(ex, M::Union{AbstractManifold, Nothing} = nothing)
 end
 
 export analyze
+
+include("conic.jl")
+include("moi_bridge.jl")
 
 @setup_workload begin
     @compile_workload begin

@@ -8,14 +8,14 @@ using LinearAlgebra
 
 const gdcprules_dict = Dict()
 
-function add_gdcprule(f, manifold, sign, curvature, monotonicity)
+function add_gdcprule(f, manifold, sign, curvature, monotonicity; cone = nothing)
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
     end
-    return gdcprules_dict[f] = makegrule(manifold, sign, curvature, monotonicity)
+    return gdcprules_dict[f] = makegrule(manifold, sign, curvature, monotonicity; cone = cone)
 end
-function makegrule(manifold, sign, curvature, monotonicity)
-    return (manifold = manifold, sign = sign, gcurvature = curvature, gmonotonicity = monotonicity)
+function makegrule(manifold, sign, curvature, monotonicity; cone = nothing)
+    return (manifold = manifold, sign = sign, gcurvature = curvature, gmonotonicity = monotonicity, cone = cone)
 end
 
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
@@ -184,52 +184,47 @@ function find_gcurvature(ex)
             f_monotonicity = rule.monotonicity
         end
 
+        if !@isdefined(f_curvature)
+            return GUnknownCurvature
+        end
+
         if f_curvature == Convex || f_curvature == Affine
-            if all(enumerate(args)) do (i, arg)
+            convex_ok = all(enumerate(args)) do (i, arg)
                 arg_curv = find_gcurvature(arg)
                 m = get_arg_property(f_monotonicity, i, args)
-                # @show arg
                 if arg_curv == GConvex
                     m == Increasing
                 elseif arg_curv == GConcave
                     m == Decreasing
                 elseif arg_curv == GLinear
-                    # GLinear (affine) argument: f ∘ Affine = Convex only if f is monotonic
-                    # If monotonicity is AnyMono, we cannot preserve convexity
                     m == Increasing || m == Decreasing || m == GIncreasing || m == GDecreasing
                 else
                     false  # GUnknownCurvature
                 end
+            end
+            if convex_ok
                 return GConvex
             else
-                return GUnknownCurvature  # Composition failed
+                return GUnknownCurvature
             end
-        elseif f_curvature == Concave || f_curvature == Affine
-            if all(enumerate(args)) do (i, arg)
+        elseif f_curvature == Concave
+            concave_ok = all(enumerate(args)) do (i, arg)
                 arg_curv = find_gcurvature(arg)
-                m = f_monotonicity[i]
+                m = get_arg_property(f_monotonicity, i, args)
                 if arg_curv == GConcave
                     m == Increasing
                 elseif arg_curv == GConvex
                     m == Decreasing
                 elseif arg_curv == GLinear
-                    # GLinear (affine) argument: f ∘ Affine = Concave only if f is monotonic
                     m == Increasing || m == Decreasing || m == GIncreasing || m == GDecreasing
                 else
                     false  # GUnknownCurvature
                 end
+            end
+            if concave_ok
                 return GConcave
             else
-                return GUnknownCurvature  # Composition failed
-            end
-        elseif f_curvature == Affine
-            if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_gcurvature(arg)
-                    arg_curv == GLinear
-                end
-                return GLinear
-            else
-                return GUnknownCurvature  # Composition failed
+                return GUnknownCurvature
             end
         elseif f_curvature isa GCurvature
             return f_curvature

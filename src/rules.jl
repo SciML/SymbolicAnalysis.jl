@@ -51,19 +51,19 @@ end
 
 const dcprules_dict = Dict()
 
-function add_dcprule(f, domain, sign, curvature, monotonicity)
+function add_dcprule(f, domain, sign, curvature, monotonicity; cone = nothing)
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
     end
     return if f in keys(dcprules_dict)
-        dcprules_dict[f] = vcat(dcprules_dict[f], makerule(domain, sign, curvature, monotonicity))
+        dcprules_dict[f] = vcat(dcprules_dict[f], makerule(domain, sign, curvature, monotonicity; cone = cone))
     else
-        dcprules_dict[f] = makerule(domain, sign, curvature, monotonicity)
+        dcprules_dict[f] = makerule(domain, sign, curvature, monotonicity; cone = cone)
     end
 end
 
-function makerule(domain, sign, curvature, monotonicity)
-    return (; domain = domain, sign = sign, curvature = curvature, monotonicity = monotonicity)
+function makerule(domain, sign, curvature, monotonicity; cone = nothing)
+    return (; domain = domain, sign = sign, curvature = curvature, monotonicity = monotonicity, cone = cone)
 end
 
 hasdcprule(f::Function) = haskey(dcprules_dict, f)

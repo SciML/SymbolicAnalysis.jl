@@ -13,26 +13,28 @@ using Symbolics: Symbolic, @register_symbolic, unwrap, variables
     p::AbstractVector,
     q::Union{Symbolics.Arr, AbstractVector}
 ) false
-add_gdcprule(Manifolds.distance, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
+add_gdcprule(Manifolds.distance, Manifolds.Lorentz, Positive, GConvex, GAnyMono;
+    cone = MOI.SecondOrderCone)
 
 """
-    lorentz_log_barrier(a, p)
+    lorentz_log_barrier(p)
 
-Computes the log-barrier function for the Lorentz model: `-log(-1 - <a, p>_L)`.
+Computes the log-barrier function for the Lorentz model: `-log(-1 - <a, p>_L)`
+where `a = (0, ..., 0, 1)`.
 
 # Arguments
 
-    - `a`: The vector (0, ..., 0, 1) in R^(d+1).
     - `p`: A point on the Lorentz manifold.
 """
 function lorentz_log_barrier(p::AbstractVector)
-    # Lorentzian inner product: a⋅p_L = a1*p1 + ... + a_d*p_d - a_{d+1}*p_{d+1}
-    inner_prod = a[end] * p[end]
-    return -log(-1 + inner_prod)
+    # For a = (0,...,0,1), the Lorentzian inner product is <a,p>_L = -p[end]
+    # The log-barrier is -log(-1 - <a,p>_L) = -log(-1 + p[end])
+    return -log(-1 + p[end])
 end
 
 @register_symbolic lorentz_log_barrier(p::Union{Symbolics.Arr, AbstractVector})
-add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, Positive, GConvex, GIncreasing)
+add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, Positive, GConvex, GIncreasing;
+    cone = MOI.ExponentialCone)
 
 """
     lorentz_homogeneous_quadratic(A::AbstractMatrix, p::AbstractVector)
@@ -71,7 +73,8 @@ end
     A::AbstractMatrix,
     p::Union{Symbolics.Arr, AbstractVector}
 )
-add_gdcprule(lorentz_homogeneous_quadratic, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
+add_gdcprule(lorentz_homogeneous_quadratic, Manifolds.Lorentz, Positive, GConvex, GAnyMono;
+    cone = MOI.SecondOrderCone)
 
 """
     lorentz_homogeneous_diagonal(a::AbstractVector, p::AbstractVector)
@@ -104,7 +107,8 @@ end
     a::AbstractVector,
     p::Union{Symbolics.Arr, AbstractVector}
 )
-add_gdcprule(lorentz_homogeneous_diagonal, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
+add_gdcprule(lorentz_homogeneous_diagonal, Manifolds.Lorentz, Positive, GConvex, GAnyMono;
+    cone = MOI.SecondOrderCone)
 
 """
     lorentz_nonhomogeneous_quadratic(A::AbstractMatrix, b::AbstractVector, c::Real, p::AbstractVector)
@@ -135,9 +139,7 @@ function lorentz_nonhomogeneous_quadratic(
 
     # This call will check if A satisfies the geodesic convexity conditions
     homogeneous_part = lorentz_homogeneous_quadratic(A, p)
-    println(size(homogeneous_part))
     affine_part = (Matrix(b') * p)
-    println(size(affine_part))
     return homogeneous_part + affine_part[1] + c
 end
 
@@ -147,7 +149,8 @@ end
     c::Real,
     p::Vector{Num}
 )
-add_gdcprule(lorentz_nonhomogeneous_quadratic, Manifolds.Lorentz, AnySign, GConvex, AnyMono)
+add_gdcprule(lorentz_nonhomogeneous_quadratic, Manifolds.Lorentz, AnySign, GConvex, AnyMono;
+    cone = MOI.SecondOrderCone)
 
 """
     lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::AbstractVector)
@@ -171,7 +174,8 @@ function lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::Abstract
 end
 
 @register_symbolic lorentz_least_squares(X::Matrix{Num}, y::Vector{Num}, p::Vector{Num})
-add_gdcprule(lorentz_least_squares, Manifolds.Lorentz, Positive, GConvex, AnyMono)
+add_gdcprule(lorentz_least_squares, Manifolds.Lorentz, Positive, GConvex, AnyMono;
+    cone = MOI.SecondOrderCone)
 
 """
     lorentz_transform(O::AbstractMatrix, p::AbstractVector)
