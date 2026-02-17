@@ -314,7 +314,7 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
             both_verify = true
         ),
         (
-            name = "distance(M, A, X)²",
+            name = "distance(M, A, X)^2",
             expr = Manifolds.distance(M, A, X)^2 |> Symbolics.unwrap,
             both_verify = false  # DGCP only
         ),
@@ -349,8 +349,8 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
         println("Results (times in microseconds):")
         println("-"^70)
         println(rpad("Function", 22), " | ",
-                rpad("DCP (μs)", 10), " | ",
-                rpad("DGCP (μs)", 10), " | ",
+                rpad("DCP (us)", 10), " | ",
+                rpad("DGCP (us)", 10), " | ",
                 rpad("Overhead", 10), " | ",
                 "Both Verify")
         println("-"^70)
@@ -374,8 +374,8 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
 
             println()
             println("Summary (for functions both DCP and DGCP verify):")
-            println("  • Average overhead: $(@sprintf("%.2fx", avg_overhead))")
-            println("  • Maximum overhead: $(@sprintf("%.2fx", max_overhead))")
+            println("  Average overhead: $(@sprintf("%.2fx", avg_overhead))")
+            println("  Maximum overhead: $(@sprintf("%.2fx", max_overhead))")
             println()
             println("Conclusion:")
             println("  DGCP verification adds minimal overhead compared to DCP-style analysis.")
@@ -387,13 +387,175 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
     return results
 end
 
+#==============================================================================#
+# Scaling Analysis: DGCP Verification Time vs Problem Complexity
+#==============================================================================#
+
+"""
+Structure for scaling analysis results.
+"""
+struct ScalingResult
+    problem_type::String
+    matrix_size::Int
+    num_terms::Int
+    dcp_median_us::Float64
+    dgcp_median_us::Float64
+    overhead_ratio::Float64
+end
+
+"""
+Run scaling analysis: how does DGCP verification time grow with problem size?
+
+Tests multiple problem types at varying matrix dimensions and numbers of terms
+to understand the relationship between problem complexity and verification time.
+"""
+function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
+    results = ScalingResult[]
+
+    if verbose
+        println()
+        println("=" ^ 70)
+        println("SCALING ANALYSIS: DGCP Verification Time vs Problem Complexity")
+        println("=" ^ 70)
+        println("Samples per configuration: $n_samples (reporting median)")
+        println()
+    end
+
+    # Scaling dimension 1: matrix size with fixed number of terms
+    if verbose
+        println("Part A: Varying matrix size (fixed 3 terms)")
+        println("-" ^ 50)
+    end
+    for n in [3, 5, 8, 10]
+        @variables Xn[1:n, 1:n]
+        M = SymmetricPositiveDefinite(n)
+
+        # Karcher mean with 3 sample matrices
+        As = [let B = randn(n, n); B * B' + I end for _ in 1:3]
+        expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> Symbolics.unwrap
+
+        dcp_time = time_verification(n_samples) do
+            analyze(expr)
+        end
+        dgcp_time = time_verification(n_samples) do
+            analyze(expr, M)
+        end
+        overhead = dgcp_time / dcp_time
+
+        push!(results, ScalingResult("Karcher (3 terms)", n, 3,
+            dcp_time * 1e6, dgcp_time * 1e6, overhead))
+
+        if verbose
+            println(@sprintf("  n=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
+                n, dcp_time * 1e6, dgcp_time * 1e6, overhead))
+        end
+    end
+
+    # Scaling dimension 2: number of terms with fixed matrix size
+    if verbose
+        println()
+        println("Part B: Varying number of terms (fixed n=5)")
+        println("-" ^ 50)
+    end
+    for num_terms in [1, 3, 5, 10]
+        n = 5
+        @variables Xn[1:n, 1:n]
+        M = SymmetricPositiveDefinite(n)
+
+        As = [let B = randn(n, n); B * B' + I end for _ in 1:num_terms]
+        expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> Symbolics.unwrap
+
+        dcp_time = time_verification(n_samples) do
+            analyze(expr)
+        end
+        dgcp_time = time_verification(n_samples) do
+            analyze(expr, M)
+        end
+        overhead = dgcp_time / dcp_time
+
+        push!(results, ScalingResult("Karcher (n=5)", n, num_terms,
+            dcp_time * 1e6, dgcp_time * 1e6, overhead))
+
+        if verbose
+            println(@sprintf("  terms=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
+                num_terms, dcp_time * 1e6, dgcp_time * 1e6, overhead))
+        end
+    end
+
+    # Scaling dimension 3: Tyler's M-estimator with varying vector count
+    if verbose
+        println()
+        println("Part C: Tyler's M-estimator (varying vectors, n=5)")
+        println("-" ^ 50)
+    end
+    for num_vecs in [1, 3, 5, 8]
+        n = 5
+        @variables Xn[1:n, 1:n]
+        M = SymmetricPositiveDefinite(n)
+
+        xs = [randn(n) for _ in 1:num_vecs]
+        expr = (sum(SymbolicAnalysis.log_quad_form(x, inv(Xn)) for x in xs) +
+                (1 / n) * logdet(Xn)) |> Symbolics.unwrap
+
+        dcp_time = time_verification(n_samples) do
+            analyze(expr)
+        end
+        dgcp_time = time_verification(n_samples) do
+            analyze(expr, M)
+        end
+        overhead = dgcp_time / dcp_time
+
+        push!(results, ScalingResult("Tyler (n=5)", n, num_vecs,
+            dcp_time * 1e6, dgcp_time * 1e6, overhead))
+
+        if verbose
+            println(@sprintf("  vectors=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
+                num_vecs, dcp_time * 1e6, dgcp_time * 1e6, overhead))
+        end
+    end
+
+    # Summary
+    if verbose
+        println()
+        println("=" ^ 70)
+        println("SCALING SUMMARY TABLE")
+        println("=" ^ 70)
+        println()
+        println(rpad("Problem", 22), " | ",
+                rpad("n", 4), " | ",
+                rpad("Terms", 6), " | ",
+                rpad("DCP (us)", 10), " | ",
+                rpad("DGCP (us)", 10), " | ",
+                "Overhead")
+        println("-" ^ 70)
+        for r in results
+            println(
+                rpad(r.problem_type, 22), " | ",
+                rpad(string(r.matrix_size), 4), " | ",
+                rpad(string(r.num_terms), 6), " | ",
+                rpad(@sprintf("%.1f", r.dcp_median_us), 10), " | ",
+                rpad(@sprintf("%.1f", r.dgcp_median_us), 10), " | ",
+                @sprintf("%.2fx", r.overhead_ratio)
+            )
+        end
+        println("-" ^ 70)
+
+        avg_overhead = mean(r.overhead_ratio for r in results)
+        println()
+        println("Overall average overhead: $(@sprintf("%.2fx", avg_overhead))")
+        println("This shows DGCP adds minimal cost relative to DCP-style analysis.")
+    end
+
+    return results
+end
+
 # Run tests
 @testset "DCP vs DGCP Scope Comparison" begin
     results = run_scope_comparison()
 
     # Verify key results
     @test any(r -> r.name == "logdet(X)" && r.geodesically_convex, results)
-    @test any(r -> r.name == "distance(M, A, X)²" && r.geodesically_convex, results)
+    @test any(r -> contains(r.name, "distance") && r.geodesically_convex, results)
     @test any(r -> r.name == "Tyler's M-Estimator" && r.geodesically_convex, results)
 end
 
@@ -409,13 +571,13 @@ end
     # Test 2: DGCP overhead is reasonable (less than 10x for functions both verify)
     # This is a generous bound; in practice overhead is typically 1-3x
     for r in both_verify_results
-        @test r.overhead_ratio < 10.0 "DGCP overhead for $(r.name) is $(r.overhead_ratio)x, expected < 10x"
+        @test r.overhead_ratio < 10.0
     end
 
     # Test 3: Average overhead is reasonable (less than 5x)
     if !isempty(both_verify_results)
         avg_overhead = mean(r.overhead_ratio for r in both_verify_results)
-        @test avg_overhead < 5.0 "Average DGCP overhead is $(avg_overhead)x, expected < 5x"
+        @test avg_overhead < 5.0
     end
 
     # Test 4: Both DCP and DGCP produce valid timings (positive, non-zero)
@@ -430,4 +592,20 @@ end
     println("="^70)
     println("DGCP adds minimal overhead compared to DCP-style verification.")
     println("This confirms that DGCP is computationally practical for real use.")
+end
+
+@testset "DCP vs DGCP Scaling Analysis" begin
+    scaling_results = run_scaling_analysis(n_samples = 5, verbose = true)
+
+    # All results should have positive timings
+    for r in scaling_results
+        @test r.dcp_median_us > 0
+        @test r.dgcp_median_us > 0
+        @test r.overhead_ratio > 0
+    end
+
+    # Overhead should be bounded
+    for r in scaling_results
+        @test r.overhead_ratio < 20.0
+    end
 end
