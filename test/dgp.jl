@@ -248,3 +248,27 @@ ex = logdet(SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, A,
     unwrap
 anres = analyze(ex, M)
 @test anres.gcurvature == SymbolicAnalysis.GConvex
+
+# DGCP reduces to DCP: standard DCP-convex expressions on SPD manifolds
+# should still be correctly classified by the DGCP analyzer.
+# This validates the proposition that DGCP is a strict generalization of DCP.
+@testset "DGCP reduces to DCP" begin
+    @variables X[1:5, 1:5]
+    M = SymmetricPositiveDefinite(5)
+
+    # logdet is concave in DCP, and g-linear on SPD => should get GConvex or GLinear
+    ex_logdet = logdet(X) |> unwrap
+    res = analyze(ex_logdet, M)
+    @test res.gcurvature in (SymbolicAnalysis.GConvex, SymbolicAnalysis.GLinear)
+
+    # tr(inv(X)) is convex in DCP, and g-convex on SPD
+    ex_trinv = tr(inv(X)) |> unwrap
+    res = analyze(ex_trinv, M)
+    @test res.gcurvature == SymbolicAnalysis.GConvex
+
+    # tr(inv(X)) + logdet(X) combines convex and concave DCP atoms,
+    # but both are g-convex on SPD (logdet is g-linear)
+    ex_combined = (tr(inv(X)) + logdet(X)) |> unwrap
+    res = analyze(ex_combined, M)
+    @test res.gcurvature == SymbolicAnalysis.GConvex
+end

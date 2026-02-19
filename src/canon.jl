@@ -25,6 +25,8 @@ forms that are more likely to be verifiable by the DGCP framework.
 Currently applies:
 1. Pattern recognition: x'Ax → quad_form(x, A), B'XB → conjugation(X, B)
 2. Inverse simplification: inv(inv(X)) → X
+3. Logarithmic rewrites: log(det(X)) → logdet(X)
+4. Trace rewrites: sum(diag(X)) → tr(X)
 """
 function canonize(ex)
     # Core rules that are safe and well-tested
@@ -38,6 +40,12 @@ function canonize(ex)
 
         # Double inverse: inv(inv(X)) → X
         @rule inv(inv(~X)) => ~X
+
+        # log(det(X)) → logdet(X) (logdet is a registered DGCP atom)
+        @rule log(LinearAlgebra.det(~X)) => LinearAlgebra.logdet(~X)
+
+        # sum(diag(X)) → tr(X)
+        @rule sum(LinearAlgebra.diag(~X)) => LinearAlgebra.tr(~X)
     ]
 
     try
@@ -59,15 +67,22 @@ end
 
 More aggressive canonicalization with additional rules.
 Use with caution - may not work with all expression types.
+
+Additional rules:
+- logdet(inv(X)) → -logdet(X)
+- log(tr(~X) * tr(~Y)) → log(tr(~X)) + log(tr(~Y))
 """
 function canonize_extended(ex)
     ex = canonize(ex)  # First apply core rules
-    
+
     extended_rules = [
         # logdet(inv(X)) → -logdet(X)
         @rule LinearAlgebra.logdet(inv(~X)) => -LinearAlgebra.logdet(~X)
+
+        # log(a * b) → log(a) + log(b) for positive sub-expressions
+        @rule log(~a * ~b) => log(~a) + log(~b)
     ]
-    
+
     try
         rc = Chain(extended_rules)
         ex = Postwalk(rc)(ex)

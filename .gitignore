@@ -1,3 +1,6 @@
 Manifest.toml
 .DS_Store
 assets/
+*.pdf
+*.png
+*.docx

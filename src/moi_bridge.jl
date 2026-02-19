@@ -3,11 +3,14 @@
 
 Converts a `ConicFormulation` (from `to_conic_form`) into an MOI model or JuMP model
 that can be solved by any MOI-compatible solver.
+
+Uses the new vector-valued `ConeConstraint` struct with `ConicConstraintTerm` rows,
+enabling a single generic dispatch instead of per-cone-type if-elseif chains.
 """
 
 import JuMP
-using MathOptInterface
-const __MOI = MathOptInterface
+
+# Use the module-level MOI alias from SymbolicAnalysis.jl
 
 """
     to_jump_model(cf::ConicFormulation; solver=nothing)
@@ -49,57 +52,68 @@ end
 """
     _add_jump_constraint!(model, c::ConeConstraint, jump_vars)
 
-Add a single ConeConstraint to a JuMP model.
+Add a single ConeConstraint to a JuMP model using generic dispatch.
 """
 function _add_jump_constraint!(model, c::ConeConstraint, jump_vars)
-    if c.cone isa __MOI.EqualTo
-        expr = JuMP.AffExpr(c.func_constant)
-        for (v, coeff) in zip(c.func_vars, c.func_coeffs)
+    if c.cone isa MOI.EqualTo
+        # Scalar equality: single term, expression == 0
+        @assert length(c.terms) == 1
+        ct = c.terms[1]
+        expr = JuMP.AffExpr(ct.constant)
+        for (v, coeff) in zip(ct.vars, ct.coeffs)
             JuMP.add_to_expression!(expr, coeff, jump_vars[v])
         end
         JuMP.@constraint(model, expr == 0)
 
-    elseif c.cone isa __MOI.Zeros
-        expr = JuMP.AffExpr(c.func_constant)
-        for (v, coeff) in zip(c.func_vars, c.func_coeffs)
+    elseif c.cone isa MOI.Nonnegatives
+        # Nonnegative constraints: each term ≥ 0
+        for ct in c.terms
+            expr = JuMP.AffExpr(ct.constant)
+            for (v, coeff) in zip(ct.vars, ct.coeffs)
+                JuMP.add_to_expression!(expr, coeff, jump_vars[v])
+            end
+            JuMP.@constraint(model, expr >= 0)
+        end
+
+    elseif c.cone isa MOI.Nonpositives
+        # Nonpositive constraints: each term ≤ 0
+        for ct in c.terms
+            expr = JuMP.AffExpr(ct.constant)
+            for (v, coeff) in zip(ct.vars, ct.coeffs)
+                JuMP.add_to_expression!(expr, coeff, jump_vars[v])
+            end
+            JuMP.@constraint(model, expr <= 0)
+        end
+
+    elseif c.cone isa MOI.GreaterThan
+        @assert length(c.terms) == 1
+        ct = c.terms[1]
+        expr = JuMP.AffExpr(ct.constant)
+        for (v, coeff) in zip(ct.vars, ct.coeffs)
             JuMP.add_to_expression!(expr, coeff, jump_vars[v])
         end
-        JuMP.@constraint(model, expr == 0)
+        JuMP.@constraint(model, expr >= c.cone.lower)
 
-    elseif c.cone isa __MOI.ExponentialCone
-        vars = [jump_vars[v] for v in c.func_vars]
-        if length(vars) >= 2
-            JuMP.@constraint(model, [vars[1], 1.0, vars[2]] in __MOI.ExponentialCone())
+    elseif c.cone isa MOI.LessThan
+        @assert length(c.terms) == 1
+        ct = c.terms[1]
+        expr = JuMP.AffExpr(ct.constant)
+        for (v, coeff) in zip(ct.vars, ct.coeffs)
+            JuMP.add_to_expression!(expr, coeff, jump_vars[v])
         end
-
-    elseif c.cone isa __MOI.SecondOrderCone
-        vars = [jump_vars[v] for v in c.func_vars]
-        JuMP.@constraint(model, vars in JuMP.SecondOrderCone())
-
-    elseif c.cone isa __MOI.RotatedSecondOrderCone
-        vars = [jump_vars[v] for v in c.func_vars]
-        if length(vars) == 2
-            JuMP.@constraint(model, [vars[1], vars[2], 1.0] in JuMP.RotatedSecondOrderCone())
-        else
-            JuMP.@constraint(model, vars in JuMP.RotatedSecondOrderCone())
-        end
-
-    elseif c.cone isa __MOI.NormOneCone
-        vars = [jump_vars[v] for v in c.func_vars]
-        dim = c.cone.dimension
-        JuMP.@constraint(model, vars in __MOI.NormOneCone(dim))
-
-    elseif c.cone isa __MOI.RelativeEntropyCone
-        vars = [jump_vars[v] for v in c.func_vars]
-        dim = c.cone.dimension
-        JuMP.@constraint(model, vars in __MOI.RelativeEntropyCone(dim))
+        JuMP.@constraint(model, expr <= c.cone.upper)
 
     else
-        # For other cone types, add a placeholder bound
-        vars = [jump_vars[v] for v in c.func_vars]
-        if length(vars) > 0
-            JuMP.@constraint(model, sum(vars) >= 0)
+        # Generic vector cone constraint
+        vec_expr = Vector{JuMP.AffExpr}(undef, length(c.terms))
+        for (row, ct) in enumerate(c.terms)
+            expr = JuMP.AffExpr(ct.constant)
+            for (v, coeff) in zip(ct.vars, ct.coeffs)
+                JuMP.add_to_expression!(expr, coeff, jump_vars[v])
+            end
+            vec_expr[row] = expr
         end
+        JuMP.@constraint(model, vec_expr in c.cone)
     end
 end
 
@@ -114,25 +128,25 @@ A tuple `(model, variable_map)` where:
 - `variable_map` is a `Dict{Symbol, MOI.VariableIndex}`
 """
 function to_moi_model(cf::ConicFormulation)
-    model = __MOI.Utilities.Model{Float64}()
+    model = MOI.Utilities.Model{Float64}()
 
     # Add variables
-    var_map = Dict{Symbol, __MOI.VariableIndex}()
+    var_map = Dict{Symbol, MOI.VariableIndex}()
     for v in cf.variables
-        vi = __MOI.add_variable(model)
-        __MOI.set(model, __MOI.VariableName(), vi, string(v))
+        vi = MOI.add_variable(model)
+        MOI.set(model, MOI.VariableName(), vi, string(v))
         var_map[v] = vi
     end
 
     # Set objective
     obj_vi = var_map[cf.objective_var]
-    obj_func = __MOI.ScalarAffineFunction(
-        [__MOI.ScalarAffineTerm(1.0, obj_vi)],
+    obj_func = MOI.ScalarAffineFunction(
+        [MOI.ScalarAffineTerm(1.0, obj_vi)],
         0.0
     )
-    sense = cf.objective_sense == :minimize ? __MOI.MIN_SENSE : __MOI.MAX_SENSE
-    __MOI.set(model, __MOI.ObjectiveSense(), sense)
-    __MOI.set(model, __MOI.ObjectiveFunction{typeof(obj_func)}(), obj_func)
+    sense = cf.objective_sense == :minimize ? MOI.MIN_SENSE : MOI.MAX_SENSE
+    MOI.set(model, MOI.ObjectiveSense(), sense)
+    MOI.set(model, MOI.ObjectiveFunction{typeof(obj_func)}(), obj_func)
 
     # Add constraints
     for c in cf.constraints
@@ -145,73 +159,70 @@ end
 """
     _add_moi_constraint!(model, c::ConeConstraint, var_map)
 
-Add a single ConeConstraint to an MOI model.
+Add a single ConeConstraint to an MOI model using generic dispatch.
 """
 function _add_moi_constraint!(model, c::ConeConstraint, var_map)
-    if c.cone isa __MOI.EqualTo
-        terms = [__MOI.ScalarAffineTerm(coeff, var_map[v])
-                 for (v, coeff) in zip(c.func_vars, c.func_coeffs)]
-        func = __MOI.ScalarAffineFunction(terms, c.func_constant)
-        __MOI.add_constraint(model, func, __MOI.EqualTo(0.0))
+    if c.cone isa MOI.EqualTo
+        # Scalar equality constraint
+        @assert length(c.terms) == 1
+        ct = c.terms[1]
+        terms = [MOI.ScalarAffineTerm(coeff, var_map[v])
+                 for (v, coeff) in zip(ct.vars, ct.coeffs)]
+        func = MOI.ScalarAffineFunction(terms, ct.constant)
+        MOI.add_constraint(model, func, MOI.EqualTo(0.0))
 
-    elseif c.cone isa __MOI.Zeros
-        terms = [__MOI.VectorAffineTerm(1, __MOI.ScalarAffineTerm(coeff, var_map[v]))
-                 for (v, coeff) in zip(c.func_vars, c.func_coeffs)]
-        func = __MOI.VectorAffineFunction(terms, [c.func_constant])
-        __MOI.add_constraint(model, func, __MOI.Zeros(1))
+    elseif c.cone isa MOI.GreaterThan
+        @assert length(c.terms) == 1
+        ct = c.terms[1]
+        terms = [MOI.ScalarAffineTerm(coeff, var_map[v])
+                 for (v, coeff) in zip(ct.vars, ct.coeffs)]
+        func = MOI.ScalarAffineFunction(terms, ct.constant)
+        MOI.add_constraint(model, func, c.cone)
 
-    elseif c.cone isa __MOI.ExponentialCone
-        vars = [var_map[v] for v in c.func_vars]
-        if length(vars) >= 2
-            terms = [
-                __MOI.VectorAffineTerm(1, __MOI.ScalarAffineTerm(1.0, vars[1])),
-                __MOI.VectorAffineTerm(3, __MOI.ScalarAffineTerm(1.0, vars[2]))
-            ]
-            func = __MOI.VectorAffineFunction(terms, [0.0, 1.0, 0.0])
-            __MOI.add_constraint(model, func, __MOI.ExponentialCone())
+    elseif c.cone isa MOI.LessThan
+        @assert length(c.terms) == 1
+        ct = c.terms[1]
+        terms = [MOI.ScalarAffineTerm(coeff, var_map[v])
+                 for (v, coeff) in zip(ct.vars, ct.coeffs)]
+        func = MOI.ScalarAffineFunction(terms, ct.constant)
+        MOI.add_constraint(model, func, c.cone)
+
+    else
+        # Generic vector cone constraint
+        vat = MOI.VectorAffineTerm{Float64}[]
+        for (row, ct) in enumerate(c.terms)
+            for (v, coeff) in zip(ct.vars, ct.coeffs)
+                push!(vat, MOI.VectorAffineTerm(row, MOI.ScalarAffineTerm(coeff, var_map[v])))
+            end
         end
-
-    elseif c.cone isa __MOI.SecondOrderCone
-        vars = [var_map[v] for v in c.func_vars]
-        dim = length(vars)
-        terms = [__MOI.VectorAffineTerm(i, __MOI.ScalarAffineTerm(1.0, vars[i]))
-                 for i in 1:dim]
-        func = __MOI.VectorAffineFunction(terms, zeros(dim))
-        __MOI.add_constraint(model, func, __MOI.SecondOrderCone(dim))
-
-    elseif c.cone isa __MOI.RotatedSecondOrderCone
-        vars = [var_map[v] for v in c.func_vars]
-        if length(vars) == 2
-            terms = [
-                __MOI.VectorAffineTerm(1, __MOI.ScalarAffineTerm(1.0, vars[1])),
-                __MOI.VectorAffineTerm(2, __MOI.ScalarAffineTerm(1.0, vars[2]))
-            ]
-            func = __MOI.VectorAffineFunction(terms, [0.0, 0.0, 1.0])
-            __MOI.add_constraint(model, func, __MOI.RotatedSecondOrderCone(3))
-        else
-            dim = length(vars)
-            terms = [__MOI.VectorAffineTerm(i, __MOI.ScalarAffineTerm(1.0, vars[i]))
-                     for i in 1:dim]
-            func = __MOI.VectorAffineFunction(terms, zeros(dim))
-            __MOI.add_constraint(model, func, __MOI.RotatedSecondOrderCone(dim))
-        end
-
-    elseif c.cone isa __MOI.NormOneCone
-        vars = [var_map[v] for v in c.func_vars]
-        dim = c.cone.dimension
-        terms = [__MOI.VectorAffineTerm(i, __MOI.ScalarAffineTerm(1.0, vars[i]))
-                 for i in 1:min(dim, length(vars))]
-        func = __MOI.VectorAffineFunction(terms, zeros(dim))
-        __MOI.add_constraint(model, func, __MOI.NormOneCone(dim))
-
-    elseif c.cone isa __MOI.RelativeEntropyCone
-        vars = [var_map[v] for v in c.func_vars]
-        dim = c.cone.dimension
-        terms = [__MOI.VectorAffineTerm(i, __MOI.ScalarAffineTerm(1.0, vars[i]))
-                 for i in 1:min(dim, length(vars))]
-        func = __MOI.VectorAffineFunction(terms, zeros(dim))
-        __MOI.add_constraint(model, func, __MOI.RelativeEntropyCone(dim))
+        constants = [ct.constant for ct in c.terms]
+        func = MOI.VectorAffineFunction(vat, constants)
+        MOI.add_constraint(model, func, c.cone)
     end
+end
+
+"""
+    extract_solution(cf::ConicFormulation, model, var_map)
+
+Extract solution values from a solved MOI model back to the original variable names.
+
+# Arguments
+- `cf::ConicFormulation` — the conic formulation
+- `model` — a solved MOI model
+- `var_map::Dict{Symbol, MOI.VariableIndex}` — variable mapping from `to_moi_model`
+
+# Returns
+A `Dict{Symbol, Float64}` mapping original variable names to their optimal values.
+"""
+function extract_solution(cf::ConicFormulation, model, var_map)
+    result = Dict{Symbol, Float64}()
+    for v in cf.original_variables
+        if haskey(var_map, v)
+            val = MOI.get(model, MOI.VariablePrimal(), var_map[v])
+            result[v] = val
+        end
+    end
+    return result
 end
 
 """
@@ -227,7 +238,24 @@ function print_conic_form(cf::ConicFormulation; io = stdout)
     println(io, "  Constraints ($(length(cf.constraints))):")
     for (i, c) in enumerate(cf.constraints)
         println(io, "    [$i] $(c.description)")
+        for (j, term) in enumerate(c.terms)
+            parts = String[]
+            for (v, coeff) in zip(term.vars, term.coeffs)
+                if coeff == 1.0
+                    push!(parts, string(v))
+                elseif coeff == -1.0
+                    push!(parts, "-$(v)")
+                else
+                    push!(parts, "$(coeff)*$(v)")
+                end
+            end
+            if term.constant != 0.0
+                push!(parts, string(term.constant))
+            end
+            expr_str = isempty(parts) ? "0" : join(parts, " + ")
+            println(io, "        row $j: $expr_str")
+        end
     end
 end
 
-export to_jump_model, to_moi_model, print_conic_form
+export to_jump_model, to_moi_model, print_conic_form, extract_solution
