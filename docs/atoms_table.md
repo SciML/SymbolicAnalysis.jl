@@ -1,7 +1,8 @@
 # DGCP Atoms Reference Table
 
-> **Verification Note**: This document was verified against the source code on 2026-01-30.
-> All atoms, curvatures, and monotonicities have been confirmed to match the implementations in:
+> **Verification Note**: This document was verified against the source code on 2026-02-21.
+> All atoms, curvatures, monotonicities, and cone annotations have been confirmed to match the implementations in:
+> - `src/atoms.jl` (DCP atom definitions with cone annotations)
 > - `src/gdcp/spd.jl` (SPD manifold atoms)
 > - `src/gdcp/lorentz.jl` (Lorentz manifold atoms)
 > - `src/gdcp/gdcp_rules.jl` (GDCP rule infrastructure)
@@ -61,90 +62,91 @@ These atoms follow standard Disciplined Convex Programming rules and are defined
 
 ### Affine Atoms
 
-| Atom | Domain | Sign | Curvature | Monotonicity | Source | Reference |
-|------|--------|------|-----------|--------------|--------|-----------|
-| `+` | Real | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `-` | Real | AnySign | Affine | Decreasing | Literature | Grant & Boyd (2006) |
-| `dot(x, y)` | Real arrays | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `sum(x)` | Real arrays | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `tr(X)` | Real matrices | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `diag(X)` | Real matrices | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `diagm(x)` | Real vectors | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `vec(X)` | Real matrices | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `reshape(X)` | Real matrices | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `hcat(...)` | Real vectors | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `vcat(...)` | Real vectors | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `kron(A, B)` | Real matrices | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `triu(X)` | Real matrices | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `cumsum(x)` | Real arrays | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `diff(x)` | Real arrays | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `conv(x, y)` | Real vectors | AnySign | Affine | AnyMono | Literature | Grant & Boyd (2006) |
-| `real(z)` | Complex | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
-| `imag(z)` | Complex | AnySign | Affine | AnyMono | Literature | Grant & Boyd (2006) |
-| `conj(z)` | Complex | AnySign | Affine | AnyMono | Literature | Grant & Boyd (2006) |
-| `adjoint(x)` | Real vectors | AnySign | Affine | Increasing | Literature | Grant & Boyd (2006) |
+| Atom | Domain | Sign | Curvature | Monotonicity | Cone Type | Source | Reference |
+|------|--------|------|-----------|--------------|-----------|--------|-----------|
+| `+` | Real | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `-` | Real | AnySign | Affine | Decreasing | Reals | Literature | Grant & Boyd (2006) |
+| `dot(x, y)` | Real arrays | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `sum(x)` | Real arrays | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `tr(X)` | Real matrices | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `diag(X)` | Real matrices | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `diagm(x)` | Real vectors | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `vec(X)` | Real matrices | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `reshape(X)` | Real matrices | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `hcat(...)` | Real vectors | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `vcat(...)` | Real vectors | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `kron(A, B)` | Real matrices | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `triu(X)` | Real matrices | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `cumsum(x)` | Real arrays | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `diff(x)` | Real arrays | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `conv(x, y)` | Real vectors | AnySign | Affine | AnyMono | Reals | Literature | Grant & Boyd (2006) |
+| `real(z)` | Complex | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
+| `imag(z)` | Complex | AnySign | Affine | AnyMono | Reals | Literature | Grant & Boyd (2006) |
+| `conj(z)` | Complex | AnySign | Affine | AnyMono | Reals | Literature | Grant & Boyd (2006) |
+| `adjoint(x)` | Real vectors | AnySign | Affine | Increasing | Reals | Literature | Grant & Boyd (2006) |
 
 ### Convex Atoms
 
-| Atom | Domain | Sign | Curvature | Monotonicity | Source | Reference |
-|------|--------|------|-----------|--------------|--------|-----------|
-| `abs(x)` | Complex | Positive | Convex | increasing_if_positive | Literature | Grant & Boyd (2006) |
-| `exp(x)` | Real | Positive | Convex | Increasing | Literature | Grant & Boyd (2006) |
-| `huber(x, M)` | Real | Positive | Convex | increasing_if_positive | Literature | Grant & Boyd (2006) |
-| `inv(x)` | Positive Real | Positive | Convex | Decreasing | Literature | Grant & Boyd (2006) |
-| `inv(X)` | Semidefinite | AnySign | Convex | Decreasing | Literature | Grant & Boyd (2006) |
-| `xlogx(x)` | Real | AnySign | Convex | AnyMono | Literature | Grant & Boyd (2006) |
-| `logistic(x)` | Real | Positive | Convex | Increasing | Literature | Grant & Boyd (2006) |
-| `max(x, y)` | Real | AnySign | Convex | Increasing | Literature | Grant & Boyd (2006) |
-| `maximum(x)` | Real arrays | AnySign | Convex | Increasing | Literature | Grant & Boyd (2006) |
-| `norm(x, p)` | Real arrays, p >= 1 | Positive | Convex | increasing_if_positive | Literature | Grant & Boyd (2006) |
-| `dotsort(x, y)` | Real vectors | AnySign | Convex | varying | New | - |
-| `eigmax(X)` | Symmetric | AnySign | Convex | AnyMono | Literature | Grant & Boyd (2006) |
-| `eigsummax(X, k)` | Symmetric | AnySign | Convex | AnyMono | New | - |
-| `logsumexp(X)` | Real arrays | AnySign | Convex | Increasing | Literature | Grant & Boyd (2006) |
-| `matrix_frac(x, P)` | Real vector, PD | AnySign | Convex | AnyMono | Literature | Grant & Boyd (2006) |
-| `quad_form(x, P)` | Real vector, PSD | Positive | Convex | (increasing_if_positive, Increasing) | Literature | Grant & Boyd (2006) |
-| `quad_over_lin(x, y)` | Real, Positive | Positive | Convex | (increasing_if_positive, Decreasing) | Literature | Grant & Boyd (2006) |
-| `sum_largest(X, k)` | Real matrices | AnySign | Convex | Increasing | Literature | Grant & Boyd (2006) |
-| `trinv(X)` | Positive definite | Positive | Convex | AnyMono | Literature | Grant & Boyd (2006) |
-| `tv(x)` | Real vectors | Positive | Convex | AnyMono | Literature | Grant & Boyd (2006) |
-| `invprod(x)` | Positive Real | Positive | Convex | Decreasing | New | - |
-| `rel_entr(x, y)` | Positive Real | AnySign | Convex | (AnyMono, Decreasing) | Literature | Grant & Boyd (2006) |
-| `kldivergence(p, q)` | Positive vectors | Positive | Convex | AnyMono | Literature | Grant & Boyd (2006) |
-| `xexpx(x)` | Positive | Positive | Convex | Increasing | Literature | Grant & Boyd (2006) |
-| `perspective(f, x, s)` | varies | varies | varies | AnyMono | Literature | Grant & Boyd (2006) |
+| Atom | Domain | Sign | Curvature | Monotonicity | Cone Type | Source | Reference |
+|------|--------|------|-----------|--------------|-----------|--------|-----------|
+| `abs(x)` | Complex | Positive | Convex | increasing_if_positive | NormOneCone | Literature | Grant & Boyd (2006) |
+| `exp(x)` | Real | Positive | Convex | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `huber(x, M)` | Real | Positive | Convex | increasing_if_positive | SecondOrderCone | Literature | Grant & Boyd (2006) |
+| `inv(x)` | Positive Real | Positive | Convex | Decreasing | RotatedSecondOrderCone | Literature | Grant & Boyd (2006) |
+| `inv(X)` | Semidefinite | AnySign | Convex | Decreasing | PSDConeTriangle | Literature | Grant & Boyd (2006) |
+| `xlogx(x)` | Real | AnySign | Convex | AnyMono | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `logistic(x)` | Real | Positive | Convex | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `max(x, y)` | Real | AnySign | Convex | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
+| `maximum(x)` | Real arrays | AnySign | Convex | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
+| `norm(x, p)` | Real arrays, p >= 1 | Positive | Convex | increasing_if_positive | SecondOrderCone | Literature | Grant & Boyd (2006) |
+| `dotsort(x, y)` | Real vectors | AnySign | Convex | varying | Reals (LP) | New | - |
+| `eigmax(X)` | Symmetric | AnySign | Convex | AnyMono | PSDConeTriangle | Literature | Grant & Boyd (2006) |
+| `eigsummax(X, k)` | Symmetric | AnySign | Convex | AnyMono | PSDConeTriangle | New | - |
+| `logsumexp(X)` | Real arrays | AnySign | Convex | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `matrix_frac(x, P)` | Real vector, PD | AnySign | Convex | AnyMono | PSDConeTriangle | Literature | Grant & Boyd (2006) |
+| `quad_form(x, P)` | Real vector, PSD | Positive | Convex | (increasing_if_positive, Increasing) | PSDConeTriangle | Literature | Grant & Boyd (2006) |
+| `quad_over_lin(x, y)` | Real, Positive | Positive | Convex | (increasing_if_positive, Decreasing) | RotatedSecondOrderCone | Literature | Grant & Boyd (2006) |
+| `sum_largest(X, k)` | Real matrices | AnySign | Convex | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
+| `trinv(X)` | Positive definite | Positive | Convex | AnyMono | PSDConeTriangle | Literature | Grant & Boyd (2006) |
+| `tv(x)` | Real vectors | Positive | Convex | AnyMono | NormOneCone | Literature | Grant & Boyd (2006) |
+| `invprod(x)` | Positive Real | Positive | Convex | Decreasing | RotatedSecondOrderCone | New | - |
+| `rel_entr(x, y)` | Positive Real | AnySign | Convex | (AnyMono, Decreasing) | RelativeEntropyCone | Literature | Grant & Boyd (2006) |
+| `kldivergence(p, q)` | Positive vectors | Positive | Convex | AnyMono | RelativeEntropyCone | Literature | Grant & Boyd (2006) |
+| `xexpx(x)` | Positive | Positive | Convex | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `perspective(f, x, s)` | varies | varies | varies | AnyMono | -- | Literature | Grant & Boyd (2006) |
 
 ### Concave Atoms
 
-| Atom | Domain | Sign | Curvature | Monotonicity | Source | Reference |
-|------|--------|------|-----------|--------------|--------|-----------|
-| `log(x)` | Positive Real | AnySign | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `log(X)` | Real matrices | Positive | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `log1p(x)` | x > -1 | Negative | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `sqrt(x)` | Non-negative | Positive | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `sqrt(X)` | Semidefinite | Positive | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `logdet(X)` | Semidefinite | AnySign | Concave | AnyMono | Literature | Grant & Boyd (2006) |
-| `lognormcdf(x)` | Real | Negative | Concave | Increasing | New | - |
-| `min(x, y)` | Real | AnySign | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `minimum(x)` | Real arrays | AnySign | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `eigmin(X)` | Symmetric | AnySign | Concave | AnyMono | Literature | Grant & Boyd (2006) |
-| `eigsummin(X, k)` | Symmetric | AnySign | Concave | AnyMono | New | - |
-| `geomean(x)` | Positive vectors | Positive | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `harmmean(x)` | Positive vectors | Positive | Concave | Increasing | Literature | Grant & Boyd (2006) |
-| `sum_smallest(X, k)` | Real matrices | AnySign | Concave | Increasing | Literature | Grant & Boyd (2006) |
+| Atom | Domain | Sign | Curvature | Monotonicity | Cone Type | Source | Reference |
+|------|--------|------|-----------|--------------|-----------|--------|-----------|
+| `log(x)` | Positive Real | AnySign | Concave | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `log(X)` | Real matrices | Positive | Concave | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `log1p(x)` | x > -1 | Negative | Concave | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `sqrt(x)` | Non-negative | Positive | Concave | Increasing | RotatedSecondOrderCone | Literature | Grant & Boyd (2006) |
+| `sqrt(X)` | Semidefinite | Positive | Concave | Increasing | PSDConeTriangle | Literature | Grant & Boyd (2006) |
+| `logdet(X)` | Semidefinite | AnySign | Concave | AnyMono | LogDetConeTriangle | Literature | Grant & Boyd (2006) |
+| `lognormcdf(x)` | Real | Negative | Concave | Increasing | -- | New | - |
+| `min(x, y)` | Real | AnySign | Concave | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
+| `minimum(x)` | Real arrays | AnySign | Concave | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
+| `eigmin(X)` | Symmetric | AnySign | Concave | AnyMono | PSDConeTriangle | Literature | Grant & Boyd (2006) |
+| `eigsummin(X, k)` | Symmetric | AnySign | Concave | AnyMono | PSDConeTriangle | New | - |
+| `geomean(x)` | Positive vectors | Positive | Concave | Increasing | GeometricMeanCone | Literature | Grant & Boyd (2006) |
+| `harmmean(x)` | Positive vectors | Positive | Concave | Increasing | RotatedSecondOrderCone | Literature | Grant & Boyd (2006) |
+| `sum_smallest(X, k)` | Real matrices | AnySign | Concave | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
 
 ### Power Atoms
 
-The power function `x^p` has curvature that depends on the exponent:
+The power function `x^p` has curvature and cone type that depend on the exponent:
 
-| Condition | Domain | Sign | Curvature | Monotonicity | Source |
-|-----------|--------|------|-----------|--------------|--------|
-| `p = 1` | Real | AnySign | Affine | Increasing | Literature |
-| `p` even integer | Real | Positive | Convex | increasing_if_positive | Literature |
-| `p` odd integer | Non-negative | Positive | Convex | Increasing | Literature |
-| `p >= 1` | Non-negative | Positive | Convex | Increasing | Literature |
-| `0 < p < 1` | Non-negative | Positive | Concave | Increasing | Literature |
-| `p < 0` | Positive | Positive | Convex | Increasing | Literature |
+| Condition | Domain | Sign | Curvature | Monotonicity | Cone Type | Source |
+|-----------|--------|------|-----------|--------------|-----------|--------|
+| `p = 1` | Real | AnySign | Affine | Increasing | Reals | Literature |
+| `p = 2` | Real | Positive | Convex | increasing_if_positive | RotatedSecondOrderCone | Literature |
+| `p` even integer | Real | Positive | Convex | increasing_if_positive | SecondOrderCone | Literature |
+| `p` odd integer | Non-negative | Positive | Convex | Increasing | PowerCone | Literature |
+| `p > 1` | Non-negative | Positive | Convex | Increasing | PowerCone(1/p) | Literature |
+| `0 < p < 1` | Non-negative | Positive | Concave | Increasing | PowerCone(p) | Literature |
+| `p < 0` | Positive | Positive | Convex | Increasing | PowerCone(1/(1-p)) | Literature |
 
 ## References
 
@@ -164,6 +166,7 @@ The power function `x^p` has curvature that depends on the exponent:
 - **Sign**: Indicates the sign of the function output (Positive, Negative, AnySign)
 - **G-Curvature**: GConvex = geodesically convex, GConcave = geodesically concave, GLinear = both g-convex and g-concave
 - **Monotonicity**: GIncreasing/GDecreasing = increasing/decreasing with respect to the Lowner order for matrix arguments, GAnyMono = monotonicity unknown or not applicable
+- **Cone Type**: The MathOptInterface (MOI) cone used in conic form generation. "Reals" or "Reals (LP)" indicates a linear/LP reformulation. "PSDConeTriangle" is short for `PositiveSemidefiniteConeTriangle`. "--" indicates no cone annotation is registered.
 - **Source**: "Literature" indicates the atom's g-convexity was established in prior work; "New" indicates atoms introduced or adapted in SymbolicAnalysis.jl
 
 ## Usage

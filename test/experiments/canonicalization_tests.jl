@@ -8,7 +8,10 @@ using SymbolicAnalysis
 using Symbolics
 using LinearAlgebra
 using Manifolds
+using Random
 using Test
+
+Random.seed!(42)
 
 @testset "Canonicalization" begin
     @variables X[1:5, 1:5] Y[1:5, 1:5]

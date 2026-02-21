@@ -14,8 +14,11 @@ using Manifolds
 using Symbolics
 using LinearAlgebra
 using Printf
+using Random
 using Statistics
 using Test
+
+Random.seed!(42)
 
 # Try to load Convex.jl for DCP comparison
 const HAS_CONVEX = try

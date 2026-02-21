@@ -227,6 +227,11 @@ function to_conic_form(ex)
     analyzed = propagate_curvature(analyzed)
 
     curv = getcurvature(analyzed)
+    if curv == UnknownCurvature
+        @warn "Expression has UnknownCurvature after DCP analysis. " *
+              "The expression may not be DCP-compliant. " *
+              "Conic form generation will proceed but may fail for non-DCP atoms."
+    end
     sense = if curv == Convex
         :minimize
     elseif curv == Concave

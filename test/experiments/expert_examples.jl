@@ -14,7 +14,10 @@ using SymbolicAnalysis
 using Manifolds
 using Symbolics
 using LinearAlgebra
+using Random
 using Test
+
+Random.seed!(42)
 
 #==============================================================================#
 # Complex Verification Cases
@@ -44,7 +47,7 @@ function run_expert_examples()
     
     cases = ExpertCase[]
     
-    @variables X[1:5, 1:5] x[1:5]
+    @variables X[1:5, 1:5]
     M = SymmetricPositiveDefinite(5)
     
     # Generate test data
@@ -52,7 +55,10 @@ function run_expert_examples()
     B = randn(5, 5); B = B * B' + I
     xs = [randn(5) for _ in 1:5]
     As = [randn(5, 5) |> x -> x * x' + I for _ in 1:5]
-    
+
+    # Warmup: run analyze once to avoid JIT overhead in timing measurements
+    analyze(logdet(X) |> Symbolics.unwrap, M)
+
     println("-"^70)
     println("Case 1: Tyler's M-Estimator")
     println("-"^70)
@@ -286,7 +292,7 @@ end
     # All cases should be verified as g-convex
     @test all(c.dgcp_result == SymbolicAnalysis.GConvex for c in cases)
     
-    # Verification should be fast (< 100ms each)
+    # Verification should be fast (< 5000ms each)
     @test all(c.verification_time_ms < 5000 for c in cases)
 end
 

@@ -13,7 +13,10 @@ using SymbolicAnalysis
 using Manifolds
 using Symbolics
 using LinearAlgebra
+using Random
 using Test
+
+Random.seed!(42)
 
 #==============================================================================#
 # Test Cases: Known Non-G-Convex or Non-DGCP-Verifiable Functions
@@ -216,8 +219,8 @@ end
 @testset "Non-G-Convex Identification" begin
     results = run_non_gconvex_examples()
     
-    # At least some should be correctly rejected
-    @test any(r -> r.passed, results)
+    # All negative cases must be correctly rejected
+    @test all(r -> r.passed, results)
 end
 
 @testset "Equivalent Form Comparison" begin
