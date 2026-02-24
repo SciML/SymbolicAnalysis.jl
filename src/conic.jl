@@ -473,7 +473,7 @@ function _process_node!(ex, ctx::ConicContext)
         ctx.epigraph_map[t] = ex
 
         # Emit the cone constraint
-        _emit_atom_constraint!(f, t, child_vars, cone, curv, ctx)
+        _emit_atom_constraint!(f, t, child_vars, cone, curv, ctx, args)
 
         return t
     end
@@ -496,7 +496,7 @@ and argument variables `child_vars`.
 For a convex atom f(x), the epigraph is: {(t, x) : f(x) ≤ t}
 For a concave atom f(x), the hypograph is: {(t, x) : f(x) ≥ t}
 """
-function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicContext)
+function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicContext, args=())
     fname = string(nameof(f))
 
     # ── Check atom identity first (before linear fallback) ────────────
