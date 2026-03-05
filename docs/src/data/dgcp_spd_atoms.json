@@ -1,0 +1,135 @@
+[
+  {
+    "atom": "logdet",
+    "meaning": "\\log \\det(X)",
+    "sign": "Positive",
+    "curvature": "GLinear",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "conjugation",
+    "meaning": "B^\\top X B",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "tr",
+    "meaning": "\\operatorname{tr}(X)",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "sum",
+    "meaning": "\\sum_{ij} X_{ij}",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "adjoint",
+    "meaning": "X^\\top",
+    "sign": "Positive",
+    "curvature": "GLinear",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "scalar_mat",
+    "meaning": "\\operatorname{tr}(X) \\cdot I_k",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "diag",
+    "meaning": "[X_{11}, \\ldots, X_{nn}]",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "sdivergence",
+    "meaning": "\\log\\!\\det\\!\\tfrac{X+Y}{2} - \\tfrac{1}{2}\\log\\!\\det(XY)",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "distance",
+    "meaning": "d_{\\mathbb{S}_{++}^n}(X, Y)",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GAny"
+  },
+  {
+    "atom": "quad_form",
+    "meaning": "x^\\top X x",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "eigmax",
+    "meaning": "\\lambda_{\\max}(X)",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "log_quad_form",
+    "meaning": "\\log(y^\\top X y)",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "inv",
+    "meaning": "X^{-1}",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GDecreasing"
+  },
+  {
+    "atom": "diag",
+    "meaning": "[X_{11}, \\ldots, X_{nn}]",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "eigsummax",
+    "meaning": "\\sum_{i=1}^{k} \\lambda_i^{\\downarrow}(X)",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "schatten_norm",
+    "meaning": "\\left(\\sum_i \\sigma_i^p\\right)^{1/p}",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "sum_log_eigmax",
+    "meaning": "\\sum_{i=1}^{k} f(\\log \\lambda_i^{\\downarrow}(X))",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "affine_map",
+    "meaning": "g(B^\\top X B) + C",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "hadamard_product",
+    "meaning": "X \\circ Y",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  }
+]
