@@ -144,7 +144,7 @@
     "monotonicity": "(Incr. if pos., Increasing)"
   },
   {
-    "atom": "quad_over_lin (array)",
+    "atom": "quad_over_lin",
     "meaning": "\\|x\\|_2^2 / y",
     "domain": "\\mathbb{R}^n \\times \\mathbb{R}_{++}",
     "sign": "Positive",
@@ -152,7 +152,7 @@
     "monotonicity": "(Incr. if pos., Decreasing)"
   },
   {
-    "atom": "quad_over_lin (scalar)",
+    "atom": "quad_over_lin",
     "meaning": "x^2 / y",
     "domain": "\\mathbb{R} \\times \\mathbb{R}_{++}",
     "sign": "Positive",
@@ -249,7 +249,7 @@
   },
   {
     "atom": "huber",
-    "meaning": "\\begin{cases} x^2 & |x|\\le M \\\\ 2M|x|-M^2 & \\text{else} \\end{cases}",
+    "meaning": "\\begin{cases} x^2 \\quad |x|\\le M & \\\\ 2M|x|-M^2 & \\text{else} \\end{cases}",
     "domain": "\\mathbb{R} \\times \\mathbb{R}_+",
     "sign": "Positive",
     "curvature": "Convex",

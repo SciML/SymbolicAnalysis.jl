@@ -355,30 +355,37 @@ function parseMonotonicity(raw: string): MonoPart[] {
               :class="['col-' + col.key, { sortable: col.sortable !== false, 'has-filter': col.filterable }]"
             >
               <div class="th-content">
-                <!-- Column label — click to sort -->
-                <span
-                  class="th-label"
-                  :class="{ clickable: col.sortable !== false }"
-                  @click="col.sortable !== false && toggleSort(col.key)"
-                >
-                  {{ col.label }}
-                  <span v-if="col.sortable !== false" class="sort-indicator">
-                    {{ sortIndicator(col.key) }}
-                  </span>
-                </span>
+                <!-- Column label -->
+                <span class="th-label">{{ col.label }}</span>
 
-                <!-- Filter toggle button (only for filterable columns) -->
-                <button
-                  v-if="col.filterable"
-                  class="filter-toggle-btn"
-                  :class="{ active: isFilterActive(col.key), open: openFilterKey === col.key }"
-                  :title="`Filter by ${col.label}`"
-                  @click="toggleFilterDropdown(col.key, $event)"
-                >
-                  <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                    <path d="M1 2h14l-5 6v5l-4 2V8L1 2z"/>
-                  </svg>
-                </button>
+                <!-- Sort & filter controls row -->
+                <div class="th-controls" v-if="col.sortable !== false || col.filterable">
+                  <!-- Sort button -->
+                  <button
+                    v-if="col.sortable !== false"
+                    class="sort-btn"
+                    :title="`Sort by ${col.label}`"
+                    @click="toggleSort(col.key)"
+                  >
+                    <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
+                      <path d="M3 7l5-5 5 5H3z" :opacity="sortKey === col.key && sortDir === 'asc' ? 1 : 0.3"/>
+                      <path d="M3 9l5 5 5-5H3z" :opacity="sortKey === col.key && sortDir === 'desc' ? 1 : 0.3"/>
+                    </svg>
+                  </button>
+
+                  <!-- Filter toggle button -->
+                  <button
+                    v-if="col.filterable"
+                    class="filter-toggle-btn"
+                    :class="{ active: isFilterActive(col.key), open: openFilterKey === col.key }"
+                    :title="`Filter by ${col.label}`"
+                    @click="toggleFilterDropdown(col.key, $event)"
+                  >
+                    <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
+                      <path d="M1 2h14l-5 6v5l-4 2V8L1 2z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               <!-- Dropdown panel (positioned absolutely below the header) -->
@@ -565,6 +572,7 @@ function parseMonotonicity(raw: string): MonoPart[] {
 .atom-table td {
   padding: 0.35rem 0.5rem;
   text-align: left;
+  vertical-align: top;
   border-bottom: 1px solid var(--vp-c-divider);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -589,29 +597,42 @@ function parseMonotonicity(raw: string): MonoPart[] {
 
 /* ---- Header content layout ---- */
 .th-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
 }
 
 .th-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-.th-label.clickable {
-  cursor: pointer;
-}
-.th-label.clickable:hover {
-  color: var(--vp-c-brand-1);
+  font-weight: 600;
 }
 
-.sort-indicator {
-  font-size: 0.625rem;
-  opacity: 0.4;
+/* Controls row below label */
+.th-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
 }
-.th-label.clickable:hover .sort-indicator {
-  opacity: 1;
+
+/* Sort button */
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vp-c-text-3);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.sort-btn:hover {
+  background: var(--vp-c-default-soft);
+  color: var(--vp-c-text-1);
 }
 
 /* ---- Filter toggle button (funnel icon in header) ---- */
@@ -629,7 +650,6 @@ function parseMonotonicity(raw: string): MonoPart[] {
   cursor: pointer;
   transition: all 0.15s;
   flex-shrink: 0;
-  margin-left: 2px;
 }
 .filter-toggle-btn:hover {
   background: var(--vp-c-default-soft);
@@ -764,10 +784,14 @@ function parseMonotonicity(raw: string): MonoPart[] {
   word-break: break-word;
 }
 .col-atom,
-.col-meaning,
+.col-meaning {
+  white-space: normal;
+  word-break: break-word;
+}
 .col-monotonicity {
   white-space: normal;
   word-break: break-word;
+  width: 1%;
 }
 .math-cell {
   font-size: inherit;
@@ -797,7 +821,7 @@ function parseMonotonicity(raw: string): MonoPart[] {
 
 /* ---- Monotonicity cell ---- */
 .mono-cell {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.15rem;
@@ -807,7 +831,7 @@ function parseMonotonicity(raw: string): MonoPart[] {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  white-space: nowrap;
+  white-space: normal;
   font-size: inherit;
 }
 
