@@ -5,7 +5,8 @@
     "domain": "\\mathbb{R}^n \\times \\mathbb{R}^n",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.dot"
   },
   {
     "atom": "dotsort",
@@ -21,7 +22,8 @@
     "domain": "\\mathbb{R}_{++}^n",
     "sign": "Positive",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/StatsBase.jl/stable/scalarstats/#StatsBase.geomean"
   },
   {
     "atom": "harmmean",
@@ -29,7 +31,8 @@
     "domain": "\\mathbb{R}_{++}^n",
     "sign": "Positive",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/StatsBase.jl/stable/scalarstats/#StatsBase.harmmean"
   },
   {
     "atom": "invprod",
@@ -45,7 +48,8 @@
     "domain": "\\mathbb{S}^n",
     "sign": "AnySign",
     "curvature": "Convex",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.eigmax"
   },
   {
     "atom": "eigmin",
@@ -53,7 +57,8 @@
     "domain": "\\mathbb{S}^n",
     "sign": "AnySign",
     "curvature": "Concave",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.eigmin"
   },
   {
     "atom": "eigsummax",
@@ -77,7 +82,8 @@
     "domain": "\\mathbb{S}_+^n",
     "sign": "AnySign",
     "curvature": "Concave",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.logdet"
   },
   {
     "atom": "logsumexp",
@@ -85,7 +91,8 @@
     "domain": "\\mathbb{R}^{m \\times n}",
     "sign": "AnySign",
     "curvature": "Convex",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.logsumexp"
   },
   {
     "atom": "matrix_frac",
@@ -101,7 +108,8 @@
     "domain": "\\mathbb{R}^n",
     "sign": "AnySign",
     "curvature": "Convex",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/collections/#Base.maximum"
   },
   {
     "atom": "minimum",
@@ -109,7 +117,8 @@
     "domain": "\\mathbb{R}^n",
     "sign": "AnySign",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/collections/#Base.minimum"
   },
   {
     "atom": "norm (p ≥ 1)",
@@ -117,7 +126,8 @@
     "domain": "\\mathbb{R}^n \\times [1, \\infty)",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Incr. if pos."
+    "monotonicity": "Incr. if pos.",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.norm"
   },
   {
     "atom": "norm (0 < p < 1)",
@@ -125,7 +135,8 @@
     "domain": "\\mathbb{R}^n \\times [0, 1)",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Incr. if pos."
+    "monotonicity": "Incr. if pos.",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.norm"
   },
   {
     "atom": "perspective(f, x, s)",
@@ -165,7 +176,8 @@
     "domain": "\\mathbb{R}^{m \\times n}",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/collections/#Base.sum"
   },
   {
     "atom": "sum_largest",
@@ -189,7 +201,8 @@
     "domain": "\\mathbb{R}^{m \\times n}",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.tr"
   },
   {
     "atom": "trinv",
@@ -221,7 +234,8 @@
     "domain": "\\mathbb{C}",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Incr. if pos."
+    "monotonicity": "Incr. if pos.",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.abs"
   },
   {
     "atom": "conj",
@@ -229,7 +243,8 @@
     "domain": "\\mathbb{C}",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.conj"
   },
   {
     "atom": "exp",
@@ -237,7 +252,8 @@
     "domain": "\\mathbb{R}",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.exp-Tuple{Float64}"
   },
   {
     "atom": "xlogx",
@@ -245,7 +261,8 @@
     "domain": "\\mathbb{R}",
     "sign": "AnySign",
     "curvature": "Convex",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.xlogx"
   },
   {
     "atom": "huber",
@@ -261,7 +278,8 @@
     "domain": "\\mathbb{C}",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.imag"
   },
   {
     "atom": "inv (scalar)",
@@ -269,7 +287,8 @@
     "domain": "\\mathbb{R}_{++}",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Decreasing"
+    "monotonicity": "Decreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.inv-Tuple{Number}"
   },
   {
     "atom": "log (scalar)",
@@ -277,7 +296,8 @@
     "domain": "\\mathbb{R}_{++}",
     "sign": "AnySign",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.log-Tuple{Number}"
   },
   {
     "atom": "log (matrix)",
@@ -285,7 +305,8 @@
     "domain": "\\mathbb{R}^{m \\times n}",
     "sign": "Positive",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.log-Tuple{Number}"
   },
   {
     "atom": "inv (matrix)",
@@ -293,7 +314,8 @@
     "domain": "\\mathbb{S}_+^n",
     "sign": "AnySign",
     "curvature": "Convex",
-    "monotonicity": "Decreasing"
+    "monotonicity": "Decreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.inv-Tuple{AbstractMatrix}"
   },
   {
     "atom": "sqrt (matrix)",
@@ -301,7 +323,8 @@
     "domain": "\\mathbb{S}_+^n",
     "sign": "Positive",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.sqrt-Tuple{AbstractMatrix}"
   },
   {
     "atom": "kldivergence",
@@ -309,7 +332,8 @@
     "domain": "\\mathbb{R}_{++}^n \\times \\mathbb{R}_{++}^n",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://juliastats.org/StatsBase.jl/stable/signalcorr/#StatsBase.kldivergence"
   },
   {
     "atom": "lognormcdf",
@@ -325,7 +349,8 @@
     "domain": "(-1, \\infty)",
     "sign": "Negative",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.log1p"
   },
   {
     "atom": "logistic",
@@ -333,7 +358,8 @@
     "domain": "\\mathbb{R}",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.logistic"
   },
   {
     "atom": "max",
@@ -341,7 +367,8 @@
     "domain": "\\mathbb{R} \\times \\mathbb{R}",
     "sign": "AnySign",
     "curvature": "Convex",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.max"
   },
   {
     "atom": "min",
@@ -349,7 +376,8 @@
     "domain": "\\mathbb{R} \\times \\mathbb{R}",
     "sign": "AnySign",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.min"
   },
   {
     "atom": "real",
@@ -357,7 +385,8 @@
     "domain": "\\mathbb{C}",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.real"
   },
   {
     "atom": "rel_entr",
@@ -373,7 +402,8 @@
     "domain": "\\mathbb{R}_+",
     "sign": "Positive",
     "curvature": "Concave",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.sqrt-Tuple{Real}"
   },
   {
     "atom": "xexpx",
@@ -381,7 +411,8 @@
     "domain": "\\mathbb{R}_+",
     "sign": "Positive",
     "curvature": "Convex",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.xexpx"
   },
   {
     "atom": "conv",
@@ -389,7 +420,8 @@
     "domain": "\\mathbb{R}^n \\times \\mathbb{R}^n",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Any"
+    "monotonicity": "Any",
+    "docUrl": "https://docs.juliadsp.org/stable/convolutions/#DSP.conv"
   },
   {
     "atom": "cumsum",
@@ -397,7 +429,8 @@
     "domain": "\\mathbb{R}^n",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/arrays/#Base.cumsum"
   },
   {
     "atom": "diagm",
@@ -405,7 +438,8 @@
     "domain": "\\mathbb{R}^n",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.diagm"
   },
   {
     "atom": "diag",
@@ -413,7 +447,8 @@
     "domain": "\\mathbb{R}^{m \\times n}",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.diag"
   },
   {
     "atom": "diff",
@@ -421,7 +456,8 @@
     "domain": "\\mathbb{R}^n",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/arrays/#Base.diff"
   },
   {
     "atom": "kron",
@@ -429,6 +465,7 @@
     "domain": "\\mathbb{R}^{m \\times n} \\times \\mathbb{R}^{m \\times n}",
     "sign": "AnySign",
     "curvature": "Affine",
-    "monotonicity": "Increasing"
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.kron"
   }
 ]

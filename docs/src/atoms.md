@@ -2,7 +2,7 @@
 
 This page is intended to be a reference for the atoms that are currently implemented in this package with their respective properties. As much as possible atoms are created with functions from base, standard libraries and popular packages, but we also inherit a few functions from the CVX family of packages such as `quad_form`, `quad_over_lin` etc. and also introduce some new functions in this package. Description of all such special functions implemented in this package is available in the [Special functions](@ref) section of the documentation.
 
-Use the **search box** to filter by name, or the **dropdown menus** to filter by curvature, sign, or monotonicity. Click any **column header** to sort.
+Use the **dropdown menus** to filter by curvature, sign, or monotonicity. Click any **column header** to sort. Atom names link to their documentation — external links (marked with ↗) open in a new tab.
 
 ## DCP Atoms
 

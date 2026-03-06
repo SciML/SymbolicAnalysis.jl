@@ -4,7 +4,8 @@
     "meaning": "\\log \\det(X)",
     "sign": "Positive",
     "curvature": "GLinear",
-    "monotonicity": "GIncreasing"
+    "monotonicity": "GIncreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.logdet"
   },
   {
     "atom": "conjugation",
@@ -18,21 +19,24 @@
     "meaning": "\\operatorname{tr}(X)",
     "sign": "Positive",
     "curvature": "GConvex",
-    "monotonicity": "GIncreasing"
+    "monotonicity": "GIncreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.tr"
   },
   {
     "atom": "sum",
     "meaning": "\\sum_{ij} X_{ij}",
     "sign": "Positive",
     "curvature": "GConvex",
-    "monotonicity": "GIncreasing"
+    "monotonicity": "GIncreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/collections/#Base.sum"
   },
   {
     "atom": "adjoint",
     "meaning": "X^\\top",
     "sign": "Positive",
     "curvature": "GLinear",
-    "monotonicity": "GIncreasing"
+    "monotonicity": "GIncreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#Base.adjoint"
   },
   {
     "atom": "scalar_mat",
@@ -46,7 +50,8 @@
     "meaning": "[X_{11}, \\ldots, X_{nn}]",
     "sign": "Positive",
     "curvature": "GConvex",
-    "monotonicity": "GIncreasing"
+    "monotonicity": "GIncreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.diag"
   },
   {
     "atom": "sdivergence",
@@ -60,7 +65,8 @@
     "meaning": "d_{\\mathbb{S}_{++}^n}(X, Y)",
     "sign": "Positive",
     "curvature": "GConvex",
-    "monotonicity": "GAny"
+    "monotonicity": "GAny",
+    "docUrl": "https://juliamanifolds.github.io/Manifolds.jl/stable/interface/#ManifoldsBase.distance-Tuple{AbstractManifold,%20Any,%20Any}"
   },
   {
     "atom": "quad_form",
@@ -74,7 +80,8 @@
     "meaning": "\\lambda_{\\max}(X)",
     "sign": "Positive",
     "curvature": "GConvex",
-    "monotonicity": "GIncreasing"
+    "monotonicity": "GIncreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.eigmax"
   },
   {
     "atom": "log_quad_form",
@@ -88,14 +95,16 @@
     "meaning": "X^{-1}",
     "sign": "Positive",
     "curvature": "GConvex",
-    "monotonicity": "GDecreasing"
+    "monotonicity": "GDecreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.inv-Tuple{AbstractMatrix}"
   },
   {
     "atom": "diag",
     "meaning": "[X_{11}, \\ldots, X_{nn}]",
     "sign": "Positive",
     "curvature": "GConvex",
-    "monotonicity": "GIncreasing"
+    "monotonicity": "GIncreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.diag"
   },
   {
     "atom": "eigsummax",

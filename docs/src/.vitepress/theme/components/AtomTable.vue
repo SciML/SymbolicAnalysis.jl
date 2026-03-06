@@ -106,6 +106,7 @@ const docLinks: Record<string, string> = {
   'tv (matrix)': 'SymbolicAnalysis.tv-Tuple{AbstractVector{<:AbstractMatrix}}',
   'huber': 'SymbolicAnalysis.huber',
   'lognormcdf': 'SymbolicAnalysis.lognormcdf-Tuple{Real}',
+  'rel_entr': 'SymbolicAnalysis.rel_entr-Tuple{Real, Real}',
   // DGCP SPD atoms
   'conjugation': 'SymbolicAnalysis.conjugation-Tuple{Any, Any}',
   'scalar_mat': 'SymbolicAnalysis.scalar_mat',
@@ -124,9 +125,16 @@ const docLinks: Record<string, string> = {
   'lorentz_transform': 'SymbolicAnalysis.lorentz_transform-Tuple{AbstractMatrix, AbstractVector}',
 }
 
-function getDocLink(atomName: string): string | null {
+function getDocLink(atomName: string, row?: Record<string, string>): string | null {
+  // First check for external doc URL from JSON data (external packages)
+  if (row?.docUrl) return row.docUrl
+  // Then check for internal docstring link (SymbolicAnalysis functions)
   const anchor = docLinks[atomName]
   return anchor ? `./functions.html#${anchor}` : null
+}
+
+function isExternalLink(row?: Record<string, string>): boolean {
+  return !!row?.docUrl
 }
 
 /* ------------------------------------------------------------------ */
@@ -489,8 +497,20 @@ function parseMonotonicity(raw: string): MonoPart[] {
               </template>
               <!-- Atom name (with optional docstring link) -->
               <template v-else-if="col.key === nameKey">
-                <a v-if="getDocLink(row[col.key])" :href="getDocLink(row[col.key])!" class="atom-link">
+                <a
+                  v-if="getDocLink(row[col.key], row)"
+                  :href="getDocLink(row[col.key], row)!"
+                  class="atom-link"
+                  :class="{ 'external-link': isExternalLink(row) }"
+                  :target="isExternalLink(row) ? '_blank' : undefined"
+                  :rel="isExternalLink(row) ? 'noopener noreferrer' : undefined"
+                >
                   <code class="atom-name">{{ row[col.key] }}</code>
+                  <svg v-if="isExternalLink(row)" class="external-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
                 </a>
                 <code v-else class="atom-name">{{ row[col.key] }}</code>
               </template>
@@ -775,6 +795,16 @@ function parseMonotonicity(raw: string): MonoPart[] {
   text-decoration: underline;
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-2, var(--vp-c-brand-1));
+}
+.atom-link .external-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 3px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.atom-link:hover .external-icon {
+  opacity: 0.85;
 }
 
 /* ---- Math / domain cell ---- */
