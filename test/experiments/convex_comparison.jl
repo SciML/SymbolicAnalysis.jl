@@ -9,13 +9,15 @@ Run with: julia --project=test test/experiments/convex_comparison.jl
 using Random
 Random.seed!(42)
 
-m = 4; n = 5
-A = randn(m, n); b = randn(m)
+m = 4;
+n = 5;
+A = randn(m, n);
+b = randn(m);
 
-println("=" ^ 70)
+println("="^70)
 println("  Problem: minimize ||Ax - b||²  s.t.  x >= 0")
 println("  A is $m × $n, b is $m × 1")
-println("=" ^ 70)
+println("="^70)
 
 # ─────────────────────────────────────────────────────────────────────
 # Convex.jl
@@ -70,7 +72,7 @@ println("    Epigraph variables: $(length(cf.variables) - length(cf.original_var
 println("    Constraints: $(length(cf.constraints))")
 
 # Count cone types
-cone_counts = Dict{String, Int}()
+cone_counts = Dict{String,Int}()
 for c in cf.constraints
     cname = string(typeof(c.cone))
     cone_counts[cname] = get(cone_counts, cname, 0) + 1
@@ -84,7 +86,7 @@ model = to_jump_model(cf; solver = SCS.Optimizer)
 
 # Map original variable names to JuMP variables
 all_vars = JuMP.all_variables(model)
-jump_orig = Dict{Symbol, JuMP.VariableRef}()
+jump_orig = Dict{Symbol,JuMP.VariableRef}()
 for v in all_vars
     vname = Symbol(JuMP.name(v))
     if vname in cf.original_variables

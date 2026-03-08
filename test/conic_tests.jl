@@ -112,7 +112,7 @@ end
         # Ensure to_conic_form uses local context by running concurrently
         @variables x y
         results = Vector{ConicFormulation}(undef, 4)
-        Threads.@threads for i in 1:4
+        Threads.@threads for i = 1:4
             results[i] = to_conic_form(exp(x) |> unwrap)
         end
         # Each result should be independent
@@ -313,22 +313,23 @@ end
         moi_model, var_map = to_moi_model(cf)
         @test length(var_map) >= 2
         # Should have an exponential cone constraint
-        exp_ci = MOI.get(moi_model,
+        exp_ci = MOI.get(
+            moi_model,
             MOI.ListOfConstraintIndices{
                 MOI.VectorAffineFunction{Float64},
-                MOI.ExponentialCone
-            }())
+                MOI.ExponentialCone,
+            }(),
+        )
         @test length(exp_ci) >= 1
     end
 
     @testset "abs(x) model has NormOneCone" begin
         cf = to_conic_form(abs(x) |> unwrap)
         moi_model, var_map = to_moi_model(cf)
-        norm_ci = MOI.get(moi_model,
-            MOI.ListOfConstraintIndices{
-                MOI.VectorAffineFunction{Float64},
-                MOI.NormOneCone
-            }())
+        norm_ci = MOI.get(
+            moi_model,
+            MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.NormOneCone}(),
+        )
         @test length(norm_ci) >= 1
     end
 
@@ -341,22 +342,26 @@ end
     @testset "max(x,y) model has Nonnegatives constraints" begin
         cf = to_conic_form(max(x, y) |> unwrap)
         moi_model, var_map = to_moi_model(cf)
-        nn_ci = MOI.get(moi_model,
+        nn_ci = MOI.get(
+            moi_model,
             MOI.ListOfConstraintIndices{
                 MOI.VectorAffineFunction{Float64},
-                MOI.Nonnegatives
-            }())
+                MOI.Nonnegatives,
+            }(),
+        )
         @test length(nn_ci) >= 2
     end
 
     @testset "sqrt(x) model has RSOC" begin
         cf = to_conic_form(sqrt(x) |> unwrap)
         moi_model, var_map = to_moi_model(cf)
-        rsoc_ci = MOI.get(moi_model,
+        rsoc_ci = MOI.get(
+            moi_model,
             MOI.ListOfConstraintIndices{
                 MOI.VectorAffineFunction{Float64},
-                MOI.RotatedSecondOrderCone
-            }())
+                MOI.RotatedSecondOrderCone,
+            }(),
+        )
         @test length(rsoc_ci) >= 1
     end
 end

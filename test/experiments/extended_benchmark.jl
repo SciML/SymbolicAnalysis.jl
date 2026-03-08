@@ -35,7 +35,7 @@ function count_ast_nodes(ex)
     if !iscall(ex)
         return 1
     end
-    return 1 + sum(count_ast_nodes(arg) for arg in arguments(ex); init=0)
+    return 1 + sum(count_ast_nodes(arg) for arg in arguments(ex); init = 0)
 end
 
 """
@@ -84,22 +84,22 @@ function generate_test_data(size::Int, problem_type::String)
     if problem_type == "Tyler"
         A = randn(size, size)
         Sigma = A * A' + I
-        xs = [randn(size) for _ in 1:min(10, size)]
-        return (Sigma=Sigma, xs=xs)
+        xs = [randn(size) for _ = 1:min(10, size)]
+        return (Sigma = Sigma, xs = xs)
     elseif problem_type == "Karcher"
         matrices = []
-        for _ in 1:5
+        for _ = 1:5
             A = randn(size, size)
             push!(matrices, A * A' + I)
         end
-        return (matrices=matrices,)
+        return (matrices = matrices,)
     elseif problem_type == "LogDet"
         A = randn(size, size)
-        return (matrix=A * A' + I,)
+        return (matrix = A * A' + I,)
     elseif problem_type == "BrascampLieb"
         A = randn(size, size)
         A = A * A' + I
-        return (A=A,)
+        return (A = A,)
     end
 end
 
@@ -108,7 +108,7 @@ function create_expression(data, size::Int, problem_type::String)
 
     if problem_type == "Tyler"
         return sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in data.xs) +
-               (1/size) * logdet(X)
+               (1 / size) * logdet(X)
     elseif problem_type == "Karcher"
         M = SymmetricPositiveDefinite(size)
         return sum(Manifolds.distance(M, As, X)^2 for As in data.matrices)
@@ -135,11 +135,11 @@ struct BenchmarkResult
     memory_kb::Float64
 end
 
-function benchmark_with_complexity(problem_type::String, size::Int; n_samples=5)
+function benchmark_with_complexity(problem_type::String, size::Int; n_samples = 5)
     M = SymmetricPositiveDefinite(size)
 
     # Warmup
-    for _ in 1:3
+    for _ = 1:3
         test_data = generate_test_data(size, problem_type)
         expr = create_expression(test_data, size, problem_type)
         SymbolicAnalysis.analyze(expr, M)
@@ -152,7 +152,7 @@ function benchmark_with_complexity(problem_type::String, size::Int; n_samples=5)
     op_counts = Int[]
     allocations = Int[]
 
-    for _ in 1:n_samples
+    for _ = 1:n_samples
         test_data = generate_test_data(size, problem_type)
         expr = create_expression(test_data, size, problem_type)
 
@@ -208,12 +208,18 @@ function run_extended_benchmark()
             flush(stdout)
 
             try
-                result = benchmark_with_complexity(problem_type, size, n_samples=5)
+                result = benchmark_with_complexity(problem_type, size, n_samples = 5)
                 push!(all_results, result)
 
-                println(@sprintf("%.3f ms, %d nodes, depth %d, %d ops",
-                    result.median_time_ms, result.ast_nodes,
-                    result.ast_depth, result.unique_ops))
+                println(
+                    @sprintf(
+                        "%.3f ms, %d nodes, depth %d, %d ops",
+                        result.median_time_ms,
+                        result.ast_nodes,
+                        result.ast_depth,
+                        result.unique_ops
+                    )
+                )
 
             catch e
                 println("FAILED: $e")
@@ -230,35 +236,49 @@ end
 
 function run_complexity_analysis(results::Vector{BenchmarkResult})
     println()
-    println("=" ^ 70)
+    println("="^70)
     println("COMPLEXITY ANALYSIS")
-    println("=" ^ 70)
+    println("="^70)
 
     # Full results table
     println()
     println("Full Results Table:")
-    println("-" ^ 90)
-    println(rpad("Problem", 18), " | ",
-            rpad("Size", 5), " | ",
-            rpad("Time(ms)", 10), " | ",
-            rpad("Nodes", 7), " | ",
-            rpad("Depth", 6), " | ",
-            rpad("Ops", 5), " | ",
-            "Mem(KB)")
-    println("-" ^ 90)
+    println("-"^90)
+    println(
+        rpad("Problem", 18),
+        " | ",
+        rpad("Size", 5),
+        " | ",
+        rpad("Time(ms)", 10),
+        " | ",
+        rpad("Nodes", 7),
+        " | ",
+        rpad("Depth", 6),
+        " | ",
+        rpad("Ops", 5),
+        " | ",
+        "Mem(KB)",
+    )
+    println("-"^90)
 
     for r in results
         println(
-            rpad(r.problem_type, 18), " | ",
-            rpad(string(r.size), 5), " | ",
-            rpad(@sprintf("%.3f", r.median_time_ms), 10), " | ",
-            rpad(string(r.ast_nodes), 7), " | ",
-            rpad(string(r.ast_depth), 6), " | ",
-            rpad(string(r.unique_ops), 5), " | ",
+            rpad(r.problem_type, 18),
+            " | ",
+            rpad(string(r.size), 5),
+            " | ",
+            rpad(@sprintf("%.3f", r.median_time_ms), 10),
+            " | ",
+            rpad(string(r.ast_nodes), 7),
+            " | ",
+            rpad(string(r.ast_depth), 6),
+            " | ",
+            rpad(string(r.unique_ops), 5),
+            " | ",
             @sprintf("%.1f", r.memory_kb)
         )
     end
-    println("-" ^ 90)
+    println("-"^90)
 
     # Per-problem-type analysis
     problem_types = unique(r.problem_type for r in results)
@@ -270,10 +290,18 @@ function run_complexity_analysis(results::Vector{BenchmarkResult})
 
         println()
         println("$ptype:")
-        println("  Size range: $(minimum(r.size for r in pdata)) - $(maximum(r.size for r in pdata))")
-        println("  Node count range: $(minimum(r.ast_nodes for r in pdata)) - $(maximum(r.ast_nodes for r in pdata))")
-        println("  Depth range: $(minimum(r.ast_depth for r in pdata)) - $(maximum(r.ast_depth for r in pdata))")
-        println("  Time range: $(@sprintf("%.3f", minimum(r.median_time_ms for r in pdata))) - $(@sprintf("%.3f", maximum(r.median_time_ms for r in pdata))) ms")
+        println(
+            "  Size range: $(minimum(r.size for r in pdata)) - $(maximum(r.size for r in pdata))",
+        )
+        println(
+            "  Node count range: $(minimum(r.ast_nodes for r in pdata)) - $(maximum(r.ast_nodes for r in pdata))",
+        )
+        println(
+            "  Depth range: $(minimum(r.ast_depth for r in pdata)) - $(maximum(r.ast_depth for r in pdata))",
+        )
+        println(
+            "  Time range: $(@sprintf("%.3f", minimum(r.median_time_ms for r in pdata))) - $(@sprintf("%.3f", maximum(r.median_time_ms for r in pdata))) ms",
+        )
 
         # Estimate scaling exponent via log-log linear regression
         if length(pdata) >= 3
@@ -283,7 +311,9 @@ function run_complexity_analysis(results::Vector{BenchmarkResult})
             denom = n * sum(x .^ 2) - sum(x)^2
             if abs(denom) > 1e-10
                 slope = (n * sum(x .* y) - sum(x) * sum(y)) / denom
-                println("  Approximate scaling (time vs nodes): O(nodes^$(@sprintf("%.2f", slope)))")
+                println(
+                    "  Approximate scaling (time vs nodes): O(nodes^$(@sprintf("%.2f", slope)))",
+                )
             end
 
             # Depth-based scaling
@@ -293,7 +323,9 @@ function run_complexity_analysis(results::Vector{BenchmarkResult})
             denomd = nd * sum(xd .^ 2) - sum(xd)^2
             if abs(denomd) > 1e-10
                 sloped = (nd * sum(xd .* yd) - sum(xd) * sum(yd)) / denomd
-                println("  Approximate scaling (time vs depth): O(depth^$(@sprintf("%.2f", sloped)))")
+                println(
+                    "  Approximate scaling (time vs depth): O(depth^$(@sprintf("%.2f", sloped)))",
+                )
             end
         end
     end
@@ -301,18 +333,22 @@ function run_complexity_analysis(results::Vector{BenchmarkResult})
     # Depth vs time table (grouped by depth)
     println()
     println("AST Depth vs Verification Time (all problems):")
-    println("-" ^ 50)
+    println("-"^50)
     println(rpad("Depth", 8), " | ", rpad("Avg Time (ms)", 15), " | ", "Count")
-    println("-" ^ 50)
+    println("-"^50)
     depths_seen = sort(unique(r.ast_depth for r in results))
     for d in depths_seen
         ddata = filter(r -> r.ast_depth == d, results)
         avg_time = mean(r.median_time_ms for r in ddata)
-        println(rpad(string(d), 8), " | ",
-                rpad(@sprintf("%.3f", avg_time), 15), " | ",
-                string(length(ddata)))
+        println(
+            rpad(string(d), 8),
+            " | ",
+            rpad(@sprintf("%.3f", avg_time), 15),
+            " | ",
+            string(length(ddata)),
+        )
     end
-    println("-" ^ 50)
+    println("-"^50)
 end
 
 #==============================================================================#
@@ -328,9 +364,9 @@ function main()
     run_complexity_analysis(results)
 
     println()
-    println("=" ^ 70)
+    println("="^70)
     println("EXTENDED BENCHMARK COMPLETE")
-    println("=" ^ 70)
+    println("="^70)
 
     return results
 end
@@ -356,7 +392,7 @@ end
     end
 
     @testset "Benchmark Small Problem" begin
-        result = benchmark_with_complexity("LogDet", 5, n_samples=3)
+        result = benchmark_with_complexity("LogDet", 5, n_samples = 3)
         @test result.median_time_ms > 0
         @test result.ast_nodes >= 1
         @test result.ast_depth >= 1

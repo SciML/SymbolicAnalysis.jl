@@ -45,7 +45,7 @@ Each `ConicConstraintTerm` produces one row of the vector-valued function.
 struct ConeConstraint
     terms::Vector{ConicConstraintTerm}
     cone::Any
-    atom::Union{Function, Nothing}
+    atom::Union{Function,Nothing}
     description::String
 end
 
@@ -65,7 +65,7 @@ Thread-safe: each call to `to_conic_form` creates its own context.
 mutable struct ConicContext
     epi_counter::Int
     constraints::Vector{ConeConstraint}
-    epigraph_map::Dict{Symbol, Any}
+    epigraph_map::Dict{Symbol,Any}
     variables::Set{Symbol}
     original_variables::Set{Symbol}
 end
@@ -74,9 +74,9 @@ function ConicContext(original_vars::Set{Symbol})
     return ConicContext(
         0,
         ConeConstraint[],
-        Dict{Symbol, Any}(),
+        Dict{Symbol,Any}(),
         copy(original_vars),
-        original_vars
+        original_vars,
     )
 end
 
@@ -104,7 +104,7 @@ struct ConicFormulation
     objective_var::Symbol
     objective_sense::Symbol
     constraints::Vector{ConeConstraint}
-    epigraph_map::Dict{Symbol, Any}
+    epigraph_map::Dict{Symbol,Any}
     variables::Set{Symbol}
     original_variables::Set{Symbol}
 end
@@ -252,7 +252,7 @@ function to_conic_form(ex)
         ctx.constraints,
         ctx.epigraph_map,
         ctx.variables,
-        ctx.original_variables
+        ctx.original_variables,
     )
 end
 
@@ -288,12 +288,15 @@ function _process_node!(ex, ctx::ConicContext)
         t = _new_epi_var!(ctx)
         ctx.epigraph_map[t] = ex
         # Add equality constraint: t == constant
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm([t], [1.0], -Float64(ex))],
-            MOI.EqualTo(0.0),
-            nothing,
-            "constant: $t == $ex"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm([t], [1.0], -Float64(ex))],
+                MOI.EqualTo(0.0),
+                nothing,
+                "constant: $t == $ex",
+            ),
+        )
         return t
     end
 
@@ -317,12 +320,15 @@ function _process_node!(ex, ctx::ConicContext)
         # t == coeffs'*vars + constant  →  t - coeffs'*vars - constant == 0
         all_vars = vcat([t], avars)
         all_coeffs = vcat([1.0], [-c for c in acoeffs])
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm(all_vars, all_coeffs, -aconst)],
-            MOI.EqualTo(0.0),
-            nothing,
-            "affine: $t == expression"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm(all_vars, all_coeffs, -aconst)],
+                MOI.EqualTo(0.0),
+                nothing,
+                "affine: $t == expression",
+            ),
+        )
         return t
     end
 
@@ -348,12 +354,15 @@ function _process_node!(ex, ctx::ConicContext)
         # t == sum of children + constant
         all_vars = vcat([t], child_vars)
         all_coeffs = vcat([1.0], [-c for c in child_coeffs])
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm(all_vars, all_coeffs, -constant)],
-            MOI.EqualTo(0.0),
-            nothing,
-            "sum: $t == $(join(child_vars, " + ")) + $constant"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm(all_vars, all_coeffs, -constant)],
+                MOI.EqualTo(0.0),
+                nothing,
+                "sum: $t == $(join(child_vars, " + ")) + $constant",
+            ),
+        )
         return t
     end
 
@@ -373,23 +382,29 @@ function _process_node!(ex, ctx::ConicContext)
             t = _new_epi_var!(ctx)
             ctx.epigraph_map[t] = ex
             # t == constant * child
-            push!(ctx.constraints, ConeConstraint(
-                [ConicConstraintTerm([t, child], [1.0, -constant], 0.0)],
-                MOI.EqualTo(0.0),
-                nothing,
-                "scale: $t == $constant * $child"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [ConicConstraintTerm([t, child], [1.0, -constant], 0.0)],
+                    MOI.EqualTo(0.0),
+                    nothing,
+                    "scale: $t == $constant * $child",
+                ),
+            )
             return t
         else
             # Pure constant product
             t = _new_epi_var!(ctx)
             ctx.epigraph_map[t] = constant
-            push!(ctx.constraints, ConeConstraint(
-                [ConicConstraintTerm([t], [1.0], -constant)],
-                MOI.EqualTo(0.0),
-                nothing,
-                "constant: $t == $constant"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [ConicConstraintTerm([t], [1.0], -constant)],
+                    MOI.EqualTo(0.0),
+                    nothing,
+                    "constant: $t == $constant",
+                ),
+            )
             return t
         end
     end
@@ -404,26 +419,32 @@ function _process_node!(ex, ctx::ConicContext)
             ctx.epigraph_map[inv_t] = :(_inv_aux)
             # inv(child) ≤ inv_t via RSOC
             sqrt2 = sqrt(2.0)
-            push!(ctx.constraints, ConeConstraint(
-                [
-                    ConicConstraintTerm([inv_t], [1.0], 0.0),
-                    ConicConstraintTerm([child], [1.0], 0.0),
-                    ConicConstraintTerm(Symbol[], Float64[], sqrt2),
-                ],
-                MOI.RotatedSecondOrderCone(3),
-                inv,
-                "inv: ($inv_t, $child, √2) ∈ RSOC(3)"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [
+                        ConicConstraintTerm([inv_t], [1.0], 0.0),
+                        ConicConstraintTerm([child], [1.0], 0.0),
+                        ConicConstraintTerm(Symbol[], Float64[], sqrt2),
+                    ],
+                    MOI.RotatedSecondOrderCone(3),
+                    inv,
+                    "inv: ($inv_t, $child, √2) ∈ RSOC(3)",
+                ),
+            )
             # result = constant * inv_t
             c = Float64(args[1])
             t = _new_epi_var!(ctx)
             ctx.epigraph_map[t] = ex
-            push!(ctx.constraints, ConeConstraint(
-                [ConicConstraintTerm([t, inv_t], [1.0, -c], 0.0)],
-                MOI.EqualTo(0.0),
-                nothing,
-                "scale: $t == $c * $inv_t"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [ConicConstraintTerm([t, inv_t], [1.0, -c], 0.0)],
+                    MOI.EqualTo(0.0),
+                    nothing,
+                    "scale: $t == $c * $inv_t",
+                ),
+            )
             return t
         else
             # General division: process numerator and denominator
@@ -433,25 +454,31 @@ function _process_node!(ex, ctx::ConicContext)
             inv_t = _new_epi_var!(ctx)
             ctx.epigraph_map[inv_t] = :(_inv_aux)
             sqrt2 = sqrt(2.0)
-            push!(ctx.constraints, ConeConstraint(
-                [
-                    ConicConstraintTerm([inv_t], [1.0], 0.0),
-                    ConicConstraintTerm([den_var], [1.0], 0.0),
-                    ConicConstraintTerm(Symbol[], Float64[], sqrt2),
-                ],
-                MOI.RotatedSecondOrderCone(3),
-                inv,
-                "inv: ($inv_t, $den_var, √2) ∈ RSOC(3)"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [
+                        ConicConstraintTerm([inv_t], [1.0], 0.0),
+                        ConicConstraintTerm([den_var], [1.0], 0.0),
+                        ConicConstraintTerm(Symbol[], Float64[], sqrt2),
+                    ],
+                    MOI.RotatedSecondOrderCone(3),
+                    inv,
+                    "inv: ($inv_t, $den_var, √2) ∈ RSOC(3)",
+                ),
+            )
             # result = numerator * inv_t (requires linearity of numerator)
             t = _new_epi_var!(ctx)
             ctx.epigraph_map[t] = ex
-            push!(ctx.constraints, ConeConstraint(
-                [ConicConstraintTerm([t, num_var, inv_t], [1.0, -1.0, 0.0], 0.0)],
-                MOI.EqualTo(0.0),
-                nothing,
-                "div: $t == $num_var / $den_var"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [ConicConstraintTerm([t, num_var, inv_t], [1.0, -1.0, 0.0], 0.0)],
+                    MOI.EqualTo(0.0),
+                    nothing,
+                    "div: $t == $num_var / $den_var",
+                ),
+            )
             return t
         end
     end
@@ -479,8 +506,10 @@ function _process_node!(ex, ctx::ConicContext)
     end
 
     # Fallback: error on unhandled atoms
-    error("No conic reformulation for atom: $(nameof(f)). " *
-          "All atoms must have a registered conic reformulation to generate valid conic form.")
+    error(
+        "No conic reformulation for atom: $(nameof(f)). " *
+        "All atoms must have a registered conic reformulation to generate valid conic form.",
+    )
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -496,7 +525,15 @@ and argument variables `child_vars`.
 For a convex atom f(x), the epigraph is: {(t, x) : f(x) ≤ t}
 For a concave atom f(x), the hypograph is: {(t, x) : f(x) ≥ t}
 """
-function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicContext, args=())
+function _emit_atom_constraint!(
+    f,
+    t,
+    child_vars,
+    cone,
+    curvature,
+    ctx::ConicContext,
+    args = (),
+)
     fname = string(nameof(f))
 
     # ── Check atom identity first (before linear fallback) ────────────
@@ -508,59 +545,77 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         # max(a,b) ≤ t  ⟺  t - a ≥ 0 AND t - b ≥ 0
         @assert length(child_vars) == 2
         a, b = child_vars[1], child_vars[2]
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm([t, a], [1.0, -1.0], 0.0)],
-            MOI.Nonnegatives(1),
-            max,
-            "max: $t - $a ≥ 0"
-        ))
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm([t, b], [1.0, -1.0], 0.0)],
-            MOI.Nonnegatives(1),
-            max,
-            "max: $t - $b ≥ 0"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm([t, a], [1.0, -1.0], 0.0)],
+                MOI.Nonnegatives(1),
+                max,
+                "max: $t - $a ≥ 0",
+            ),
+        )
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm([t, b], [1.0, -1.0], 0.0)],
+                MOI.Nonnegatives(1),
+                max,
+                "max: $t - $b ≥ 0",
+            ),
+        )
         return
 
     elseif f === min
         # min(a,b) ≥ t  ⟺  a - t ≥ 0 AND b - t ≥ 0
         @assert length(child_vars) == 2
         a, b = child_vars[1], child_vars[2]
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm([a, t], [1.0, -1.0], 0.0)],
-            MOI.Nonnegatives(1),
-            min,
-            "min: $a - $t ≥ 0"
-        ))
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm([b, t], [1.0, -1.0], 0.0)],
-            MOI.Nonnegatives(1),
-            min,
-            "min: $b - $t ≥ 0"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm([a, t], [1.0, -1.0], 0.0)],
+                MOI.Nonnegatives(1),
+                min,
+                "min: $a - $t ≥ 0",
+            ),
+        )
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm([b, t], [1.0, -1.0], 0.0)],
+                MOI.Nonnegatives(1),
+                min,
+                "min: $b - $t ≥ 0",
+            ),
+        )
         return
 
     elseif f === maximum
         # maximum(x) ≤ t  ⟺  t - xᵢ ≥ 0 for all i
         for xi in child_vars
-            push!(ctx.constraints, ConeConstraint(
-                [ConicConstraintTerm([t, xi], [1.0, -1.0], 0.0)],
-                MOI.Nonnegatives(1),
-                maximum,
-                "maximum: $t - $xi ≥ 0"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [ConicConstraintTerm([t, xi], [1.0, -1.0], 0.0)],
+                    MOI.Nonnegatives(1),
+                    maximum,
+                    "maximum: $t - $xi ≥ 0",
+                ),
+            )
         end
         return
 
     elseif f === minimum
         # minimum(x) ≥ t  ⟺  xᵢ - t ≥ 0 for all i
         for xi in child_vars
-            push!(ctx.constraints, ConeConstraint(
-                [ConicConstraintTerm([xi, t], [1.0, -1.0], 0.0)],
-                MOI.Nonnegatives(1),
-                minimum,
-                "minimum: $xi - $t ≥ 0"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [ConicConstraintTerm([xi, t], [1.0, -1.0], 0.0)],
+                    MOI.Nonnegatives(1),
+                    minimum,
+                    "minimum: $xi - $t ≥ 0",
+                ),
+            )
         end
         return
     end
@@ -568,16 +623,21 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
     # ── Linear fallback ────────────────────────────────────────────────
 
     if cone === nothing || cone == MOI.Reals
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm(
-                vcat([t], child_vars),
-                vcat([1.0], [-1.0 for _ in child_vars]),
-                0.0
-            )],
-            MOI.EqualTo(0.0),
-            f,
-            "$fname: linear relationship"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm(
+                        vcat([t], child_vars),
+                        vcat([1.0], [-1.0 for _ in child_vars]),
+                        0.0,
+                    ),
+                ],
+                MOI.EqualTo(0.0),
+                f,
+                "$fname: linear relationship",
+            ),
+        )
         return
     end
 
@@ -588,46 +648,55 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         # MOI.ExponentialCone: (x, y, z) such that y * exp(x/y) ≤ z, y > 0
         @assert length(child_vars) == 1
         x = child_vars[1]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([x], [1.0], 0.0),       # row 1: x
-                ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 2: 1
-                ConicConstraintTerm([t], [1.0], 0.0),       # row 3: t
-            ],
-            MOI.ExponentialCone(),
-            exp,
-            "$fname: ($(x), 1, $t) ∈ ExponentialCone"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([x], [1.0], 0.0),       # row 1: x
+                    ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 2: 1
+                    ConicConstraintTerm([t], [1.0], 0.0),       # row 3: t
+                ],
+                MOI.ExponentialCone(),
+                exp,
+                "$fname: ($(x), 1, $t) ∈ ExponentialCone",
+            ),
+        )
 
     elseif f === log
         # log(x) ≥ t  ⟺  (t, 1, x) ∈ ExponentialCone
         @assert length(child_vars) == 1
         x = child_vars[1]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [1.0], 0.0),       # row 1: t
-                ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 2: 1
-                ConicConstraintTerm([x], [1.0], 0.0),       # row 3: x
-            ],
-            MOI.ExponentialCone(),
-            log,
-            "$fname: ($t, 1, $(x)) ∈ ExponentialCone"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [1.0], 0.0),       # row 1: t
+                    ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 2: 1
+                    ConicConstraintTerm([x], [1.0], 0.0),       # row 3: x
+                ],
+                MOI.ExponentialCone(),
+                log,
+                "$fname: ($t, 1, $(x)) ∈ ExponentialCone",
+            ),
+        )
 
     elseif f === log1p
         # log(1+x) ≥ t  ⟺  (t, 1, 1+x) ∈ ExponentialCone
         @assert length(child_vars) == 1
         x = child_vars[1]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [1.0], 0.0),           # row 1: t
-                ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 2: 1
-                ConicConstraintTerm([x], [1.0], 1.0),           # row 3: 1 + x
-            ],
-            MOI.ExponentialCone(),
-            log1p,
-            "log1p: ($t, 1, 1+$(x)) ∈ ExponentialCone"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [1.0], 0.0),           # row 1: t
+                    ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 2: 1
+                    ConicConstraintTerm([x], [1.0], 1.0),           # row 3: 1 + x
+                ],
+                MOI.ExponentialCone(),
+                log1p,
+                "log1p: ($t, 1, 1+$(x)) ∈ ExponentialCone",
+            ),
+        )
 
     elseif f === logistic
         # logistic(x) = log(1 + exp(x)) ≤ t
@@ -646,36 +715,45 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         ctx.epigraph_map[u2] = :(_logistic_aux2)
 
         # (x - t, 1, u1) ∈ ExponentialCone
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([x, t], [1.0, -1.0], 0.0),  # x - t
-                ConicConstraintTerm(Symbol[], Float64[], 1.0),    # 1
-                ConicConstraintTerm([u1], [1.0], 0.0),           # u1
-            ],
-            MOI.ExponentialCone(),
-            logistic,
-            "logistic: ($(x)-$t, 1, $u1) ∈ ExponentialCone"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([x, t], [1.0, -1.0], 0.0),  # x - t
+                    ConicConstraintTerm(Symbol[], Float64[], 1.0),    # 1
+                    ConicConstraintTerm([u1], [1.0], 0.0),           # u1
+                ],
+                MOI.ExponentialCone(),
+                logistic,
+                "logistic: ($(x)-$t, 1, $u1) ∈ ExponentialCone",
+            ),
+        )
 
         # (-t, 1, u2) ∈ ExponentialCone
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [-1.0], 0.0),           # -t
-                ConicConstraintTerm(Symbol[], Float64[], 1.0),    # 1
-                ConicConstraintTerm([u2], [1.0], 0.0),           # u2
-            ],
-            MOI.ExponentialCone(),
-            logistic,
-            "logistic: (-$t, 1, $u2) ∈ ExponentialCone"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [-1.0], 0.0),           # -t
+                    ConicConstraintTerm(Symbol[], Float64[], 1.0),    # 1
+                    ConicConstraintTerm([u2], [1.0], 0.0),           # u2
+                ],
+                MOI.ExponentialCone(),
+                logistic,
+                "logistic: (-$t, 1, $u2) ∈ ExponentialCone",
+            ),
+        )
 
         # u1 + u2 ≤ 1  ⟺  1 - u1 - u2 ≥ 0
-        push!(ctx.constraints, ConeConstraint(
-            [ConicConstraintTerm([u1, u2], [-1.0, -1.0], 1.0)],
-            MOI.Nonnegatives(1),
-            logistic,
-            "logistic: $u1 + $u2 ≤ 1"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [ConicConstraintTerm([u1, u2], [-1.0, -1.0], 1.0)],
+                MOI.Nonnegatives(1),
+                logistic,
+                "logistic: $u1 + $u2 ≤ 1",
+            ),
+        )
 
     elseif f === xlogx
         # xlogx(x) = x*log(x) ≤ t
@@ -687,32 +765,38 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         # Set u = t, v = x, w = 1: t ≥ x*log(x)  ✓
         @assert length(child_vars) == 1
         x = child_vars[1]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [1.0], 0.0),           # row 1: t (= u)
-                ConicConstraintTerm([x], [1.0], 0.0),           # row 2: x (= v)
-                ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 3: 1 (= w)
-            ],
-            MOI.RelativeEntropyCone(3),
-            xlogx,
-            "xlogx: ($t, $(x), 1) ∈ RelativeEntropyCone(3)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [1.0], 0.0),           # row 1: t (= u)
+                    ConicConstraintTerm([x], [1.0], 0.0),           # row 2: x (= v)
+                    ConicConstraintTerm(Symbol[], Float64[], 1.0),  # row 3: 1 (= w)
+                ],
+                MOI.RelativeEntropyCone(3),
+                xlogx,
+                "xlogx: ($t, $(x), 1) ∈ RelativeEntropyCone(3)",
+            ),
+        )
 
-    # ── Norm / SOC atoms ───────────────────────────────────────────────
+        # ── Norm / SOC atoms ───────────────────────────────────────────────
 
     elseif f === abs
         # |x| ≤ t  ⟺  (t, x) ∈ NormOneCone(2)
         @assert length(child_vars) == 1
         x = child_vars[1]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [1.0], 0.0),  # row 1: t
-                ConicConstraintTerm([x], [1.0], 0.0),  # row 2: x
-            ],
-            MOI.NormOneCone(2),
-            abs,
-            "$fname: ($t, $(x)) ∈ NormOneCone(2)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [1.0], 0.0),  # row 1: t
+                    ConicConstraintTerm([x], [1.0], 0.0),  # row 2: x
+                ],
+                MOI.NormOneCone(2),
+                abs,
+                "$fname: ($t, $(x)) ∈ NormOneCone(2)",
+            ),
+        )
 
     elseif f === norm
         # ‖x‖ ≤ t  ⟺  (t, x...) ∈ SecondOrderCone
@@ -720,16 +804,19 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         terms = Vector{ConicConstraintTerm}(undef, dim)
         terms[1] = ConicConstraintTerm([t], [1.0], 0.0)
         for (i, v) in enumerate(child_vars)
-            terms[i + 1] = ConicConstraintTerm([v], [1.0], 0.0)
+            terms[i+1] = ConicConstraintTerm([v], [1.0], 0.0)
         end
-        push!(ctx.constraints, ConeConstraint(
-            terms,
-            MOI.SecondOrderCone(dim),
-            norm,
-            "$fname: ($t, $(join(child_vars, ", "))) ∈ SOC($dim)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                terms,
+                MOI.SecondOrderCone(dim),
+                norm,
+                "$fname: ($t, $(join(child_vars, ", "))) ∈ SOC($dim)",
+            ),
+        )
 
-    # ── RSOC atoms ─────────────────────────────────────────────────────
+        # ── RSOC atoms ─────────────────────────────────────────────────────
 
     elseif f === sqrt
         # sqrt(x) ≥ t  ⟺  (t, 1, x) ∈ RotatedSecondOrderCone(3)
@@ -740,16 +827,19 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         # Set u = (x, 0.5, t): 2*x*0.5 ≥ t² → x ≥ t² → t ≤ sqrt(x) ✓
         @assert length(child_vars) == 1
         x = child_vars[1]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([x], [1.0], 0.0),           # row 1: x
-                ConicConstraintTerm(Symbol[], Float64[], 0.5),   # row 2: 0.5
-                ConicConstraintTerm([t], [1.0], 0.0),           # row 3: t
-            ],
-            MOI.RotatedSecondOrderCone(3),
-            sqrt,
-            "$fname: ($(x), 0.5, $t) ∈ RSOC(3)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([x], [1.0], 0.0),           # row 1: x
+                    ConicConstraintTerm(Symbol[], Float64[], 0.5),   # row 2: 0.5
+                    ConicConstraintTerm([t], [1.0], 0.0),           # row 3: t
+                ],
+                MOI.RotatedSecondOrderCone(3),
+                sqrt,
+                "$fname: ($(x), 0.5, $t) ∈ RSOC(3)",
+            ),
+        )
 
     elseif f === inv
         # inv(x) ≤ t, x > 0  ⟺  1/x ≤ t  ⟺  1 ≤ t*x
@@ -758,16 +848,19 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         @assert length(child_vars) == 1
         x = child_vars[1]
         sqrt2 = sqrt(2.0)
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [1.0], 0.0),               # row 1: t
-                ConicConstraintTerm([x], [1.0], 0.0),               # row 2: x
-                ConicConstraintTerm(Symbol[], Float64[], sqrt2),     # row 3: √2
-            ],
-            MOI.RotatedSecondOrderCone(3),
-            inv,
-            "$fname: ($t, $(x), √2) ∈ RSOC(3)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [1.0], 0.0),               # row 1: t
+                    ConicConstraintTerm([x], [1.0], 0.0),               # row 2: x
+                    ConicConstraintTerm(Symbol[], Float64[], sqrt2),     # row 3: √2
+                ],
+                MOI.RotatedSecondOrderCone(3),
+                inv,
+                "$fname: ($t, $(x), √2) ∈ RSOC(3)",
+            ),
+        )
 
     elseif f === quad_over_lin
         # x²/y ≤ t  ⟺  (y, t, x) ∈ RotatedSecondOrderCone(3)
@@ -785,18 +878,21 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         # row 1 = 0.5*y, row 2 = t, row 3 = x
         @assert length(child_vars) == 2
         x, y = child_vars[1], child_vars[2]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([y], [0.5], 0.0),  # row 1: y/2
-                ConicConstraintTerm([t], [1.0], 0.0),   # row 2: t
-                ConicConstraintTerm([x], [1.0], 0.0),   # row 3: x
-            ],
-            MOI.RotatedSecondOrderCone(3),
-            quad_over_lin,
-            "$fname: ($(y)/2, $t, $(x)) ∈ RSOC(3)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([y], [0.5], 0.0),  # row 1: y/2
+                    ConicConstraintTerm([t], [1.0], 0.0),   # row 2: t
+                    ConicConstraintTerm([x], [1.0], 0.0),   # row 3: x
+                ],
+                MOI.RotatedSecondOrderCone(3),
+                quad_over_lin,
+                "$fname: ($(y)/2, $t, $(x)) ∈ RSOC(3)",
+            ),
+        )
 
-    # ── Relative entropy ───────────────────────────────────────────────
+        # ── Relative entropy ───────────────────────────────────────────────
 
     elseif f === rel_entr
         # rel_entr(x,y) = x*log(x/y) ≤ t
@@ -804,16 +900,19 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         # Set u = t, v = x, w = y: t ≥ x*log(x/y) ✓
         @assert length(child_vars) == 2
         x, y = child_vars[1], child_vars[2]
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [1.0], 0.0),   # row 1: t (= u)
-                ConicConstraintTerm([x], [1.0], 0.0),   # row 2: x (= v)
-                ConicConstraintTerm([y], [1.0], 0.0),   # row 3: y (= w)
-            ],
-            MOI.RelativeEntropyCone(3),
-            rel_entr,
-            "$fname: ($t, $(x), $(y)) ∈ RelativeEntropyCone(3)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [1.0], 0.0),   # row 1: t (= u)
+                    ConicConstraintTerm([x], [1.0], 0.0),   # row 2: x (= v)
+                    ConicConstraintTerm([y], [1.0], 0.0),   # row 3: y (= w)
+                ],
+                MOI.RelativeEntropyCone(3),
+                rel_entr,
+                "$fname: ($t, $(x), $(y)) ∈ RelativeEntropyCone(3)",
+            ),
+        )
 
     elseif f === kldivergence
         # kldivergence(p, q) = Σ pᵢ*log(pᵢ/qᵢ) ≤ t
@@ -824,18 +923,21 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         @assert length(child_vars) == 2
         p, q = child_vars[1], child_vars[2]
         # Scalar case (each arg reduced to single var)
-        push!(ctx.constraints, ConeConstraint(
-            [
-                ConicConstraintTerm([t], [1.0], 0.0),   # row 1: t (= u)
-                ConicConstraintTerm([p], [1.0], 0.0),   # row 2: p
-                ConicConstraintTerm([q], [1.0], 0.0),   # row 3: q
-            ],
-            MOI.RelativeEntropyCone(3),
-            kldivergence,
-            "kldivergence: ($t, $p, $q) ∈ RelativeEntropyCone(3)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                [
+                    ConicConstraintTerm([t], [1.0], 0.0),   # row 1: t (= u)
+                    ConicConstraintTerm([p], [1.0], 0.0),   # row 2: p
+                    ConicConstraintTerm([q], [1.0], 0.0),   # row 3: q
+                ],
+                MOI.RelativeEntropyCone(3),
+                kldivergence,
+                "kldivergence: ($t, $p, $q) ∈ RelativeEntropyCone(3)",
+            ),
+        )
 
-    # ── Power cone ─────────────────────────────────────────────────────
+        # ── Power cone ─────────────────────────────────────────────────────
 
     elseif f === (^)
         # Power atom x^p: dispatch based on exponent
@@ -849,16 +951,19 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
 
         if p !== nothing && p == 2
             # x² ≤ t  ⟺  RSOC: (t, 0.5, x): 2*t*0.5 ≥ x² → t ≥ x²
-            push!(ctx.constraints, ConeConstraint(
-                [
-                    ConicConstraintTerm([t], [1.0], 0.0),
-                    ConicConstraintTerm(Symbol[], Float64[], 0.5),
-                    ConicConstraintTerm([x], [1.0], 0.0),
-                ],
-                MOI.RotatedSecondOrderCone(3),
-                (^),
-                "power: ($t, 0.5, $(x)) ∈ RSOC(3) [x²]"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [
+                        ConicConstraintTerm([t], [1.0], 0.0),
+                        ConicConstraintTerm(Symbol[], Float64[], 0.5),
+                        ConicConstraintTerm([x], [1.0], 0.0),
+                    ],
+                    MOI.RotatedSecondOrderCone(3),
+                    (^),
+                    "power: ($t, 0.5, $(x)) ∈ RSOC(3) [x²]",
+                ),
+            )
         elseif p !== nothing && p > 1
             # x^p ≤ t, x ≥ 0  ⟺  (t, x) ∈ PowerCone(1/p)
             # MOI.PowerCone(α): x₁^α * x₂^(1-α) ≥ |x₃|
@@ -866,29 +971,35 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
             # Actually MOI PowerCone: x₁^α * x₂^(1-α) ≥ |x₃|, x₁,x₂ ≥ 0
             # We want t ≥ x^p. Set α = 1/p:
             # (t, 1, x): t^(1/p) * 1^(1-1/p) ≥ |x| → t^(1/p) ≥ x → t ≥ x^p ✓
-            push!(ctx.constraints, ConeConstraint(
-                [
-                    ConicConstraintTerm([t], [1.0], 0.0),           # t
-                    ConicConstraintTerm(Symbol[], Float64[], 1.0),  # 1
-                    ConicConstraintTerm([x], [1.0], 0.0),           # x
-                ],
-                MOI.PowerCone(1.0 / p),
-                (^),
-                "power: ($t, 1, $(x)) ∈ PowerCone($(1.0/p)) [x^$p]"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [
+                        ConicConstraintTerm([t], [1.0], 0.0),           # t
+                        ConicConstraintTerm(Symbol[], Float64[], 1.0),  # 1
+                        ConicConstraintTerm([x], [1.0], 0.0),           # x
+                    ],
+                    MOI.PowerCone(1.0 / p),
+                    (^),
+                    "power: ($t, 1, $(x)) ∈ PowerCone($(1.0/p)) [x^$p]",
+                ),
+            )
         elseif p !== nothing && p > 0 && p < 1
             # x^p ≥ t, x ≥ 0 (concave)  ⟺  PowerCone(p)
             # (x, 1, t): x^p * 1^(1-p) ≥ |t| → x^p ≥ t ✓
-            push!(ctx.constraints, ConeConstraint(
-                [
-                    ConicConstraintTerm([x], [1.0], 0.0),           # x
-                    ConicConstraintTerm(Symbol[], Float64[], 1.0),  # 1
-                    ConicConstraintTerm([t], [1.0], 0.0),           # t
-                ],
-                MOI.PowerCone(p),
-                (^),
-                "power: ($(x), 1, $t) ∈ PowerCone($p) [x^$p]"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [
+                        ConicConstraintTerm([x], [1.0], 0.0),           # x
+                        ConicConstraintTerm(Symbol[], Float64[], 1.0),  # 1
+                        ConicConstraintTerm([t], [1.0], 0.0),           # t
+                    ],
+                    MOI.PowerCone(p),
+                    (^),
+                    "power: ($(x), 1, $t) ∈ PowerCone($p) [x^$p]",
+                ),
+            )
         elseif p !== nothing && p < 0
             # x^p (p<0), x > 0, convex.  x^p ≤ t ⟺ 1 ≤ t * x^(-p)
             # Use PowerCone: (t, x, 1) with α = 1/(1-p)...
@@ -897,22 +1008,25 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
             # → t * x^q ≥ 1^(1+q) = 1 → t ≥ 1/x^q = x^p ✓
             q = -p
             alpha = 1.0 / (1.0 + q)
-            push!(ctx.constraints, ConeConstraint(
-                [
-                    ConicConstraintTerm([t], [1.0], 0.0),           # t
-                    ConicConstraintTerm([x], [1.0], 0.0),           # x
-                    ConicConstraintTerm(Symbol[], Float64[], 1.0),  # 1
-                ],
-                MOI.PowerCone(alpha),
-                (^),
-                "power: ($t, $(x), 1) ∈ PowerCone($alpha) [x^$p]"
-            ))
+            push!(
+                ctx.constraints,
+                ConeConstraint(
+                    [
+                        ConicConstraintTerm([t], [1.0], 0.0),           # t
+                        ConicConstraintTerm([x], [1.0], 0.0),           # x
+                        ConicConstraintTerm(Symbol[], Float64[], 1.0),  # 1
+                    ],
+                    MOI.PowerCone(alpha),
+                    (^),
+                    "power: ($t, $(x), 1) ∈ PowerCone($alpha) [x^$p]",
+                ),
+            )
         else
             # Fallback for integer powers or unrecognized
             _emit_generic_constraint!(f, t, child_vars, cone, curvature, ctx)
         end
 
-    # ── Huber loss ─────────────────────────────────────────────────────
+        # ── Huber loss ─────────────────────────────────────────────────────
 
     elseif f === huber
         # huber(x, M) ≤ t
@@ -930,7 +1044,7 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         # Even simpler, just create the generic constraint for now
         _emit_generic_constraint!(f, t, child_vars, cone, curvature, ctx)
 
-    # ── Geometric mean ─────────────────────────────────────────────────
+        # ── Geometric mean ─────────────────────────────────────────────────
 
     elseif f === StatsBase.geomean
         # geomean(x) ≥ t  ⟺  (t, x...) ∈ GeometricMeanCone(n+1)
@@ -938,14 +1052,17 @@ function _emit_atom_constraint!(f, t, child_vars, cone, curvature, ctx::ConicCon
         terms = Vector{ConicConstraintTerm}(undef, dim)
         terms[1] = ConicConstraintTerm([t], [1.0], 0.0)
         for (i, v) in enumerate(child_vars)
-            terms[i + 1] = ConicConstraintTerm([v], [1.0], 0.0)
+            terms[i+1] = ConicConstraintTerm([v], [1.0], 0.0)
         end
-        push!(ctx.constraints, ConeConstraint(
-            terms,
-            MOI.GeometricMeanCone(dim),
-            StatsBase.geomean,
-            "geomean: ($t, $(join(child_vars, ", "))) ∈ GeometricMeanCone($dim)"
-        ))
+        push!(
+            ctx.constraints,
+            ConeConstraint(
+                terms,
+                MOI.GeometricMeanCone(dim),
+                StatsBase.geomean,
+                "geomean: ($t, $(join(child_vars, ", "))) ∈ GeometricMeanCone($dim)",
+            ),
+        )
 
     else
         # Generic: record the cone type
@@ -963,7 +1080,7 @@ function _emit_generic_constraint!(f, t, child_vars, cone, curvature, ctx::Conic
     terms = Vector{ConicConstraintTerm}(undef, dim)
     terms[1] = ConicConstraintTerm([t], [1.0], 0.0)
     for (i, v) in enumerate(child_vars)
-        terms[i + 1] = ConicConstraintTerm([v], [1.0], 0.0)
+        terms[i+1] = ConicConstraintTerm([v], [1.0], 0.0)
     end
     cone_instance = if cone isa DataType
         try
@@ -974,12 +1091,15 @@ function _emit_generic_constraint!(f, t, child_vars, cone, curvature, ctx::Conic
     else
         cone
     end
-    push!(ctx.constraints, ConeConstraint(
-        terms,
-        cone_instance,
-        f,
-        "$fname: $t $sense_str $fname($(join(child_vars, ", "))) via $(cone_instance)"
-    ))
+    push!(
+        ctx.constraints,
+        ConeConstraint(
+            terms,
+            cone_instance,
+            f,
+            "$fname: $t $sense_str $fname($(join(child_vars, ", "))) via $(cone_instance)",
+        ),
+    )
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -996,16 +1116,40 @@ function list_cone_annotations()
     for (f, rule) in dcprules_dict
         if rule isa Vector
             for r in rule
-                push!(result, (atom = nameof(f), type = :DCP, cone = r.cone, curvature = r.curvature))
+                push!(
+                    result,
+                    (atom = nameof(f), type = :DCP, cone = r.cone, curvature = r.curvature),
+                )
             end
         else
-            push!(result, (atom = nameof(f), type = :DCP, cone = rule.cone, curvature = rule.curvature))
+            push!(
+                result,
+                (
+                    atom = nameof(f),
+                    type = :DCP,
+                    cone = rule.cone,
+                    curvature = rule.curvature,
+                ),
+            )
         end
     end
     for (f, rule) in gdcprules_dict
-        push!(result, (atom = nameof(f), type = :GDCP, cone = rule.cone, gcurvature = rule.gcurvature))
+        push!(
+            result,
+            (
+                atom = nameof(f),
+                type = :GDCP,
+                cone = rule.cone,
+                gcurvature = rule.gcurvature,
+            ),
+        )
     end
     return result
 end
 
-export to_conic_form, ConicFormulation, ConeConstraint, ConicConstraintTerm, ConicContext, list_cone_annotations
+export to_conic_form,
+    ConicFormulation,
+    ConeConstraint,
+    ConicConstraintTerm,
+    ConicContext,
+    list_cone_annotations

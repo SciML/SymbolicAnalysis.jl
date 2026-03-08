@@ -28,7 +28,7 @@ function to_jump_model(cf::ConicFormulation; solver = nothing)
     model = solver === nothing ? JuMP.Model() : JuMP.Model(solver)
 
     # Create JuMP variables for all variables in the formulation
-    jump_vars = Dict{Symbol, JuMP.VariableRef}()
+    jump_vars = Dict{Symbol,JuMP.VariableRef}()
     for v in cf.variables
         jump_vars[v] = JuMP.@variable(model, base_name = string(v))
     end
@@ -90,7 +90,7 @@ function to_moi_model(cf::ConicFormulation)
     model = MOI.Utilities.Model{Float64}()
 
     # Add variables
-    var_map = Dict{Symbol, MOI.VariableIndex}()
+    var_map = Dict{Symbol,MOI.VariableIndex}()
     for v in cf.variables
         vi = MOI.add_variable(model)
         MOI.set(model, MOI.VariableName(), vi, string(v))
@@ -99,10 +99,7 @@ function to_moi_model(cf::ConicFormulation)
 
     # Set objective
     obj_vi = var_map[cf.objective_var]
-    obj_func = MOI.ScalarAffineFunction(
-        [MOI.ScalarAffineTerm(1.0, obj_vi)],
-        0.0
-    )
+    obj_func = MOI.ScalarAffineFunction([MOI.ScalarAffineTerm(1.0, obj_vi)], 0.0)
     sense = cf.objective_sense == :minimize ? MOI.MIN_SENSE : MOI.MAX_SENSE
     MOI.set(model, MOI.ObjectiveSense(), sense)
     MOI.set(model, MOI.ObjectiveFunction{typeof(obj_func)}(), obj_func)
@@ -123,8 +120,10 @@ Add a single ConeConstraint to an MOI model using generic dispatch.
 function _add_moi_constraint!(model, c::ConeConstraint, var_map)
     if c.cone isa MOI.AbstractScalarSet
         ct = only(c.terms)
-        terms = [MOI.ScalarAffineTerm(coeff, var_map[v])
-                 for (v, coeff) in zip(ct.vars, ct.coeffs)]
+        terms = [
+            MOI.ScalarAffineTerm(coeff, var_map[v]) for
+            (v, coeff) in zip(ct.vars, ct.coeffs)
+        ]
         func = MOI.ScalarAffineFunction(terms, ct.constant)
         MOI.add_constraint(model, func, c.cone)
     else
@@ -132,7 +131,10 @@ function _add_moi_constraint!(model, c::ConeConstraint, var_map)
         vat = MOI.VectorAffineTerm{Float64}[]
         for (row, ct) in enumerate(c.terms)
             for (v, coeff) in zip(ct.vars, ct.coeffs)
-                push!(vat, MOI.VectorAffineTerm(row, MOI.ScalarAffineTerm(coeff, var_map[v])))
+                push!(
+                    vat,
+                    MOI.VectorAffineTerm(row, MOI.ScalarAffineTerm(coeff, var_map[v])),
+                )
             end
         end
         constants = [ct.constant for ct in c.terms]
@@ -155,7 +157,7 @@ Extract solution values from a solved MOI model back to the original variable na
 A `Dict{Symbol, Float64}` mapping original variable names to their optimal values.
 """
 function extract_solution(cf::ConicFormulation, model, var_map)
-    result = Dict{Symbol, Float64}()
+    result = Dict{Symbol,Float64}()
     for v in cf.original_variables
         if haskey(var_map, v)
             val = MOI.get(model, MOI.VariablePrimal(), var_map[v])
@@ -174,7 +176,10 @@ function print_conic_form(cf::ConicFormulation; io = stdout)
     println(io, "Conic Formulation:")
     println(io, "  Objective: $(cf.objective_sense) $(cf.objective_var)")
     println(io, "  Original variables: $(join(sort(collect(cf.original_variables)), ", "))")
-    println(io, "  Epigraph variables: $(join(sort(collect(setdiff(cf.variables, cf.original_variables))), ", "))")
+    println(
+        io,
+        "  Epigraph variables: $(join(sort(collect(setdiff(cf.variables, cf.original_variables))), ", "))",
+    )
     println(io, "  Constraints ($(length(cf.constraints))):")
     for (i, c) in enumerate(cf.constraints)
         println(io, "    [$i] $(c.description)")

@@ -32,10 +32,10 @@ function canonize(ex)
     # Core rules that are safe and well-tested
     core_rules = [
         # Quadratic form recognition: x'*Y*x → quad_form(x, Y)
-        @rule (adjoint(~x) * (~Y * ~x))[1] => quad_form(~x, ~Y)
+        @rule (adjoint(~x)*(~Y*~x))[1] => quad_form(~x, ~Y)
 
         # Conjugation recognition: B'*X*B → conjugation(X, B)
-        @rule ((adjoint(~B) * ~X) * ~B)[Base.OneTo(size(~B, 2)), Base.OneTo(size(~B, 1))] =>
+        @rule ((adjoint(~B)*~X)*~B)[Base.OneTo(size(~B, 2)), Base.OneTo(size(~B, 1))] =>
             conjugation(~X, ~B)
 
         # Double inverse: inv(inv(X)) → X
@@ -127,22 +127,22 @@ function equivalent_forms()
         (
             verifiable = "-logdet(X)",
             not_verifiable = "logdet(inv(X))",
-            note = "Mathematically equivalent: -log|X| = log|X^{-1}|. Use canonize_extended() to transform."
+            note = "Mathematically equivalent: -log|X| = log|X^{-1}|. Use canonize_extended() to transform.",
         ),
         (
             verifiable = "tr(inv(X))",
             not_verifiable = "sum(eigvals(inv(X)))",
-            note = "Semantically equivalent (trace = sum of eigenvalues). High-level form verifiable."
+            note = "Semantically equivalent (trace = sum of eigenvalues). High-level form verifiable.",
         ),
         (
             verifiable = "sum(distance(M, As[i], X)^2 for i in 1:n)",
             not_verifiable = "sum(log(eigvals(As[i]^(-1/2) * X * As[i]^(-1/2)))^2 for i in 1:n)",
-            note = "Semantically equivalent. Use high-level distance atom for verification."
+            note = "Semantically equivalent. Use high-level distance atom for verification.",
         ),
         (
             verifiable = "2 * logdet(X)",
             not_verifiable = "logdet(X)^2",
-            note = "NOT equivalent! Common user mistake. 2*log|X| ≠ (log|X|)². First is g-linear."
+            note = "NOT equivalent! Common user mistake. 2*log|X| ≠ (log|X|)². First is g-linear.",
         ),
     ]
     return forms

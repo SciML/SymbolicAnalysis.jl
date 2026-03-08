@@ -18,9 +18,9 @@ using Random
 
 Random.seed!(42)
 
-println("=" ^ 70)
+println("="^70)
 println("  MOI/Conic Form Comparison: Convex.jl vs SymbolicAnalysis.jl")
-println("=" ^ 70)
+println("="^70)
 
 # ─────────────────────────────────────────────────────────────────────
 # Example 1: Simple scalar DCP -- exp(x) + abs(y)
@@ -53,10 +53,14 @@ println("  Sense:       $(JuMP.objective_sense(model1))")
 
 # Verify cone types present
 moi1, vmap1 = to_moi_model(cf1)
-exp_ci = MOI.get(moi1, MOI.ListOfConstraintIndices{
-    MOI.VectorAffineFunction{Float64}, MOI.ExponentialCone}())
-norm_ci = MOI.get(moi1, MOI.ListOfConstraintIndices{
-    MOI.VectorAffineFunction{Float64}, MOI.NormOneCone}())
+exp_ci = MOI.get(
+    moi1,
+    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.ExponentialCone}(),
+)
+norm_ci = MOI.get(
+    moi1,
+    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.NormOneCone}(),
+)
 println("  ExpCone constraints:     $(length(exp_ci))")
 println("  NormOneCone constraints: $(length(norm_ci))")
 
@@ -79,8 +83,13 @@ println("\nConic form:")
 print_conic_form(cf2)
 
 moi2, vmap2 = to_moi_model(cf2)
-rsoc_ci = MOI.get(moi2, MOI.ListOfConstraintIndices{
-    MOI.VectorAffineFunction{Float64}, MOI.RotatedSecondOrderCone}())
+rsoc_ci = MOI.get(
+    moi2,
+    MOI.ListOfConstraintIndices{
+        MOI.VectorAffineFunction{Float64},
+        MOI.RotatedSecondOrderCone,
+    }(),
+)
 println("\n  RSOC constraints: $(length(rsoc_ci))")
 
 # ─────────────────────────────────────────────────────────────────────
@@ -144,17 +153,19 @@ println("\nConic form:")
 print_conic_form(cf5)
 
 moi5, _ = to_moi_model(cf5)
-re_ci = MOI.get(moi5, MOI.ListOfConstraintIndices{
-    MOI.VectorAffineFunction{Float64}, MOI.RelativeEntropyCone}())
+re_ci = MOI.get(
+    moi5,
+    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.RelativeEntropyCone}(),
+)
 println("  RelativeEntropyCone constraints: $(length(re_ci))")
 
 # ─────────────────────────────────────────────────────────────────────
 # Example 6: The DGCP advantage -- what Convex.jl CANNOT do
 # ─────────────────────────────────────────────────────────────────────
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("  DGCP: Beyond Convex.jl")
-println("=" ^ 70)
+println("="^70)
 
 using Manifolds
 
@@ -162,14 +173,21 @@ using Manifolds
 M = SymmetricPositiveDefinite(5)
 
 # Generate SPD test matrices
-A1 = let A = randn(5, 5); A * A' + 5I end
-A2 = let A = randn(5, 5); A * A' + 5I end
-A3 = let A = randn(5, 5); A * A' + 5I end
+A1 = let A = randn(5, 5)
+    A * A' + 5I
+end
+A2 = let A = randn(5, 5)
+    A * A' + 5I
+end
+A3 = let A = randn(5, 5)
+    A * A' + 5I
+end
 
 # Karcher mean objective
-expr_karcher = Manifolds.distance(M, A1, X)^2 +
-               Manifolds.distance(M, A2, X)^2 +
-               Manifolds.distance(M, A3, X)^2 |> Symbolics.unwrap
+expr_karcher =
+    Manifolds.distance(M, A1, X)^2 +
+    Manifolds.distance(M, A2, X)^2 +
+    Manifolds.distance(M, A3, X)^2 |> Symbolics.unwrap
 
 result_karcher = analyze(expr_karcher, M)
 println("\n── Karcher Mean: sum of squared Riemannian distances ──")
@@ -179,9 +197,10 @@ println("  Convex.jl can verify this: NO")
 println("  SymbolicAnalysis.jl:       $(result_karcher.gcurvature) ✓")
 
 # Tyler's M-estimator
-xs = [randn(5) for _ in 1:3]
-expr_tyler = sum(SymbolicAnalysis.log_quad_form(v, inv(X)) for v in xs) +
-             (1/5) * LinearAlgebra.logdet(X) |> Symbolics.unwrap
+xs = [randn(5) for _ = 1:3]
+expr_tyler =
+    sum(SymbolicAnalysis.log_quad_form(v, inv(X)) for v in xs) +
+    (1 / 5) * LinearAlgebra.logdet(X) |> Symbolics.unwrap
 
 result_tyler = analyze(expr_tyler, M)
 println("\n── Tyler's M-estimator ──")
@@ -191,7 +210,9 @@ println("  Convex.jl can verify this: NO")
 println("  SymbolicAnalysis.jl:       $(result_tyler.gcurvature) ✓")
 
 # S-divergence
-expr_sdiv = SymbolicAnalysis.sdivergence(X, A1) + SymbolicAnalysis.sdivergence(X, A2) |> Symbolics.unwrap
+expr_sdiv =
+    SymbolicAnalysis.sdivergence(X, A1) + SymbolicAnalysis.sdivergence(X, A2) |>
+    Symbolics.unwrap
 result_sdiv = analyze(expr_sdiv, M)
 println("\n── S-divergence (Symmetric Stein) ──")
 println("  Euclidean curvature: $(result_sdiv.curvature)")
@@ -199,9 +220,9 @@ println("  Geodesic curvature:  $(result_sdiv.gcurvature)")
 println("  Convex.jl can verify this: NO")
 println("  SymbolicAnalysis.jl:       $(result_sdiv.gcurvature) ✓")
 
-println("\n" * "=" ^ 70)
+println("\n" * "="^70)
 println("  Summary")
-println("=" ^ 70)
+println("="^70)
 println("""
   DCP (Euclidean) examples:
     exp(x) + abs(y)  → Convex  → ExponentialCone + NormOneCone

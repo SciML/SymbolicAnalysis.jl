@@ -41,11 +41,7 @@ function publication_theme()
             ylabelsize = 11,
             titlesize = 12,
         ),
-        Legend = (
-            framevisible = false,
-            labelsize = 9,
-            patchsize = (15, 10),
-        ),
+        Legend = (framevisible = false, labelsize = 9, patchsize = (15, 10)),
     )
     # Try to use a serif font; fall back silently if unavailable
     try
@@ -74,7 +70,8 @@ function figure_timing_overhead()
     xs = 1:n
 
     fig = Figure(size = (504, 288))  # ~7x4 inches at 72 dpi
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Function",
         ylabel = "Time (us)",
         title = "DCP vs DGCP Verification Time",
@@ -83,10 +80,22 @@ function figure_timing_overhead()
     )
 
     w = 0.35
-    barplot!(ax, collect(xs) .- w / 2, df.DCP_us;
-        width = w, color = OI_PALETTE[1], label = "DCP")
-    barplot!(ax, collect(xs) .+ w / 2, df.DGCP_us;
-        width = w, color = OI_PALETTE[2], label = "DGCP")
+    barplot!(
+        ax,
+        collect(xs) .- w / 2,
+        df.DCP_us;
+        width = w,
+        color = OI_PALETTE[1],
+        label = "DCP",
+    )
+    barplot!(
+        ax,
+        collect(xs) .+ w / 2,
+        df.DGCP_us;
+        width = w,
+        color = OI_PALETTE[2],
+        label = "DGCP",
+    )
 
     axislegend(ax; position = :lt)
 
@@ -105,28 +114,58 @@ function figure_scaling()
 
     # Panel (a): time vs Terms for Karcher, MatrixSize==5
     sub_terms = filter(r -> r.Problem == "Karcher" && r.MatrixSize == 5, df)
-    ax1 = Axis(fig[1, 1],
+    ax1 = Axis(
+        fig[1, 1],
         xlabel = "Number of terms",
         ylabel = "Time (us)",
         title = "(a) Karcher mean, n = 5",
     )
-    scatterlines!(ax1, sub_terms.Terms, sub_terms.DCP_us;
-        color = OI_PALETTE[1], marker = :circle, linewidth = 2, label = "DCP")
-    scatterlines!(ax1, sub_terms.Terms, sub_terms.DGCP_us;
-        color = OI_PALETTE[2], marker = :rect, linewidth = 2, label = "DGCP")
+    scatterlines!(
+        ax1,
+        sub_terms.Terms,
+        sub_terms.DCP_us;
+        color = OI_PALETTE[1],
+        marker = :circle,
+        linewidth = 2,
+        label = "DCP",
+    )
+    scatterlines!(
+        ax1,
+        sub_terms.Terms,
+        sub_terms.DGCP_us;
+        color = OI_PALETTE[2],
+        marker = :rect,
+        linewidth = 2,
+        label = "DGCP",
+    )
     axislegend(ax1; position = :lt)
 
     # Panel (b): time vs MatrixSize for Karcher, Terms==3
     sub_size = filter(r -> r.Problem == "Karcher" && r.Terms == 3, df)
-    ax2 = Axis(fig[1, 2],
+    ax2 = Axis(
+        fig[1, 2],
         xlabel = "Matrix size n",
         ylabel = "Time (us)",
         title = "(b) Karcher mean, 3 terms",
     )
-    scatterlines!(ax2, sub_size.MatrixSize, sub_size.DCP_us;
-        color = OI_PALETTE[1], marker = :circle, linewidth = 2, label = "DCP")
-    scatterlines!(ax2, sub_size.MatrixSize, sub_size.DGCP_us;
-        color = OI_PALETTE[2], marker = :rect, linewidth = 2, label = "DGCP")
+    scatterlines!(
+        ax2,
+        sub_size.MatrixSize,
+        sub_size.DCP_us;
+        color = OI_PALETTE[1],
+        marker = :circle,
+        linewidth = 2,
+        label = "DCP",
+    )
+    scatterlines!(
+        ax2,
+        sub_size.MatrixSize,
+        sub_size.DGCP_us;
+        color = OI_PALETTE[2],
+        marker = :rect,
+        linewidth = 2,
+        label = "DGCP",
+    )
     axislegend(ax2; position = :lt)
 
     save_figure(fig, "fig2_scaling")
@@ -141,7 +180,8 @@ function figure_benchmark()
     df = CSV.read(joinpath(RESULTS_DIR, "extended_benchmark.csv"), DataFrame)
 
     fig = Figure(size = (504, 288))
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "Matrix size n",
         ylabel = "Time (ms)",
         title = "Verification Time vs Problem Size",
@@ -151,9 +191,15 @@ function figure_benchmark()
     for (i, ptype) in enumerate(problems)
         sub = filter(r -> r.Problem == ptype, df)
         ci = mod1(i, length(OI_PALETTE))
-        scatterlines!(ax, sub.Size, sub.Time_ms;
-            color = OI_PALETTE[ci], marker = :circle,
-            linewidth = 2, label = ptype)
+        scatterlines!(
+            ax,
+            sub.Size,
+            sub.Time_ms;
+            color = OI_PALETTE[ci],
+            marker = :circle,
+            linewidth = 2,
+            label = ptype,
+        )
     end
     axislegend(ax; position = :lt)
 
@@ -173,21 +219,26 @@ function figure_expert()
     colors = [d == "Hard" ? OI_PALETTE[5] : OI_PALETTE[1] for d in df.Difficulty]
 
     fig = Figure(size = (504, 288))
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         ylabel = "",
         xlabel = "Time (ms)",
         title = "Expert-Level DGCP Verification Time",
         yticks = (collect(ys), df.Case),
     )
 
-    barplot!(ax, collect(ys), df.Time_ms;
-        direction = :x, color = colors)
+    barplot!(ax, collect(ys), df.Time_ms; direction = :x, color = colors)
 
     # Manual legend entries for difficulty
     elem_hard = PolyElement(color = OI_PALETTE[5])
-    elem_med  = PolyElement(color = OI_PALETTE[1])
-    Legend(fig[1, 2], [elem_hard, elem_med], ["Hard", "Medium"];
-        framevisible = false, labelsize = 9)
+    elem_med = PolyElement(color = OI_PALETTE[1])
+    Legend(
+        fig[1, 2],
+        [elem_hard, elem_med],
+        ["Hard", "Medium"];
+        framevisible = false,
+        labelsize = 9,
+    )
 
     save_figure(fig, "fig4_expert")
     return fig
@@ -204,10 +255,11 @@ function figure_mle()
 
     labels = df.Problem .* " n=" .* string.(df.n) .* " k=" .* string.(df.Samples)
     dgcp_ms = df.DGCP_s .* 1000
-    dcp_ms  = df.DCP_s  .* 1000
+    dcp_ms = df.DCP_s .* 1000
 
     fig = Figure(size = (576, 288))
-    ax = Axis(fig[1, 1],
+    ax = Axis(
+        fig[1, 1],
         xlabel = "",
         ylabel = "Time (ms)",
         title = "MLE Verification Time",
@@ -216,10 +268,22 @@ function figure_mle()
     )
 
     w = 0.35
-    barplot!(ax, collect(xs) .- w / 2, dgcp_ms;
-        width = w, color = OI_PALETTE[1], label = "DGCP")
-    barplot!(ax, collect(xs) .+ w / 2, dcp_ms;
-        width = w, color = OI_PALETTE[2], label = "DCP")
+    barplot!(
+        ax,
+        collect(xs) .- w / 2,
+        dgcp_ms;
+        width = w,
+        color = OI_PALETTE[1],
+        label = "DGCP",
+    )
+    barplot!(
+        ax,
+        collect(xs) .+ w / 2,
+        dcp_ms;
+        width = w,
+        color = OI_PALETTE[2],
+        label = "DCP",
+    )
 
     axislegend(ax; position = :lt)
 

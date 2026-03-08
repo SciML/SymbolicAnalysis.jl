@@ -39,7 +39,7 @@ Structure to hold comparison results
 struct ComparisonResult
     name::String
     dgcp_curvature::SymbolicAnalysis.GCurvature
-    dcp_curvature::Union{Symbol, String}
+    dcp_curvature::Union{Symbol,String}
     euclidean_convex::Bool
     geodesically_convex::Bool
     notes::String
@@ -51,19 +51,20 @@ Run comparison for a given expression
 function compare_verification(
     name::String,
     dgcp_expr,
-    convex_expr_fn::Union{Function, Nothing},
-    notes::String = ""
+    convex_expr_fn::Union{Function,Nothing},
+    notes::String = "",
 )
     M = SymmetricPositiveDefinite(5)
-    
+
     # DGCP analysis
     dgcp_result = analyze(dgcp_expr, M)
     dgcp_curv = dgcp_result.gcurvature
-    
+
     # Euclidean curvature
     eucl_curv = dgcp_result.curvature
-    is_eucl_convex = eucl_curv == SymbolicAnalysis.Convex || eucl_curv == SymbolicAnalysis.Affine
-    
+    is_eucl_convex =
+        eucl_curv == SymbolicAnalysis.Convex || eucl_curv == SymbolicAnalysis.Affine
+
     # DCP analysis via Convex.jl
     dcp_curv = :not_tested
     if HAS_CONVEX && !isnothing(convex_expr_fn)
@@ -75,16 +76,17 @@ function compare_verification(
             dcp_curv = Symbol("error: $(typeof(e).name)")
         end
     end
-    
-    is_g_convex = dgcp_curv == SymbolicAnalysis.GConvex || dgcp_curv == SymbolicAnalysis.GLinear
-    
+
+    is_g_convex =
+        dgcp_curv == SymbolicAnalysis.GConvex || dgcp_curv == SymbolicAnalysis.GLinear
+
     return ComparisonResult(
         name,
         dgcp_curv,
         string(dcp_curv),
         is_eucl_convex,
         is_g_convex,
-        notes
+        notes,
     )
 end
 
@@ -94,22 +96,22 @@ end
 
 function run_scope_comparison()
     results = ComparisonResult[]
-    
+
     # Setup
     @variables X[1:5, 1:5]
     M = SymmetricPositiveDefinite(5)
-    
+
     # Generate test data
     A = randn(5, 5)
     A = A * A' + I  # SPD matrix
-    
-    xs = [randn(5) for _ in 1:3]  # Random vectors for Tyler's estimator
-    
+
+    xs = [randn(5) for _ = 1:3]  # Random vectors for Tyler's estimator
+
     println("="^70)
     println("EXPERIMENT 1: DCP vs DGCP Verification Scope")
     println("="^70)
     println()
-    
+
     #--------------------------------------------------------------------------
     # Case 1: logdet(X) - Both should verify
     #--------------------------------------------------------------------------
@@ -118,10 +120,10 @@ function run_scope_comparison()
         "logdet(X)",
         expr,
         HAS_CONVEX ? (Xc -> -Convex.logdet(Xc)) : nothing,  # Note: Convex.jl uses -logdet for convexity
-        "Baseline: Both DCP and DGCP should verify"
+        "Baseline: Both DCP and DGCP should verify",
     )
     push!(results, result)
-    
+
     #--------------------------------------------------------------------------
     # Case 2: tr(X^{-1}) - Both verify (convex in Euclidean, g-convex on SPD)
     #--------------------------------------------------------------------------
@@ -130,10 +132,10 @@ function run_scope_comparison()
         "tr(inv(X))",
         expr,
         nothing,  # Convex.jl doesn't have matrix inverse + trace composition
-        "Trace of inverse: g-convex on SPD"
+        "Trace of inverse: g-convex on SPD",
     )
     push!(results, result)
-    
+
     #--------------------------------------------------------------------------
     # Case 3: Riemannian distance squared - DGCP yes, DCP no
     #--------------------------------------------------------------------------
@@ -142,10 +144,10 @@ function run_scope_comparison()
         "distance(M, A, X)²",
         expr,
         nothing,  # No Euclidean equivalent
-        "Riemannian distance: g-convex but NOT Euclidean convex"
+        "Riemannian distance: g-convex but NOT Euclidean convex",
     )
     push!(results, result)
-    
+
     #--------------------------------------------------------------------------
     # Case 4: S-divergence - DGCP yes, DCP no
     #--------------------------------------------------------------------------
@@ -154,10 +156,10 @@ function run_scope_comparison()
         "S-divergence(X, A)",
         expr,
         nothing,  # No DCP equivalent
-        "Symmetric Stein divergence: g-convex, used in matrix mean problems"
+        "Symmetric Stein divergence: g-convex, used in matrix mean problems",
     )
     push!(results, result)
-    
+
     #--------------------------------------------------------------------------
     # Case 5: Conjugation logdet - DGCP yes, DCP limited
     #--------------------------------------------------------------------------
@@ -166,64 +168,75 @@ function run_scope_comparison()
         "logdet(A' X^{-1} A)",
         expr,
         nothing,
-        "Conjugation composition: key for Brascamp-Lieb"
+        "Conjugation composition: key for Brascamp-Lieb",
     )
     push!(results, result)
-    
+
     #--------------------------------------------------------------------------
     # Case 6: Tyler's M-Estimator objective - DGCP yes, DCP no
     #--------------------------------------------------------------------------
-    expr = (sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
-           (1/5) * logdet(X)) |> Symbolics.unwrap
+    expr =
+        (
+            sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
+            (1 / 5) * logdet(X)
+        ) |> Symbolics.unwrap
     result = compare_verification(
         "Tyler's M-Estimator",
         expr,
         nothing,
-        "Maximum likelihood covariance: g-convex, Euclidean non-convex"
+        "Maximum likelihood covariance: g-convex, Euclidean non-convex",
     )
     push!(results, result)
-    
+
     #--------------------------------------------------------------------------
     # Case 7: Karcher mean objective - DGCP yes, DCP no
     #--------------------------------------------------------------------------
-    As = [randn(5, 5) |> x -> x * x' + I for _ in 1:3]
+    As = [randn(5, 5) |> x -> x * x' + I for _ = 1:3]
     expr = sum(Manifolds.distance(M, Ai, X)^2 for Ai in As) |> Symbolics.unwrap
     result = compare_verification(
         "Karcher Mean (Σ d²)",
         expr,
         nothing,
-        "Frechet mean on SPD: g-convex, Euclidean non-convex"
+        "Frechet mean on SPD: g-convex, Euclidean non-convex",
     )
     push!(results, result)
-    
+
     #--------------------------------------------------------------------------
     # Print Results Table
     #--------------------------------------------------------------------------
     println()
     println("Results:")
     println("-"^70)
-    println(rpad("Expression", 25), " | ", 
-            rpad("DGCP", 12), " | ",
-            rpad("Eucl. Convex", 12), " | ",
-            "G-Convex")
+    println(
+        rpad("Expression", 25),
+        " | ",
+        rpad("DGCP", 12),
+        " | ",
+        rpad("Eucl. Convex", 12),
+        " | ",
+        "G-Convex",
+    )
     println("-"^70)
-    
+
     for r in results
         println(
-            rpad(r.name, 25), " | ",
-            rpad(string(r.dgcp_curvature), 12), " | ",
-            rpad(r.euclidean_convex ? "Yes" : "No", 12), " | ",
-            r.geodesically_convex ? "Yes" : "No"
+            rpad(r.name, 25),
+            " | ",
+            rpad(string(r.dgcp_curvature), 12),
+            " | ",
+            rpad(r.euclidean_convex ? "Yes" : "No", 12),
+            " | ",
+            r.geodesically_convex ? "Yes" : "No",
         )
     end
     println("-"^70)
-    
+
     #--------------------------------------------------------------------------
     # Key Finding
     #--------------------------------------------------------------------------
     dgcp_only = count(r -> r.geodesically_convex && !r.euclidean_convex, results)
     both = count(r -> r.geodesically_convex && r.euclidean_convex, results)
-    
+
     println()
     println("Summary:")
     println("  • Functions verified by DGCP only (g-convex, not Eucl-convex): $dgcp_only")
@@ -231,7 +244,7 @@ function run_scope_comparison()
     println()
     println("This demonstrates that DGCP extends DCP's verification scope to")
     println("geodesically convex functions that are Euclidean non-convex.")
-    
+
     return results
 end
 
@@ -259,13 +272,13 @@ function time_verification(f::Function, n_samples::Int = 7)
 
     # Collect timing samples
     times = Float64[]
-    for _ in 1:n_samples
+    for _ = 1:n_samples
         t = @elapsed f()
         push!(times, t)
     end
 
     # Return median
-    return sort(times)[div(n_samples, 2) + 1]
+    return sort(times)[div(n_samples, 2)+1]
 end
 
 """
@@ -296,35 +309,19 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
 
     # Test cases: functions that both DCP and DGCP can verify
     test_cases = [
-        (
-            name = "logdet(X)",
-            expr = logdet(X) |> Symbolics.unwrap,
-            both_verify = true
-        ),
-        (
-            name = "tr(X)",
-            expr = tr(X) |> Symbolics.unwrap,
-            both_verify = true
-        ),
-        (
-            name = "tr(inv(X))",
-            expr = tr(inv(X)) |> Symbolics.unwrap,
-            both_verify = true
-        ),
-        (
-            name = "-logdet(X)",
-            expr = -logdet(X) |> Symbolics.unwrap,
-            both_verify = true
-        ),
+        (name = "logdet(X)", expr = logdet(X) |> Symbolics.unwrap, both_verify = true),
+        (name = "tr(X)", expr = tr(X) |> Symbolics.unwrap, both_verify = true),
+        (name = "tr(inv(X))", expr = tr(inv(X)) |> Symbolics.unwrap, both_verify = true),
+        (name = "-logdet(X)", expr = -logdet(X) |> Symbolics.unwrap, both_verify = true),
         (
             name = "distance(M, A, X)^2",
             expr = Manifolds.distance(M, A, X)^2 |> Symbolics.unwrap,
-            both_verify = false  # DGCP only
+            both_verify = false,  # DGCP only
         ),
         (
             name = "S-divergence(X, A)",
             expr = SymbolicAnalysis.sdivergence(X, A) |> Symbolics.unwrap,
-            both_verify = false  # DGCP only
+            both_verify = false,  # DGCP only
         ),
     ]
 
@@ -351,20 +348,30 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
         # Print results table
         println("Results (times in microseconds):")
         println("-"^70)
-        println(rpad("Function", 22), " | ",
-                rpad("DCP (us)", 10), " | ",
-                rpad("DGCP (us)", 10), " | ",
-                rpad("Overhead", 10), " | ",
-                "Both Verify")
+        println(
+            rpad("Function", 22),
+            " | ",
+            rpad("DCP (us)", 10),
+            " | ",
+            rpad("DGCP (us)", 10),
+            " | ",
+            rpad("Overhead", 10),
+            " | ",
+            "Both Verify",
+        )
         println("-"^70)
 
         for r in results
             println(
-                rpad(r.name, 22), " | ",
-                rpad(@sprintf("%.1f", r.dcp_median_time * 1e6), 10), " | ",
-                rpad(@sprintf("%.1f", r.dgcp_median_time * 1e6), 10), " | ",
-                rpad(@sprintf("%.2fx", r.overhead_ratio), 10), " | ",
-                r.both_verify ? "Yes" : "No (DGCP only)"
+                rpad(r.name, 22),
+                " | ",
+                rpad(@sprintf("%.1f", r.dcp_median_time * 1e6), 10),
+                " | ",
+                rpad(@sprintf("%.1f", r.dgcp_median_time * 1e6), 10),
+                " | ",
+                rpad(@sprintf("%.2fx", r.overhead_ratio), 10),
+                " | ",
+                r.both_verify ? "Yes" : "No (DGCP only)",
             )
         end
         println("-"^70)
@@ -372,7 +379,8 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
         # Summary statistics for functions both can verify
         both_results = filter(r -> r.both_verify, results)
         if !isempty(both_results)
-            avg_overhead = sum(r.overhead_ratio for r in both_results) / length(both_results)
+            avg_overhead =
+                sum(r.overhead_ratio for r in both_results) / length(both_results)
             max_overhead = maximum(r.overhead_ratio for r in both_results)
 
             println()
@@ -381,8 +389,12 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
             println("  Maximum overhead: $(@sprintf("%.2fx", max_overhead))")
             println()
             println("Conclusion:")
-            println("  DGCP verification adds minimal overhead compared to DCP-style analysis.")
-            println("  The additional geodesic curvature propagation is computationally efficient,")
+            println(
+                "  DGCP verification adds minimal overhead compared to DCP-style analysis.",
+            )
+            println(
+                "  The additional geodesic curvature propagation is computationally efficient,",
+            )
             println("  making DGCP a practical extension of DCP for manifold optimization.")
         end
     end
@@ -417,9 +429,9 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
 
     if verbose
         println()
-        println("=" ^ 70)
+        println("="^70)
         println("SCALING ANALYSIS: DGCP Verification Time vs Problem Complexity")
-        println("=" ^ 70)
+        println("="^70)
         println("Samples per configuration: $n_samples (reporting median)")
         println()
     end
@@ -427,14 +439,18 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
     # Scaling dimension 1: matrix size with fixed number of terms
     if verbose
         println("Part A: Varying matrix size (fixed 3 terms)")
-        println("-" ^ 50)
+        println("-"^50)
     end
     for n in [3, 5, 8, 10]
         @variables Xn[1:n, 1:n]
         M = SymmetricPositiveDefinite(n)
 
         # Karcher mean with 3 sample matrices
-        As = [let B = randn(n, n); B * B' + I end for _ in 1:3]
+        As = [
+            let B = randn(n, n)
+                B * B' + I
+            end for _ = 1:3
+        ]
         expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> Symbolics.unwrap
 
         dcp_time = time_verification(n_samples) do
@@ -445,12 +461,28 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
         end
         overhead = dgcp_time / dcp_time
 
-        push!(results, ScalingResult("Karcher (3 terms)", n, 3,
-            dcp_time * 1e6, dgcp_time * 1e6, overhead))
+        push!(
+            results,
+            ScalingResult(
+                "Karcher (3 terms)",
+                n,
+                3,
+                dcp_time * 1e6,
+                dgcp_time * 1e6,
+                overhead,
+            ),
+        )
 
         if verbose
-            println(@sprintf("  n=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
-                n, dcp_time * 1e6, dgcp_time * 1e6, overhead))
+            println(
+                @sprintf(
+                    "  n=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
+                    n,
+                    dcp_time * 1e6,
+                    dgcp_time * 1e6,
+                    overhead
+                )
+            )
         end
     end
 
@@ -458,14 +490,18 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
     if verbose
         println()
         println("Part B: Varying number of terms (fixed n=5)")
-        println("-" ^ 50)
+        println("-"^50)
     end
     for num_terms in [1, 3, 5, 10]
         n = 5
         @variables Xn[1:n, 1:n]
         M = SymmetricPositiveDefinite(n)
 
-        As = [let B = randn(n, n); B * B' + I end for _ in 1:num_terms]
+        As = [
+            let B = randn(n, n)
+                B * B' + I
+            end for _ = 1:num_terms
+        ]
         expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> Symbolics.unwrap
 
         dcp_time = time_verification(n_samples) do
@@ -476,12 +512,28 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
         end
         overhead = dgcp_time / dcp_time
 
-        push!(results, ScalingResult("Karcher (n=5)", n, num_terms,
-            dcp_time * 1e6, dgcp_time * 1e6, overhead))
+        push!(
+            results,
+            ScalingResult(
+                "Karcher (n=5)",
+                n,
+                num_terms,
+                dcp_time * 1e6,
+                dgcp_time * 1e6,
+                overhead,
+            ),
+        )
 
         if verbose
-            println(@sprintf("  terms=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
-                num_terms, dcp_time * 1e6, dgcp_time * 1e6, overhead))
+            println(
+                @sprintf(
+                    "  terms=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
+                    num_terms,
+                    dcp_time * 1e6,
+                    dgcp_time * 1e6,
+                    overhead
+                )
+            )
         end
     end
 
@@ -489,16 +541,19 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
     if verbose
         println()
         println("Part C: Tyler's M-estimator (varying vectors, n=5)")
-        println("-" ^ 50)
+        println("-"^50)
     end
     for num_vecs in [1, 3, 5, 8]
         n = 5
         @variables Xn[1:n, 1:n]
         M = SymmetricPositiveDefinite(n)
 
-        xs = [randn(n) for _ in 1:num_vecs]
-        expr = (sum(SymbolicAnalysis.log_quad_form(x, inv(Xn)) for x in xs) +
-                (1 / n) * logdet(Xn)) |> Symbolics.unwrap
+        xs = [randn(n) for _ = 1:num_vecs]
+        expr =
+            (
+                sum(SymbolicAnalysis.log_quad_form(x, inv(Xn)) for x in xs) +
+                (1 / n) * logdet(Xn)
+            ) |> Symbolics.unwrap
 
         dcp_time = time_verification(n_samples) do
             analyze(expr)
@@ -508,40 +563,68 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
         end
         overhead = dgcp_time / dcp_time
 
-        push!(results, ScalingResult("Tyler (n=5)", n, num_vecs,
-            dcp_time * 1e6, dgcp_time * 1e6, overhead))
+        push!(
+            results,
+            ScalingResult(
+                "Tyler (n=5)",
+                n,
+                num_vecs,
+                dcp_time * 1e6,
+                dgcp_time * 1e6,
+                overhead,
+            ),
+        )
 
         if verbose
-            println(@sprintf("  vectors=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
-                num_vecs, dcp_time * 1e6, dgcp_time * 1e6, overhead))
+            println(
+                @sprintf(
+                    "  vectors=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
+                    num_vecs,
+                    dcp_time * 1e6,
+                    dgcp_time * 1e6,
+                    overhead
+                )
+            )
         end
     end
 
     # Summary
     if verbose
         println()
-        println("=" ^ 70)
+        println("="^70)
         println("SCALING SUMMARY TABLE")
-        println("=" ^ 70)
+        println("="^70)
         println()
-        println(rpad("Problem", 22), " | ",
-                rpad("n", 4), " | ",
-                rpad("Terms", 6), " | ",
-                rpad("DCP (us)", 10), " | ",
-                rpad("DGCP (us)", 10), " | ",
-                "Overhead")
-        println("-" ^ 70)
+        println(
+            rpad("Problem", 22),
+            " | ",
+            rpad("n", 4),
+            " | ",
+            rpad("Terms", 6),
+            " | ",
+            rpad("DCP (us)", 10),
+            " | ",
+            rpad("DGCP (us)", 10),
+            " | ",
+            "Overhead",
+        )
+        println("-"^70)
         for r in results
             println(
-                rpad(r.problem_type, 22), " | ",
-                rpad(string(r.matrix_size), 4), " | ",
-                rpad(string(r.num_terms), 6), " | ",
-                rpad(@sprintf("%.1f", r.dcp_median_us), 10), " | ",
-                rpad(@sprintf("%.1f", r.dgcp_median_us), 10), " | ",
+                rpad(r.problem_type, 22),
+                " | ",
+                rpad(string(r.matrix_size), 4),
+                " | ",
+                rpad(string(r.num_terms), 6),
+                " | ",
+                rpad(@sprintf("%.1f", r.dcp_median_us), 10),
+                " | ",
+                rpad(@sprintf("%.1f", r.dgcp_median_us), 10),
+                " | ",
                 @sprintf("%.2fx", r.overhead_ratio)
             )
         end
-        println("-" ^ 70)
+        println("-"^70)
 
         avg_overhead = mean(r.overhead_ratio for r in results)
         println()

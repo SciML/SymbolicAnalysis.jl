@@ -12,26 +12,33 @@ function add_gdcprule(f, manifold, sign, curvature, monotonicity; cone = nothing
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
     end
-    return gdcprules_dict[f] = makegrule(manifold, sign, curvature, monotonicity; cone = cone)
+    return gdcprules_dict[f] =
+        makegrule(manifold, sign, curvature, monotonicity; cone = cone)
 end
 function makegrule(manifold, sign, curvature, monotonicity; cone = nothing)
-    return (manifold = manifold, sign = sign, gcurvature = curvature, gmonotonicity = monotonicity, cone = cone)
+    return (
+        manifold = manifold,
+        sign = sign,
+        gcurvature = curvature,
+        gmonotonicity = monotonicity,
+        cone = cone,
+    )
 end
 
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
 hasgdcprule(f) = false
 gdcprule(f, args...) = gdcprules_dict[f], args
 
-setgcurvature(ex::Union{Symbolic, Num}, curv) = setmetadata(ex, GCurvature, curv)
+setgcurvature(ex::Union{Symbolic,Num}, curv) = setmetadata(ex, GCurvature, curv)
 setgcurvature(ex, curv) = ex
-function getgcurvature(ex::Union{Symbolic, Num})
+function getgcurvature(ex::Union{Symbolic,Num})
     if hasmetadata(ex, GCurvature)
         return getmetadata(ex, GCurvature)
     end
     return GUnknownCurvature
 end
 getgcurvature(ex) = GLinear
-hasgcurvature(ex::Union{Symbolic, Num}) = hasmetadata(ex, GCurvature)
+hasgcurvature(ex::Union{Symbolic,Num}) = hasmetadata(ex, GCurvature)
 hasgcurvature(ex) = ex isa Real
 
 function mul_gcurvature(args)
@@ -109,15 +116,15 @@ function find_gcurvature(ex)
             knowngcurv = true
         elseif f == LinearAlgebra.logdet
             if operation(args[1]) == conjugation ||
-                    operation(args[1]) == LinearAlgebra.diag ||
-                    Symbol(operation(args[1])) == :+ ||
-                    operation(args[1]) == affine_map ||
-                    operation(args[1]) == hadamard_product
+               operation(args[1]) == LinearAlgebra.diag ||
+               Symbol(operation(args[1])) == :+ ||
+               operation(args[1]) == affine_map ||
+               operation(args[1]) == hadamard_product
                 return GConvex
             end
         elseif f == log &&
-                iscall(args[1]) &&
-                (operation(args[1]) == LinearAlgebra.tr || operation(args[1]) == quad_form)
+               iscall(args[1]) &&
+               (operation(args[1]) == LinearAlgebra.tr || operation(args[1]) == quad_form)
             return GConvex
         elseif (f == schatten_norm || f == eigsummax) && operation(args[1]) == log
             return GConvex
