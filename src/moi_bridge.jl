@@ -55,56 +55,15 @@ end
 Add a single ConeConstraint to a JuMP model using generic dispatch.
 """
 function _add_jump_constraint!(model, c::ConeConstraint, jump_vars)
-    if c.cone isa MOI.EqualTo
-        # Scalar equality: single term, expression == 0
-        @assert length(c.terms) == 1
-        ct = c.terms[1]
+    if c.cone isa MOI.AbstractScalarSet
+        ct = only(c.terms)
         expr = JuMP.AffExpr(ct.constant)
         for (v, coeff) in zip(ct.vars, ct.coeffs)
             JuMP.add_to_expression!(expr, coeff, jump_vars[v])
         end
-        JuMP.@constraint(model, expr == 0)
-
-    elseif c.cone isa MOI.Nonnegatives
-        # Nonnegative constraints: each term ≥ 0
-        for ct in c.terms
-            expr = JuMP.AffExpr(ct.constant)
-            for (v, coeff) in zip(ct.vars, ct.coeffs)
-                JuMP.add_to_expression!(expr, coeff, jump_vars[v])
-            end
-            JuMP.@constraint(model, expr >= 0)
-        end
-
-    elseif c.cone isa MOI.Nonpositives
-        # Nonpositive constraints: each term ≤ 0
-        for ct in c.terms
-            expr = JuMP.AffExpr(ct.constant)
-            for (v, coeff) in zip(ct.vars, ct.coeffs)
-                JuMP.add_to_expression!(expr, coeff, jump_vars[v])
-            end
-            JuMP.@constraint(model, expr <= 0)
-        end
-
-    elseif c.cone isa MOI.GreaterThan
-        @assert length(c.terms) == 1
-        ct = c.terms[1]
-        expr = JuMP.AffExpr(ct.constant)
-        for (v, coeff) in zip(ct.vars, ct.coeffs)
-            JuMP.add_to_expression!(expr, coeff, jump_vars[v])
-        end
-        JuMP.@constraint(model, expr >= c.cone.lower)
-
-    elseif c.cone isa MOI.LessThan
-        @assert length(c.terms) == 1
-        ct = c.terms[1]
-        expr = JuMP.AffExpr(ct.constant)
-        for (v, coeff) in zip(ct.vars, ct.coeffs)
-            JuMP.add_to_expression!(expr, coeff, jump_vars[v])
-        end
-        JuMP.@constraint(model, expr <= c.cone.upper)
-
+        JuMP.@constraint(model, expr in c.cone)
     else
-        # Generic vector cone constraint
+        @assert c.cone isa MOI.AbstractVectorSet
         vec_expr = Vector{JuMP.AffExpr}(undef, length(c.terms))
         for (row, ct) in enumerate(c.terms)
             expr = JuMP.AffExpr(ct.constant)
@@ -162,33 +121,14 @@ end
 Add a single ConeConstraint to an MOI model using generic dispatch.
 """
 function _add_moi_constraint!(model, c::ConeConstraint, var_map)
-    if c.cone isa MOI.EqualTo
-        # Scalar equality constraint
-        @assert length(c.terms) == 1
-        ct = c.terms[1]
-        terms = [MOI.ScalarAffineTerm(coeff, var_map[v])
-                 for (v, coeff) in zip(ct.vars, ct.coeffs)]
-        func = MOI.ScalarAffineFunction(terms, ct.constant)
-        MOI.add_constraint(model, func, MOI.EqualTo(0.0))
-
-    elseif c.cone isa MOI.GreaterThan
-        @assert length(c.terms) == 1
-        ct = c.terms[1]
+    if c.cone isa MOI.AbstractScalarSet
+        ct = only(c.terms)
         terms = [MOI.ScalarAffineTerm(coeff, var_map[v])
                  for (v, coeff) in zip(ct.vars, ct.coeffs)]
         func = MOI.ScalarAffineFunction(terms, ct.constant)
         MOI.add_constraint(model, func, c.cone)
-
-    elseif c.cone isa MOI.LessThan
-        @assert length(c.terms) == 1
-        ct = c.terms[1]
-        terms = [MOI.ScalarAffineTerm(coeff, var_map[v])
-                 for (v, coeff) in zip(ct.vars, ct.coeffs)]
-        func = MOI.ScalarAffineFunction(terms, ct.constant)
-        MOI.add_constraint(model, func, c.cone)
-
     else
-        # Generic vector cone constraint
+        @assert c.cone isa MOI.AbstractVectorSet
         vat = MOI.VectorAffineTerm{Float64}[]
         for (row, ct) in enumerate(c.terms)
             for (v, coeff) in zip(ct.vars, ct.coeffs)

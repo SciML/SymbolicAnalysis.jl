@@ -70,7 +70,6 @@ Use with caution - may not work with all expression types.
 
 Additional rules:
 - logdet(inv(X)) → -logdet(X)
-- log(tr(~X) * tr(~Y)) → log(tr(~X)) + log(tr(~Y))
 """
 function canonize_extended(ex)
     ex = canonize(ex)  # First apply core rules
@@ -78,9 +77,6 @@ function canonize_extended(ex)
     extended_rules = [
         # logdet(inv(X)) → -logdet(X)
         @rule LinearAlgebra.logdet(inv(~X)) => -LinearAlgebra.logdet(~X)
-
-        # log(a * b) → log(a) + log(b) for positive sub-expressions
-        @rule log(~a * ~b) => log(~a) + log(~b)
     ]
 
     try
@@ -132,11 +128,6 @@ function equivalent_forms()
             verifiable = "-logdet(X)",
             not_verifiable = "logdet(inv(X))",
             note = "Mathematically equivalent: -log|X| = log|X^{-1}|. Use canonize_extended() to transform."
-        ),
-        (
-            verifiable = "log(tr(X)) + log(tr(Y))",
-            not_verifiable = "log(tr(X) * tr(Y))",
-            note = "Mathematically equivalent by log properties. Sum of logs is DGCP-compliant."
         ),
         (
             verifiable = "tr(inv(X))",

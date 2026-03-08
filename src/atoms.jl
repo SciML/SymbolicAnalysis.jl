@@ -177,7 +177,7 @@ add_dcprule(
     Positive,
     Convex,
     increasing_if_positive;
-    cone = MOI.SecondOrderCone  # General norm cone (SOC for p=2, NormCone for general p)
+    cone = nothing
 )
 
 """
@@ -386,7 +386,7 @@ add_dcprule(exp, RealLine(), Positive, Convex, Increasing;
 
 Symbolics.@register_symbolic LogExpFunctions.xlogx(x::Real)
 add_dcprule(xlogx, RealLine(), AnySign, Convex, AnyMono;
-    cone = MOI.ExponentialCone)
+    cone = MOI.RelativeEntropyCone)
 
 """
     huber(x, M=1)
@@ -473,9 +473,12 @@ function dcprule(::typeof(^), x::Symbolic, i)
     args = (x, i)
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing; cone = MOI.Reals), args
+    elseif i == 2
+        return makerule(RealLine(), Positive, Convex, increasing_if_positive;
+            cone = MOI.RotatedSecondOrderCone), args
     elseif isinteger(i) && iseven(i)
         return makerule(RealLine(), Positive, Convex, increasing_if_positive;
-            cone = MOI.SecondOrderCone), args
+            cone = nothing), args
     elseif isinteger(i) && isodd(i)
         return makerule(HalfLine(), Positive, Convex, Increasing;
             cone = MOI.PowerCone), args
