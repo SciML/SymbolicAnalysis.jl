@@ -12,11 +12,11 @@ function generate_test_data(size::Int, problem_type::String)
     if problem_type == "Tyler"
         A = randn(size, size)
         Sigma = A * A' + I
-        xs = [randn(size) for _ = 1:min(10, size)]
+        xs = [randn(size) for _ in 1:min(10, size)]
         return (Sigma = Sigma, xs = xs)
     elseif problem_type == "Karcher"
         matrices = []
-        for _ = 1:5
+        for _ in 1:5
             A = randn(size, size)
             push!(matrices, A * A' + I)
         end
@@ -32,7 +32,7 @@ function create_expression(data, size::Int, problem_type::String)
 
     if problem_type == "Tyler"
         return sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in data.xs) +
-               (1 / size) * logdet(X)
+            (1 / size) * logdet(X)
     elseif problem_type == "Karcher"
         M = SymmetricPositiveDefinite(size)
         return sum(Manifolds.distance(M, As, X)^2 for As in data.matrices)
@@ -47,7 +47,7 @@ function warmup_and_benchmark(problem_type::String, size::Int; n_samples = 10)
     M = SymmetricPositiveDefinite(size)
 
     # Warmup (5 runs)
-    for _ = 1:5
+    for _ in 1:5
         test_data = generate_test_data(size, problem_type)
         expr = create_expression(test_data, size, problem_type)
         SymbolicAnalysis.analyze(expr, M)
@@ -55,7 +55,7 @@ function warmup_and_benchmark(problem_type::String, size::Int; n_samples = 10)
 
     # Benchmark (multiple samples)
     times = Float64[]
-    for _ = 1:n_samples
+    for _ in 1:n_samples
         test_data = generate_test_data(size, problem_type)
         expr = create_expression(test_data, size, problem_type)
 
@@ -112,7 +112,7 @@ function run_benchmark()
                     ),
                 )
 
-                println("$(round(median_time, digits=3)) ms")
+                println("$(round(median_time, digits = 3)) ms")
 
             catch e
                 println("FAILED: $e")
@@ -225,11 +225,12 @@ function create_plots(results)
             println("\n$expr_name:")
             println("  • $(nrow(data)) measurements")
             println(
-                "  • Range: $(round(min_time, digits=3))ms - $(round(max_time, digits=3))ms",
+                "  • Range: $(round(min_time, digits = 3))ms - $(round(max_time, digits = 3))ms",
             )
-            println("  • Mean: $(round(mean_time, digits=3))ms")
+            println("  • Mean: $(round(mean_time, digits = 3))ms")
         end
     end
+    return
 end
 
 # Main execution
@@ -242,5 +243,5 @@ function main()
 
     println("\n" * "="^50)
     println("BENCHMARK COMPLETE!")
-    println("="^50)
+    return println("="^50)
 end

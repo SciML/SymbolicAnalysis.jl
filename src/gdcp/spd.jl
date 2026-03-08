@@ -24,7 +24,7 @@ function conjugation(X, B)
     return B' * X * B
 end
 
-@register_array_symbolic conjugation(X::Union{Symbolics.Arr,Matrix{Num}}, B::Matrix) begin
+@register_array_symbolic conjugation(X::Union{Symbolics.Arr, Matrix{Num}}, B::Matrix) begin
     size = (size(B, 2), size(B, 2))
 end
 
@@ -37,7 +37,7 @@ add_gdcprule(
     cone = MOI.PositiveSemidefiniteConeTriangle,
 )
 
-@register_symbolic LinearAlgebra.tr(X::Union{Symbolics.Arr,Matrix{Num}})
+@register_symbolic LinearAlgebra.tr(X::Union{Symbolics.Arr, Matrix{Num}})
 add_gdcprule(
     LinearAlgebra.tr,
     SymmetricPositiveDefinite,
@@ -79,7 +79,7 @@ function scalar_mat(X, k = size(X, 1))
     return tr(X) * I(k)
 end
 
-@register_symbolic scalar_mat(X::Union{Symbolics.Arr,Matrix{Num}}, k::Int)
+@register_symbolic scalar_mat(X::Union{Symbolics.Arr, Matrix{Num}}, k::Int)
 
 add_gdcprule(
     scalar_mat,
@@ -143,7 +143,7 @@ add_gdcprule(
 @register_symbolic Manifolds.distance(
     M::Manifolds.SymmetricPositiveDefinite,
     X::AbstractMatrix,
-    Y::Union{Symbolics.Arr,Matrix{Num}},
+    Y::Union{Symbolics.Arr, Matrix{Num}},
 )
 add_gdcprule(
     Manifolds.distance,
@@ -267,7 +267,7 @@ the sum is over `f` applied to the log of the eigenvalues.
 """
 function sum_log_eigmax(f::Function, X::AbstractMatrix, k::Int)
     nrows = size(X, 1)
-    eigs = eigvals(X, (nrows-k+1):nrows)
+    eigs = eigvals(X, (nrows - k + 1):nrows)
     return sum(f.(log.(eigs)))
 end
 
@@ -275,7 +275,7 @@ end
 
 function sum_log_eigmax(X::AbstractMatrix, k::Int)
     nrows = size(X, 1)
-    eigs = eigvals(X, (nrows-k+1):nrows)
+    eigs = eigvals(X, (nrows - k + 1):nrows)
     return sum((log.(eigs)))
 end
 
@@ -321,12 +321,12 @@ end
     conjf::typeof(conjugation),
     X::Matrix{Num},
     B::Matrix,
-    Y::Union{Matrix,Vector{<:Matrix}},
+    Y::Union{Matrix, Vector{<:Matrix}},
 ) begin
     size = (size(B, 1), size(B, 2))
 end
 
-function affine_map(f::Union{typeof(diag),typeof(tr)}, X::AbstractMatrix, B::AbstractMatrix)
+function affine_map(f::Union{typeof(diag), typeof(tr)}, X::AbstractMatrix, B::AbstractMatrix)
     if !(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)
         throw(DomainError(B, "B must be positive semi-definite."))
     end
@@ -334,7 +334,7 @@ function affine_map(f::Union{typeof(diag),typeof(tr)}, X::AbstractMatrix, B::Abs
 end
 
 @register_array_symbolic affine_map(
-    diagtrf::Union{typeof(diag),typeof(tr)},
+    diagtrf::Union{typeof(diag), typeof(tr)},
     X::Matrix{Num},
     B::Matrix,
 ) begin
@@ -362,7 +362,7 @@ Hadamard product or element-wise multiplication of a symmetric positive definite
 """
 function hadamard_product(X::AbstractMatrix, B::AbstractMatrix)
     if (!(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)) &&
-       !(any(prod(r) == 0.0 for r in eachrow(B)))
+            !(any(prod(r) == 0.0 for r in eachrow(B)))
         throw(DomainError(B, "B must be positive semi-definite and have no zero rows."))
     end
     return B .* X

@@ -29,16 +29,16 @@ hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
 hasgdcprule(f) = false
 gdcprule(f, args...) = gdcprules_dict[f], args
 
-setgcurvature(ex::Union{Symbolic,Num}, curv) = setmetadata(ex, GCurvature, curv)
+setgcurvature(ex::Union{Symbolic, Num}, curv) = setmetadata(ex, GCurvature, curv)
 setgcurvature(ex, curv) = ex
-function getgcurvature(ex::Union{Symbolic,Num})
+function getgcurvature(ex::Union{Symbolic, Num})
     if hasmetadata(ex, GCurvature)
         return getmetadata(ex, GCurvature)
     end
     return GUnknownCurvature
 end
 getgcurvature(ex) = GLinear
-hasgcurvature(ex::Union{Symbolic,Num}) = hasmetadata(ex, GCurvature)
+hasgcurvature(ex::Union{Symbolic, Num}) = hasmetadata(ex, GCurvature)
 hasgcurvature(ex) = ex isa Real
 
 function mul_gcurvature(args)
@@ -116,15 +116,15 @@ function find_gcurvature(ex)
             knowngcurv = true
         elseif f == LinearAlgebra.logdet
             if operation(args[1]) == conjugation ||
-               operation(args[1]) == LinearAlgebra.diag ||
-               Symbol(operation(args[1])) == :+ ||
-               operation(args[1]) == affine_map ||
-               operation(args[1]) == hadamard_product
+                    operation(args[1]) == LinearAlgebra.diag ||
+                    Symbol(operation(args[1])) == :+ ||
+                    operation(args[1]) == affine_map ||
+                    operation(args[1]) == hadamard_product
                 return GConvex
             end
         elseif f == log &&
-               iscall(args[1]) &&
-               (operation(args[1]) == LinearAlgebra.tr || operation(args[1]) == quad_form)
+                iscall(args[1]) &&
+                (operation(args[1]) == LinearAlgebra.tr || operation(args[1]) == quad_form)
             return GConvex
         elseif (f == schatten_norm || f == eigsummax) && operation(args[1]) == log
             return GConvex
@@ -234,8 +234,38 @@ function find_gcurvature(ex)
                 return GUnknownCurvature
             end
         elseif f_curvature == Affine
+            # Affine composition preserves linearity for linear args, but can still
+            # preserve convexity/concavity depending on argument curvature.
             if all(find_gcurvature(arg) == GLinear for arg in args)
                 return GLinear
+            elseif all(enumerate(args)) do (i, arg)
+                    arg_curv = find_gcurvature(arg)
+                    m = get_arg_property(f_monotonicity, i, args)
+                    if arg_curv == GConvex
+                        m == Increasing
+                    elseif arg_curv == GConcave
+                        m == Decreasing
+                    elseif arg_curv == GLinear
+                        true
+                    else
+                        false
+                    end
+                end
+                return GConvex
+            elseif all(enumerate(args)) do (i, arg)
+                    arg_curv = find_gcurvature(arg)
+                    m = get_arg_property(f_monotonicity, i, args)
+                    if arg_curv == GConcave
+                        m == Increasing
+                    elseif arg_curv == GConvex
+                        m == Decreasing
+                    elseif arg_curv == GLinear
+                        true
+                    else
+                        false
+                    end
+                end
+                return GConcave
             else
                 return GUnknownCurvature
             end

@@ -51,7 +51,7 @@ function generate_spd_samples(n::Int, num_samples::Int, spread::Float64; seed::I
 
     # Generate samples by perturbing along random tangent directions
     samples = Matrix{Float64}[]
-    for _ = 1:num_samples
+    for _ in 1:num_samples
         # Random tangent vector (symmetric matrix)
         V = randn(n, n)
         V = (V + V') / 2
@@ -120,9 +120,9 @@ function verify_mle_objective(n::Int, num_samples::Int; verbose::Bool = true)
         dgcp_time = dgcp_time,
         dcp_time = dcp_time,
         is_gconvex = dgcp_result.gcurvature == SymbolicAnalysis.GConvex ||
-                     dgcp_result.gcurvature == SymbolicAnalysis.GLinear,
+            dgcp_result.gcurvature == SymbolicAnalysis.GLinear,
         is_eucl_convex = dgcp_result.curvature == SymbolicAnalysis.Convex ||
-                         dgcp_result.curvature == SymbolicAnalysis.Affine,
+            dgcp_result.curvature == SymbolicAnalysis.Affine,
     )
 end
 
@@ -144,7 +144,7 @@ function verify_tyler_mle(n::Int, num_vectors::Int; verbose::Bool = true)
     M = SymmetricPositiveDefinite(n)
 
     Random.seed!(123)
-    xs = [randn(n) for _ = 1:num_vectors]
+    xs = [randn(n) for _ in 1:num_vectors]
 
     # Tyler's M-estimator objective
     objective =
@@ -171,9 +171,9 @@ function verify_tyler_mle(n::Int, num_vectors::Int; verbose::Bool = true)
         dgcp_time = dgcp_time,
         dcp_time = dcp_time,
         is_gconvex = dgcp_result.gcurvature == SymbolicAnalysis.GConvex ||
-                     dgcp_result.gcurvature == SymbolicAnalysis.GLinear,
+            dgcp_result.gcurvature == SymbolicAnalysis.GLinear,
         is_eucl_convex = dgcp_result.curvature == SymbolicAnalysis.Convex ||
-                         dgcp_result.curvature == SymbolicAnalysis.Affine,
+            dgcp_result.curvature == SymbolicAnalysis.Affine,
     )
 end
 

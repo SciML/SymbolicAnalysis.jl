@@ -29,7 +29,7 @@ include("canon.jl")
 struct AnalysisResult
     curvature::SymbolicAnalysis.Curvature
     sign::SymbolicAnalysis.Sign
-    gcurvature::Union{SymbolicAnalysis.GCurvature,Nothing}
+    gcurvature::Union{SymbolicAnalysis.GCurvature, Nothing}
 end
 
 """
@@ -45,7 +45,7 @@ The returned `AnalysisResult` contains the following fields:
   - `sign::SymbolicAnalysis.Sign`: The sign of the expression.
   - `gcurvature::Union{SymbolicAnalysis.GCurvature,Nothing}`: The geodesic curvature of the expression if `M` is provided. Otherwise, `nothing`.
 """
-function analyze(ex, M::Union{AbstractManifold,Nothing} = nothing)
+function analyze(ex, M::Union{AbstractManifold, Nothing} = nothing)
     ex = unwrap(ex)
     ex = canonize(ex)
     ex = propagate_sign(ex)
@@ -67,7 +67,7 @@ include("moi_bridge.jl")
 @setup_workload begin
     @compile_workload begin
         @variables x y
-        y_with_domain = setmetadata(y, VarDomain, DomainSets.HalfLine{Number,:open}())
+        y_with_domain = setmetadata(y, VarDomain, DomainSets.HalfLine{Number, :open}())
 
         ex1 = exp(y_with_domain) - log(y_with_domain) |> unwrap
         analyze(ex1)

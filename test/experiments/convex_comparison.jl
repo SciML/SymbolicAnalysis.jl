@@ -34,7 +34,7 @@ println("  number of variables: $n")
 solve!(problem, SCS.Optimizer; silent = true)
 println("  status:   $(problem.status)")
 println("  optval:   $(problem.optval)")
-println("  x*:       $(round.(vec(x_cvx.value), digits=6))")
+println("  x*:       $(round.(vec(x_cvx.value), digits = 6))")
 
 # ─────────────────────────────────────────────────────────────────────
 # SymbolicAnalysis.jl
@@ -72,7 +72,7 @@ println("    Epigraph variables: $(length(cf.variables) - length(cf.original_var
 println("    Constraints: $(length(cf.constraints))")
 
 # Count cone types
-cone_counts = Dict{String,Int}()
+cone_counts = Dict{String, Int}()
 for c in cf.constraints
     cname = string(typeof(c.cone))
     cone_counts[cname] = get(cone_counts, cname, 0) + 1
@@ -86,7 +86,7 @@ model = to_jump_model(cf; solver = SCS.Optimizer)
 
 # Map original variable names to JuMP variables
 all_vars = JuMP.all_variables(model)
-jump_orig = Dict{Symbol,JuMP.VariableRef}()
+jump_orig = Dict{Symbol, JuMP.VariableRef}()
 for v in all_vars
     vname = Symbol(JuMP.name(v))
     if vname in cf.original_variables
@@ -106,7 +106,7 @@ println("\n  status:   $(JuMP.termination_status(model))")
 println("  optval:   $(JuMP.objective_value(model))")
 orig_names_sorted = sort(collect(cf.original_variables))
 x_vals = [JuMP.value(jump_orig[vname]) for vname in orig_names_sorted]
-println("  x*:       $(round.(x_vals, digits=6))")
+println("  x*:       $(round.(x_vals, digits = 6))")
 
 # ─────────────────────────────────────────────────────────────────────
 # Compare
@@ -115,6 +115,6 @@ println("  x*:       $(round.(x_vals, digits=6))")
 println("\n── Comparison ──")
 cvx_val = problem.optval
 sa_val = JuMP.objective_value(model)
-println("  Convex.jl optval:            $(round(cvx_val, digits=8))")
-println("  SymbolicAnalysis.jl optval:  $(round(sa_val, digits=8))")
-println("  Difference:                  $(round(abs(cvx_val - sa_val), digits=10))")
+println("  Convex.jl optval:            $(round(cvx_val, digits = 8))")
+println("  SymbolicAnalysis.jl optval:  $(round(sa_val, digits = 8))")
+println("  Difference:                  $(round(abs(cvx_val - sa_val), digits = 10))")

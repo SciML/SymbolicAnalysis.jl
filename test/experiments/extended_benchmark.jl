@@ -68,7 +68,7 @@ end
 
 function _collect_ops!(ops, ex)
     ex = Symbolics.unwrap(ex)
-    if iscall(ex)
+    return if iscall(ex)
         push!(ops, operation(ex))
         for arg in arguments(ex)
             _collect_ops!(ops, arg)
@@ -84,11 +84,11 @@ function generate_test_data(size::Int, problem_type::String)
     if problem_type == "Tyler"
         A = randn(size, size)
         Sigma = A * A' + I
-        xs = [randn(size) for _ = 1:min(10, size)]
+        xs = [randn(size) for _ in 1:min(10, size)]
         return (Sigma = Sigma, xs = xs)
     elseif problem_type == "Karcher"
         matrices = []
-        for _ = 1:5
+        for _ in 1:5
             A = randn(size, size)
             push!(matrices, A * A' + I)
         end
@@ -108,7 +108,7 @@ function create_expression(data, size::Int, problem_type::String)
 
     if problem_type == "Tyler"
         return sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in data.xs) +
-               (1 / size) * logdet(X)
+            (1 / size) * logdet(X)
     elseif problem_type == "Karcher"
         M = SymmetricPositiveDefinite(size)
         return sum(Manifolds.distance(M, As, X)^2 for As in data.matrices)
@@ -139,7 +139,7 @@ function benchmark_with_complexity(problem_type::String, size::Int; n_samples = 
     M = SymmetricPositiveDefinite(size)
 
     # Warmup
-    for _ = 1:3
+    for _ in 1:3
         test_data = generate_test_data(size, problem_type)
         expr = create_expression(test_data, size, problem_type)
         SymbolicAnalysis.analyze(expr, M)
@@ -152,7 +152,7 @@ function benchmark_with_complexity(problem_type::String, size::Int; n_samples = 
     op_counts = Int[]
     allocations = Int[]
 
-    for _ = 1:n_samples
+    for _ in 1:n_samples
         test_data = generate_test_data(size, problem_type)
         expr = create_expression(test_data, size, problem_type)
 
@@ -309,7 +309,7 @@ function run_complexity_analysis(results::Vector{BenchmarkResult})
             y = log.(Float64[r.median_time_ms for r in pdata])
             n = length(x)
             denom = n * sum(x .^ 2) - sum(x)^2
-            if abs(denom) > 1e-10
+            if abs(denom) > 1.0e-10
                 slope = (n * sum(x .* y) - sum(x) * sum(y)) / denom
                 println(
                     "  Approximate scaling (time vs nodes): O(nodes^$(@sprintf("%.2f", slope)))",
@@ -321,7 +321,7 @@ function run_complexity_analysis(results::Vector{BenchmarkResult})
             yd = y
             nd = length(xd)
             denomd = nd * sum(xd .^ 2) - sum(xd)^2
-            if abs(denomd) > 1e-10
+            if abs(denomd) > 1.0e-10
                 sloped = (nd * sum(xd .* yd) - sum(xd) * sum(yd)) / denomd
                 println(
                     "  Approximate scaling (time vs depth): O(depth^$(@sprintf("%.2f", sloped)))",
@@ -348,7 +348,7 @@ function run_complexity_analysis(results::Vector{BenchmarkResult})
             string(length(ddata)),
         )
     end
-    println("-"^50)
+    return println("-"^50)
 end
 
 #==============================================================================#

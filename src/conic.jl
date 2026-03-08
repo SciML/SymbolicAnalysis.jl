@@ -45,7 +45,7 @@ Each `ConicConstraintTerm` produces one row of the vector-valued function.
 struct ConeConstraint
     terms::Vector{ConicConstraintTerm}
     cone::Any
-    atom::Union{Function,Nothing}
+    atom::Union{Function, Nothing}
     description::String
 end
 
@@ -65,7 +65,7 @@ Thread-safe: each call to `to_conic_form` creates its own context.
 mutable struct ConicContext
     epi_counter::Int
     constraints::Vector{ConeConstraint}
-    epigraph_map::Dict{Symbol,Any}
+    epigraph_map::Dict{Symbol, Any}
     variables::Set{Symbol}
     original_variables::Set{Symbol}
 end
@@ -74,7 +74,7 @@ function ConicContext(original_vars::Set{Symbol})
     return ConicContext(
         0,
         ConeConstraint[],
-        Dict{Symbol,Any}(),
+        Dict{Symbol, Any}(),
         copy(original_vars),
         original_vars,
     )
@@ -104,7 +104,7 @@ struct ConicFormulation
     objective_var::Symbol
     objective_sense::Symbol
     constraints::Vector{ConeConstraint}
-    epigraph_map::Dict{Symbol,Any}
+    epigraph_map::Dict{Symbol, Any}
     variables::Set{Symbol}
     original_variables::Set{Symbol}
 end
@@ -175,7 +175,7 @@ function _extract_affine!(ex, vars, coeffs, constant, scale)
     end
     f = operation(ex)
     args = arguments(ex)
-    if Symbol(f) == :+
+    return if Symbol(f) == :+
         for arg in args
             _extract_affine!(arg, vars, coeffs, constant, scale)
         end
@@ -229,8 +229,8 @@ function to_conic_form(ex)
     curv = getcurvature(analyzed)
     if curv == UnknownCurvature
         @warn "Expression has UnknownCurvature after DCP analysis. " *
-              "The expression may not be DCP-compliant. " *
-              "Conic form generation will proceed but may fail for non-DCP atoms."
+            "The expression may not be DCP-compliant. " *
+            "Conic form generation will proceed but may fail for non-DCP atoms."
     end
     sense = if curv == Convex
         :minimize
@@ -262,7 +262,7 @@ end
 Collect all symbolic variable names from an expression.
 """
 function _collect_variables!(ex, vars::Set{Symbol})
-    if issym(ex)
+    return if issym(ex)
         push!(vars, Symbol(ex))
     elseif iscall(ex)
         for arg in arguments(ex)
@@ -508,7 +508,7 @@ function _process_node!(ex, ctx::ConicContext)
     # Fallback: error on unhandled atoms
     error(
         "No conic reformulation for atom: $(nameof(f)). " *
-        "All atoms must have a registered conic reformulation to generate valid conic form.",
+            "All atoms must have a registered conic reformulation to generate valid conic form.",
     )
 end
 
@@ -526,14 +526,14 @@ For a convex atom f(x), the epigraph is: {(t, x) : f(x) ≤ t}
 For a concave atom f(x), the hypograph is: {(t, x) : f(x) ≥ t}
 """
 function _emit_atom_constraint!(
-    f,
-    t,
-    child_vars,
-    cone,
-    curvature,
-    ctx::ConicContext,
-    args = (),
-)
+        f,
+        t,
+        child_vars,
+        cone,
+        curvature,
+        ctx::ConicContext,
+        args = (),
+    )
     fname = string(nameof(f))
 
     # ── Check atom identity first (before linear fallback) ────────────
@@ -643,7 +643,7 @@ function _emit_atom_constraint!(
 
     # ── Exponential Cone atoms ──────────────────────────────────────────
 
-    if f === exp
+    return if f === exp
         # exp(x) ≤ t  ⟺  (x, 1, t) ∈ ExponentialCone
         # MOI.ExponentialCone: (x, y, z) such that y * exp(x/y) ≤ z, y > 0
         @assert length(child_vars) == 1
@@ -804,7 +804,7 @@ function _emit_atom_constraint!(
         terms = Vector{ConicConstraintTerm}(undef, dim)
         terms[1] = ConicConstraintTerm([t], [1.0], 0.0)
         for (i, v) in enumerate(child_vars)
-            terms[i+1] = ConicConstraintTerm([v], [1.0], 0.0)
+            terms[i + 1] = ConicConstraintTerm([v], [1.0], 0.0)
         end
         push!(
             ctx.constraints,
@@ -981,7 +981,7 @@ function _emit_atom_constraint!(
                     ],
                     MOI.PowerCone(1.0 / p),
                     (^),
-                    "power: ($t, 1, $(x)) ∈ PowerCone($(1.0/p)) [x^$p]",
+                    "power: ($t, 1, $(x)) ∈ PowerCone($(1.0 / p)) [x^$p]",
                 ),
             )
         elseif p !== nothing && p > 0 && p < 1
@@ -1052,7 +1052,7 @@ function _emit_atom_constraint!(
         terms = Vector{ConicConstraintTerm}(undef, dim)
         terms[1] = ConicConstraintTerm([t], [1.0], 0.0)
         for (i, v) in enumerate(child_vars)
-            terms[i+1] = ConicConstraintTerm([v], [1.0], 0.0)
+            terms[i + 1] = ConicConstraintTerm([v], [1.0], 0.0)
         end
         push!(
             ctx.constraints,
@@ -1080,7 +1080,7 @@ function _emit_generic_constraint!(f, t, child_vars, cone, curvature, ctx::Conic
     terms = Vector{ConicConstraintTerm}(undef, dim)
     terms[1] = ConicConstraintTerm([t], [1.0], 0.0)
     for (i, v) in enumerate(child_vars)
-        terms[i+1] = ConicConstraintTerm([v], [1.0], 0.0)
+        terms[i + 1] = ConicConstraintTerm([v], [1.0], 0.0)
     end
     cone_instance = if cone isa DataType
         try
@@ -1091,7 +1091,7 @@ function _emit_generic_constraint!(f, t, child_vars, cone, curvature, ctx::Conic
     else
         cone
     end
-    push!(
+    return push!(
         ctx.constraints,
         ConeConstraint(
             terms,

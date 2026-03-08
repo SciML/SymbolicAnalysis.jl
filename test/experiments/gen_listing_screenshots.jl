@@ -6,10 +6,10 @@ Produces listing/11.png, listing/12.png, listing/13.png
 using CairoMakie
 
 function make_listing_image(
-    code_lines::Vector{String},
-    output_lines::Vector{String},
-    filename::String,
-)
+        code_lines::Vector{String},
+        output_lines::Vector{String},
+        filename::String,
+    )
     all_lines = vcat(code_lines, output_lines)
     n = length(all_lines)
 
@@ -35,7 +35,7 @@ function make_listing_image(
     end
 
     save(filename, fig, px_per_unit = 3)
-    println("Saved $filename")
+    return println("Saved $filename")
 end
 
 # Listing 11: Square of logdet

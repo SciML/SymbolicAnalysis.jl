@@ -44,8 +44,8 @@ end
 
 function time_verification(f::Function, n_samples::Int = 7)
     f()  # warmup
-    times = [(@elapsed f()) for _ = 1:n_samples]
-    return sort(times)[div(n_samples, 2)+1]
+    times = [(@elapsed f()) for _ in 1:n_samples]
+    return sort(times)[div(n_samples, 2) + 1]
 end
 
 #==============================================================================#
@@ -62,11 +62,11 @@ function run_and_save_scope()
     A = let B = randn(5, 5)
         B * B' + I
     end
-    xs = [randn(5) for _ = 1:3]
+    xs = [randn(5) for _ in 1:3]
     As = [
         let B = randn(5, 5)
-            B * B' + I
-        end for _ = 1:3
+                B * B' + I
+        end for _ in 1:3
     ]
 
     cases = [
@@ -78,7 +78,7 @@ function run_and_save_scope()
         (
             "Tyler M-Est",
             sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
-            (1 / 5) * logdet(X),
+                (1 / 5) * logdet(X),
         ),
         ("Karcher Mean", sum(Manifolds.distance(M, Ai, X)^2 for Ai in As)),
     ]
@@ -145,8 +145,8 @@ function run_and_save_timing()
             rows,
             (
                 Function = name,
-                DCP_us = dcp_t * 1e6,
-                DGCP_us = dgcp_t * 1e6,
+                DCP_us = dcp_t * 1.0e6,
+                DGCP_us = dgcp_t * 1.0e6,
                 Overhead = overhead,
                 BothVerify = both,
             ),
@@ -155,8 +155,8 @@ function run_and_save_timing()
             @sprintf(
                 "  %-20s DCP=%8.1f us  DGCP=%8.1f us  overhead=%.2fx",
                 name,
-                dcp_t * 1e6,
-                dgcp_t * 1e6,
+                dcp_t * 1.0e6,
+                dgcp_t * 1.0e6,
                 overhead
             )
         )
@@ -204,8 +204,8 @@ function run_and_save_scaling()
         M = SymmetricPositiveDefinite(n)
         As = [
             let B = randn(n, n)
-                B * B' + I
-            end for _ = 1:3
+                    B * B' + I
+            end for _ in 1:3
         ]
         expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> unwrap
         dcp_t = time_verification(5) do
@@ -220,8 +220,8 @@ function run_and_save_scaling()
                 Problem = "Karcher",
                 MatrixSize = n,
                 Terms = 3,
-                DCP_us = dcp_t * 1e6,
-                DGCP_us = dgcp_t * 1e6,
+                DCP_us = dcp_t * 1.0e6,
+                DGCP_us = dgcp_t * 1.0e6,
                 Overhead = dgcp_t / dcp_t,
             ),
         )
@@ -229,8 +229,8 @@ function run_and_save_scaling()
             @sprintf(
                 "    n=%2d: DCP=%8.1f us  DGCP=%8.1f us",
                 n,
-                dcp_t * 1e6,
-                dgcp_t * 1e6
+                dcp_t * 1.0e6,
+                dgcp_t * 1.0e6
             )
         )
     end
@@ -243,8 +243,8 @@ function run_and_save_scaling()
         M = SymmetricPositiveDefinite(n)
         As = [
             let B = randn(n, n)
-                B * B' + I
-            end for _ = 1:nt
+                    B * B' + I
+            end for _ in 1:nt
         ]
         expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> unwrap
         dcp_t = time_verification(5) do
@@ -259,8 +259,8 @@ function run_and_save_scaling()
                 Problem = "Karcher",
                 MatrixSize = n,
                 Terms = nt,
-                DCP_us = dcp_t * 1e6,
-                DGCP_us = dgcp_t * 1e6,
+                DCP_us = dcp_t * 1.0e6,
+                DGCP_us = dgcp_t * 1.0e6,
                 Overhead = dgcp_t / dcp_t,
             ),
         )
@@ -268,8 +268,8 @@ function run_and_save_scaling()
             @sprintf(
                 "    terms=%2d: DCP=%8.1f us  DGCP=%8.1f us",
                 nt,
-                dcp_t * 1e6,
-                dgcp_t * 1e6
+                dcp_t * 1.0e6,
+                dgcp_t * 1.0e6
             )
         )
     end
@@ -280,12 +280,12 @@ function run_and_save_scaling()
         n = 5
         @variables Xn[1:n, 1:n]
         M = SymmetricPositiveDefinite(n)
-        xs = [randn(n) for _ = 1:nv]
+        xs = [randn(n) for _ in 1:nv]
         expr =
             (
-                sum(SymbolicAnalysis.log_quad_form(x, inv(Xn)) for x in xs) +
+            sum(SymbolicAnalysis.log_quad_form(x, inv(Xn)) for x in xs) +
                 (1 / n) * logdet(Xn)
-            ) |> unwrap
+        ) |> unwrap
         dcp_t = time_verification(5) do
             analyze(expr)
         end
@@ -298,8 +298,8 @@ function run_and_save_scaling()
                 Problem = "Tyler",
                 MatrixSize = n,
                 Terms = nv,
-                DCP_us = dcp_t * 1e6,
-                DGCP_us = dgcp_t * 1e6,
+                DCP_us = dcp_t * 1.0e6,
+                DGCP_us = dgcp_t * 1.0e6,
                 Overhead = dgcp_t / dcp_t,
             ),
         )
@@ -307,8 +307,8 @@ function run_and_save_scaling()
             @sprintf(
                 "    vectors=%2d: DCP=%8.1f us  DGCP=%8.1f us",
                 nv,
-                dcp_t * 1e6,
-                dgcp_t * 1e6
+                dcp_t * 1.0e6,
+                dgcp_t * 1.0e6
             )
         )
     end
@@ -400,14 +400,14 @@ function run_and_save_benchmark()
             M = SymmetricPositiveDefinite(sz)
 
             expr = if ptype == "Tyler"
-                xs = [randn(sz) for _ = 1:min(10, sz)]
+                xs = [randn(sz) for _ in 1:min(10, sz)]
                 sum(SymbolicAnalysis.log_quad_form(x, inv(Xb)) for x in xs) +
-                (1 / sz) * logdet(Xb)
+                    (1 / sz) * logdet(Xb)
             elseif ptype == "Karcher"
                 As = [
                     let B = randn(sz, sz)
-                        B * B' + I
-                    end for _ = 1:5
+                            B * B' + I
+                    end for _ in 1:5
                 ]
                 sum(Manifolds.distance(M, Ai, Xb)^2 for Ai in As)
             elseif ptype == "LogDet"
@@ -428,7 +428,7 @@ function run_and_save_benchmark()
             nodes = count_ast_nodes(expr_u)
             depth = ast_depth(expr_u)
 
-            t = median([@elapsed(analyze(expr_u, M)) for _ = 1:5]) * 1000
+            t = median([@elapsed(analyze(expr_u, M)) for _ in 1:5]) * 1000
             alloc = @allocated(analyze(expr_u, M))
 
             push!(
@@ -518,11 +518,11 @@ function run_and_save_expert()
     A = let B = randn(5, 5)
         B * B' + I
     end
-    xs = [randn(5) for _ = 1:3]
+    xs = [randn(5) for _ in 1:3]
     As = [
         let B = randn(5, 5)
-            B * B' + I
-        end for _ = 1:3
+                B * B' + I
+        end for _ in 1:3
     ]
 
     cases = [
@@ -530,14 +530,14 @@ function run_and_save_expert()
             "Tyler M-Est",
             "Hard",
             sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
-            (1 / 5) * logdet(X),
+                (1 / 5) * logdet(X),
         ),
         ("Brascamp-Lieb", "Hard", logdet(SymbolicAnalysis.conjugation(X, A)) - logdet(X)),
         (
             "S-Divergence Sum",
             "Medium",
             SymbolicAnalysis.sdivergence(X, A) +
-            SymbolicAnalysis.sdivergence(X, Matrix(I(5) * 1.0)),
+                SymbolicAnalysis.sdivergence(X, Matrix(I(5) * 1.0)),
         ),
         ("Karcher Mean", "Hard", sum(Manifolds.distance(M, Ai, X)^2 for Ai in As)),
         ("Diagonal Loading", "Medium", tr(inv(X)) + logdet(X) + 0.1 * tr(X)),
@@ -605,8 +605,8 @@ function run_and_save_mle()
         M = SymmetricPositiveDefinite(n)
         samples = [
             let B = randn(n, n)
-                B * B' + I
-            end for _ = 1:m
+                    B * B' + I
+            end for _ in 1:m
         ]
         expr = sum(Manifolds.distance(M, S, Xm)^2 for S in samples) |> unwrap
 
@@ -644,12 +644,12 @@ function run_and_save_mle()
     for (n, k) in [(3, 3), (3, 5), (5, 3), (5, 5)]
         @variables Xm[1:n, 1:n]
         M = SymmetricPositiveDefinite(n)
-        xs = [randn(n) for _ = 1:k]
+        xs = [randn(n) for _ in 1:k]
         expr =
             (
-                sum(SymbolicAnalysis.log_quad_form(x, inv(Xm)) for x in xs) +
+            sum(SymbolicAnalysis.log_quad_form(x, inv(Xm)) for x in xs) +
                 (1 / n) * logdet(Xm)
-            ) |> unwrap
+        ) |> unwrap
 
         dgcp_t = @elapsed dgcp_r = analyze(expr, M)
         dcp_t = @elapsed dcp_r = analyze(expr)

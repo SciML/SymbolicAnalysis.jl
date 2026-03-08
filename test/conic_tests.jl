@@ -112,7 +112,7 @@ end
         # Ensure to_conic_form uses local context by running concurrently
         @variables x y
         results = Vector{ConicFormulation}(undef, 4)
-        Threads.@threads for i = 1:4
+        Threads.@threads for i in 1:4
             results[i] = to_conic_form(exp(x) |> unwrap)
         end
         # Each result should be independent
@@ -328,7 +328,7 @@ end
         moi_model, var_map = to_moi_model(cf)
         norm_ci = MOI.get(
             moi_model,
-            MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.NormOneCone}(),
+            MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64}, MOI.NormOneCone}(),
         )
         @test length(norm_ci) >= 1
     end

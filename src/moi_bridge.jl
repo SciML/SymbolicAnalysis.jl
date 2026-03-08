@@ -28,7 +28,7 @@ function to_jump_model(cf::ConicFormulation; solver = nothing)
     model = solver === nothing ? JuMP.Model() : JuMP.Model(solver)
 
     # Create JuMP variables for all variables in the formulation
-    jump_vars = Dict{Symbol,JuMP.VariableRef}()
+    jump_vars = Dict{Symbol, JuMP.VariableRef}()
     for v in cf.variables
         jump_vars[v] = JuMP.@variable(model, base_name = string(v))
     end
@@ -55,7 +55,7 @@ end
 Add a single ConeConstraint to a JuMP model using generic dispatch.
 """
 function _add_jump_constraint!(model, c::ConeConstraint, jump_vars)
-    if c.cone isa MOI.AbstractScalarSet
+    return if c.cone isa MOI.AbstractScalarSet
         ct = only(c.terms)
         expr = JuMP.AffExpr(ct.constant)
         for (v, coeff) in zip(ct.vars, ct.coeffs)
@@ -90,7 +90,7 @@ function to_moi_model(cf::ConicFormulation)
     model = MOI.Utilities.Model{Float64}()
 
     # Add variables
-    var_map = Dict{Symbol,MOI.VariableIndex}()
+    var_map = Dict{Symbol, MOI.VariableIndex}()
     for v in cf.variables
         vi = MOI.add_variable(model)
         MOI.set(model, MOI.VariableName(), vi, string(v))
@@ -118,11 +118,11 @@ end
 Add a single ConeConstraint to an MOI model using generic dispatch.
 """
 function _add_moi_constraint!(model, c::ConeConstraint, var_map)
-    if c.cone isa MOI.AbstractScalarSet
+    return if c.cone isa MOI.AbstractScalarSet
         ct = only(c.terms)
         terms = [
             MOI.ScalarAffineTerm(coeff, var_map[v]) for
-            (v, coeff) in zip(ct.vars, ct.coeffs)
+                (v, coeff) in zip(ct.vars, ct.coeffs)
         ]
         func = MOI.ScalarAffineFunction(terms, ct.constant)
         MOI.add_constraint(model, func, c.cone)
@@ -157,7 +157,7 @@ Extract solution values from a solved MOI model back to the original variable na
 A `Dict{Symbol, Float64}` mapping original variable names to their optimal values.
 """
 function extract_solution(cf::ConicFormulation, model, var_map)
-    result = Dict{Symbol,Float64}()
+    result = Dict{Symbol, Float64}()
     for v in cf.original_variables
         if haskey(var_map, v)
             val = MOI.get(model, MOI.VariablePrimal(), var_map[v])
@@ -201,6 +201,7 @@ function print_conic_form(cf::ConicFormulation; io = stdout)
             println(io, "        row $j: $expr_str")
         end
     end
+    return
 end
 
 export to_jump_model, to_moi_model, print_conic_form, extract_solution

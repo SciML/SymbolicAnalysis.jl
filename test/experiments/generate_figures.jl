@@ -57,7 +57,7 @@ set_theme!(publication_theme())
 function save_figure(fig, name)
     save(joinpath(RESULTS_DIR, name * ".pdf"), fig)
     save(joinpath(RESULTS_DIR, name * ".png"), fig, px_per_unit = 300 / 72)
-    println("  Saved $(name).pdf and $(name).png")
+    return println("  Saved $(name).pdf and $(name).png")
 end
 
 # --------------------------------------------------------------------------- #

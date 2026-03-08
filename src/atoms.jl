@@ -43,7 +43,7 @@ add_dcprule(
 
 add_dcprule(
     StatsBase.geomean,
-    array_domain(HalfLine{Real,:open}(), 1),
+    array_domain(HalfLine{Real, :open}(), 1),
     Positive,
     Concave,
     Increasing;
@@ -51,7 +51,7 @@ add_dcprule(
 )
 add_dcprule(
     StatsBase.harmmean,
-    array_domain(HalfLine{Real,:open}(), 1),
+    array_domain(HalfLine{Real, :open}(), 1),
     Positive,
     Concave,
     Increasing;
@@ -77,7 +77,7 @@ Symbolics.@register_symbolic invprod(x::AbstractVector)
 
 add_dcprule(
     invprod,
-    array_domain(HalfLine{Real,:open}()),
+    array_domain(HalfLine{Real, :open}()),
     Positive,
     Convex,
     Decreasing;
@@ -117,7 +117,7 @@ function eigsummax(m::Symmetric, k::Int)
         throw(DomainError(k, "k must be between 1 and size(m, 1)"))
     end
     nrows = size(m, 1)
-    return sum(eigvals(m, (nrows-k+1):nrows))
+    return sum(eigvals(m, (nrows - k + 1):nrows))
 end
 Symbolics.@register_symbolic eigsummax(m::Matrix, k::Int)
 add_dcprule(
@@ -221,7 +221,7 @@ add_dcprule(
 # Only p >= 1 is registered as convex.
 add_dcprule(
     norm,
-    (array_domain(RealLine()), Interval{:closed,:open}(1, Inf)),
+    (array_domain(RealLine()), Interval{:closed, :open}(1, Inf)),
     Positive,
     Convex,
     increasing_if_positive;
@@ -313,7 +313,7 @@ Symbolics.@register_symbolic quad_over_lin(x::Real, y::Real)
 
 add_dcprule(
     quad_over_lin,
-    (array_domain(RealLine()), HalfLine{Real,:open}()),
+    (array_domain(RealLine()), HalfLine{Real, :open}()),
     Positive,
     Convex,
     (increasing_if_positive, Decreasing);
@@ -322,7 +322,7 @@ add_dcprule(
 
 add_dcprule(
     quad_over_lin,
-    (RealLine(), HalfLine{Real,:open}()),
+    (RealLine(), HalfLine{Real, :open}()),
     Positive,
     Convex,
     (increasing_if_positive, Decreasing);
@@ -342,7 +342,7 @@ Returns the sum of the `k` largest elements of `x`.
     - `k::Int`: The number of largest elements to sum.
 """
 function sum_largest(x::AbstractMatrix, k::Integer)
-    return sum(sort(vec(x))[(end-k+1):end])
+    return sum(sort(vec(x))[(end - k + 1):end])
 end
 Symbolics.@register_symbolic sum_largest(x::AbstractMatrix, k::Integer)
 add_dcprule(
@@ -412,7 +412,7 @@ Returns the total variation of `x`, defined as `sum_i |x_{i+1} - x_i|`.
     - `x::AbstractVector`: A vector.
 """
 function tv(x::AbstractVector{<:Real})
-    return sum(abs.(x[2:end] - x[1:(end-1)]))
+    return sum(abs.(x[2:end] - x[1:(end - 1)]))
 end
 Symbolics.@register_symbolic tv(x::AbstractVector) false
 add_dcprule(
@@ -434,11 +434,13 @@ Returns the total variation of `x`, defined as `sum_{i,j} |x_{k+1}[i,j] - x_k[i,
     - `x::AbstractVector`: A vector of matrices.
 """
 function tv(x::AbstractVector{<:AbstractMatrix})
-    return sum(map(1:(size(x, 1)-1)) do i
-        map(1:(size(x, 2)-1)) do j
-            norm([x[k][i+1, j] - x[k][i, j] for k in eachindex(x)])
+    return sum(
+        map(1:(size(x, 1) - 1)) do i
+            map(1:(size(x, 2) - 1)) do j
+                norm([x[k][i + 1, j] - x[k][i, j] for k in eachindex(x)])
+            end
         end
-    end)
+    )
 end
 add_dcprule(
     tv,
@@ -493,7 +495,7 @@ add_dcprule(imag, ℂ, AnySign, Affine, AnyMono; cone = MOI.Reals)
 
 add_dcprule(
     inv,
-    HalfLine{Real,:open}(),
+    HalfLine{Real, :open}(),
     Positive,
     Convex,
     Decreasing;
@@ -501,7 +503,7 @@ add_dcprule(
 )
 add_dcprule(
     log,
-    HalfLine{Real,:open}(),
+    HalfLine{Real, :open}(),
     AnySign,
     Concave,
     Increasing;
@@ -540,7 +542,7 @@ add_dcprule(
 
 add_dcprule(
     kldivergence,
-    (array_domain(HalfLine{Real,:open}, 1), array_domain(HalfLine{Real,:open}, 1)),
+    (array_domain(HalfLine{Real, :open}, 1), array_domain(HalfLine{Real, :open}, 1)),
     Positive,
     Convex,
     AnyMono;
@@ -564,7 +566,7 @@ add_dcprule(lognormcdf, RealLine(), Negative, Concave, Increasing)
 
 add_dcprule(
     log1p,
-    Interval{:open,:open}(-1, Inf),
+    Interval{:open, :open}(-1, Inf),
     Negative,
     Concave,
     Increasing;
@@ -583,40 +585,40 @@ function dcprule(::typeof(^), x::Symbolic, i)
         return makerule(RealLine(), AnySign, Affine, Increasing; cone = MOI.Reals), args
     elseif i == 2
         return makerule(
-            RealLine(),
-            Positive,
-            Convex,
-            increasing_if_positive;
-            cone = MOI.RotatedSecondOrderCone,
-        ),
-        args
+                RealLine(),
+                Positive,
+                Convex,
+                increasing_if_positive;
+                cone = MOI.RotatedSecondOrderCone,
+            ),
+            args
     elseif isinteger(i) && iseven(i)
         return makerule(
-            RealLine(),
-            Positive,
-            Convex,
-            increasing_if_positive;
-            cone = nothing,
-        ),
-        args
+                RealLine(),
+                Positive,
+                Convex,
+                increasing_if_positive;
+                cone = nothing,
+            ),
+            args
     elseif isinteger(i) && isodd(i)
         return makerule(HalfLine(), Positive, Convex, Increasing; cone = MOI.PowerCone),
-        args
+            args
     elseif i >= 1
         return makerule(HalfLine(), Positive, Convex, Increasing; cone = MOI.PowerCone),
-        args
+            args
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing; cone = MOI.PowerCone),
-        args
+            args
     elseif i < 0
         return makerule(
-            HalfLine{Float64,:closed}(),
-            Positive,
-            Convex,
-            Increasing;
-            cone = MOI.PowerCone,
-        ),
-        args
+                HalfLine{Float64, :closed}(),
+                Positive,
+                Convex,
+                Increasing;
+                cone = MOI.PowerCone,
+            ),
+            args
     end
 end
 dcprule(::typeof(Base.literal_pow), f, x...) = dcprule(^, x...)
@@ -637,7 +639,7 @@ end
 Symbolics.@register_symbolic rel_entr(x::Real, y::Real)
 add_dcprule(
     rel_entr,
-    (HalfLine{Real,:open}(), HalfLine{Real,:open}()),
+    (HalfLine{Real, :open}(), HalfLine{Real, :open}()),
     AnySign,
     Convex,
     (AnyMono, Decreasing);

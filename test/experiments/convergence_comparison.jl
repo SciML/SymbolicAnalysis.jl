@@ -85,9 +85,9 @@ function compare_solvers(n::Int, m::Int, seed::Int)
     # Generate random SPD data
     data = [
         begin
-            A = randn(n, n)
-            A * A' + I
-        end for _ = 1:m
+                A = randn(n, n)
+                A * A' + I
+            end for _ in 1:m
     ]
 
     # Initial point: first data matrix
@@ -106,7 +106,7 @@ function compare_solvers(n::Int, m::Int, seed::Int)
         prob_eucl = OptimizationProblem(optf_eucl, x0_vec)
 
         t_eucl = @elapsed sol_eucl =
-            solve(prob_eucl, Optim.BFGS(), maxiters = 500, abstol = 1e-8)
+            solve(prob_eucl, Optim.BFGS(), maxiters = 500, abstol = 1.0e-8)
 
         result_mat = reshape(sol_eucl.u, n, n)
         result_mat = (result_mat + result_mat') / 2
@@ -253,9 +253,9 @@ function run_convergence_experiment()
 
             spd_status = r.is_spd ? "✓ SPD" : "✗ NOT SPD"
             println("  $(r.solver):")
-            println("    Objective: $(round(r.final_objective, digits=6))")
+            println("    Objective: $(round(r.final_objective, digits = 6))")
             println("    Status: $spd_status")
-            println("    Time: $(round(r.time_s, digits=4))s")
+            println("    Time: $(round(r.time_s, digits = 4))s")
             println("    Notes: $(r.notes)")
         end
     end
@@ -274,8 +274,8 @@ function run_convergence_experiment()
         avg_time = mean(solver_data.time_s)
 
         println("\n$(solver):")
-        println("  • SPD success rate: $(round(success_rate, digits=1))%")
-        println("  • Average time: $(round(avg_time, digits=4))s")
+        println("  • SPD success rate: $(round(success_rate, digits = 1))%")
+        println("  • Average time: $(round(avg_time, digits = 4))s")
     end
 
     println("\n" * "-"^70)

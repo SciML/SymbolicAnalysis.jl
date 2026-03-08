@@ -39,7 +39,7 @@ Structure to hold comparison results
 struct ComparisonResult
     name::String
     dgcp_curvature::SymbolicAnalysis.GCurvature
-    dcp_curvature::Union{Symbol,String}
+    dcp_curvature::Union{Symbol, String}
     euclidean_convex::Bool
     geodesically_convex::Bool
     notes::String
@@ -49,11 +49,11 @@ end
 Run comparison for a given expression
 """
 function compare_verification(
-    name::String,
-    dgcp_expr,
-    convex_expr_fn::Union{Function,Nothing},
-    notes::String = "",
-)
+        name::String,
+        dgcp_expr,
+        convex_expr_fn::Union{Function, Nothing},
+        notes::String = "",
+    )
     M = SymmetricPositiveDefinite(5)
 
     # DGCP analysis
@@ -105,7 +105,7 @@ function run_scope_comparison()
     A = randn(5, 5)
     A = A * A' + I  # SPD matrix
 
-    xs = [randn(5) for _ = 1:3]  # Random vectors for Tyler's estimator
+    xs = [randn(5) for _ in 1:3]  # Random vectors for Tyler's estimator
 
     println("="^70)
     println("EXPERIMENT 1: DCP vs DGCP Verification Scope")
@@ -177,9 +177,9 @@ function run_scope_comparison()
     #--------------------------------------------------------------------------
     expr =
         (
-            sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
+        sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
             (1 / 5) * logdet(X)
-        ) |> Symbolics.unwrap
+    ) |> Symbolics.unwrap
     result = compare_verification(
         "Tyler's M-Estimator",
         expr,
@@ -191,7 +191,7 @@ function run_scope_comparison()
     #--------------------------------------------------------------------------
     # Case 7: Karcher mean objective - DGCP yes, DCP no
     #--------------------------------------------------------------------------
-    As = [randn(5, 5) |> x -> x * x' + I for _ = 1:3]
+    As = [randn(5, 5) |> x -> x * x' + I for _ in 1:3]
     expr = sum(Manifolds.distance(M, Ai, X)^2 for Ai in As) |> Symbolics.unwrap
     result = compare_verification(
         "Karcher Mean (Σ d²)",
@@ -272,13 +272,13 @@ function time_verification(f::Function, n_samples::Int = 7)
 
     # Collect timing samples
     times = Float64[]
-    for _ = 1:n_samples
+    for _ in 1:n_samples
         t = @elapsed f()
         push!(times, t)
     end
 
     # Return median
-    return sort(times)[div(n_samples, 2)+1]
+    return sort(times)[div(n_samples, 2) + 1]
 end
 
 """
@@ -365,9 +365,9 @@ function run_timing_comparison(; n_samples::Int = 7, verbose::Bool = true)
             println(
                 rpad(r.name, 22),
                 " | ",
-                rpad(@sprintf("%.1f", r.dcp_median_time * 1e6), 10),
+                rpad(@sprintf("%.1f", r.dcp_median_time * 1.0e6), 10),
                 " | ",
-                rpad(@sprintf("%.1f", r.dgcp_median_time * 1e6), 10),
+                rpad(@sprintf("%.1f", r.dgcp_median_time * 1.0e6), 10),
                 " | ",
                 rpad(@sprintf("%.2fx", r.overhead_ratio), 10),
                 " | ",
@@ -448,8 +448,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
         # Karcher mean with 3 sample matrices
         As = [
             let B = randn(n, n)
-                B * B' + I
-            end for _ = 1:3
+                    B * B' + I
+            end for _ in 1:3
         ]
         expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> Symbolics.unwrap
 
@@ -467,8 +467,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
                 "Karcher (3 terms)",
                 n,
                 3,
-                dcp_time * 1e6,
-                dgcp_time * 1e6,
+                dcp_time * 1.0e6,
+                dgcp_time * 1.0e6,
                 overhead,
             ),
         )
@@ -478,8 +478,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
                 @sprintf(
                     "  n=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
                     n,
-                    dcp_time * 1e6,
-                    dgcp_time * 1e6,
+                    dcp_time * 1.0e6,
+                    dgcp_time * 1.0e6,
                     overhead
                 )
             )
@@ -499,8 +499,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
 
         As = [
             let B = randn(n, n)
-                B * B' + I
-            end for _ = 1:num_terms
+                    B * B' + I
+            end for _ in 1:num_terms
         ]
         expr = sum(Manifolds.distance(M, Ai, Xn)^2 for Ai in As) |> Symbolics.unwrap
 
@@ -518,8 +518,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
                 "Karcher (n=5)",
                 n,
                 num_terms,
-                dcp_time * 1e6,
-                dgcp_time * 1e6,
+                dcp_time * 1.0e6,
+                dgcp_time * 1.0e6,
                 overhead,
             ),
         )
@@ -529,8 +529,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
                 @sprintf(
                     "  terms=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
                     num_terms,
-                    dcp_time * 1e6,
-                    dgcp_time * 1e6,
+                    dcp_time * 1.0e6,
+                    dgcp_time * 1.0e6,
                     overhead
                 )
             )
@@ -548,12 +548,12 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
         @variables Xn[1:n, 1:n]
         M = SymmetricPositiveDefinite(n)
 
-        xs = [randn(n) for _ = 1:num_vecs]
+        xs = [randn(n) for _ in 1:num_vecs]
         expr =
             (
-                sum(SymbolicAnalysis.log_quad_form(x, inv(Xn)) for x in xs) +
+            sum(SymbolicAnalysis.log_quad_form(x, inv(Xn)) for x in xs) +
                 (1 / n) * logdet(Xn)
-            ) |> Symbolics.unwrap
+        ) |> Symbolics.unwrap
 
         dcp_time = time_verification(n_samples) do
             analyze(expr)
@@ -569,8 +569,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
                 "Tyler (n=5)",
                 n,
                 num_vecs,
-                dcp_time * 1e6,
-                dgcp_time * 1e6,
+                dcp_time * 1.0e6,
+                dgcp_time * 1.0e6,
                 overhead,
             ),
         )
@@ -580,8 +580,8 @@ function run_scaling_analysis(; n_samples::Int = 7, verbose::Bool = true)
                 @sprintf(
                     "  vectors=%2d: DCP=%8.1f us, DGCP=%8.1f us, overhead=%.2fx",
                     num_vecs,
-                    dcp_time * 1e6,
-                    dgcp_time * 1e6,
+                    dcp_time * 1.0e6,
+                    dgcp_time * 1.0e6,
                     overhead
                 )
             )

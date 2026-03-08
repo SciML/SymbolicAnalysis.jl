@@ -39,8 +39,8 @@ function make_karcher(m; n = 5)
     M = SymmetricPositiveDefinite(n)
     As = [
         let B = randn(n, n)
-            B * B' + I
-        end for _ = 1:m
+                B * B' + I
+        end for _ in 1:m
     ]
     expr = sum(Manifolds.distance(M, Ai, X)^2 for Ai in As) |> Symbolics.unwrap
     return expr, M
@@ -49,18 +49,18 @@ end
 function make_tyler(m; n = 5)
     @variables X[1:n, 1:n]
     M = SymmetricPositiveDefinite(n)
-    xs = [randn(n) for _ = 1:m]
+    xs = [randn(n) for _ in 1:m]
     expr =
         (
-            sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
+        sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
             (1 / n) * logdet(X)
-        ) |> Symbolics.unwrap
+    ) |> Symbolics.unwrap
     return expr, M
 end
 
 function make_scalar_dcp(m)
     @variables x[1:m]
-    expr = sum(exp(x[i]) + log(x[i]) for i = 1:m) |> Symbolics.unwrap
+    expr = sum(exp(x[i]) + log(x[i]) for i in 1:m) |> Symbolics.unwrap
     return expr
 end
 
@@ -72,11 +72,11 @@ const WARMUP = 5
 const ITERS = 20
 
 function time_min(f)
-    for _ = 1:WARMUP
+    for _ in 1:WARMUP
         f()
     end
     times = Vector{UInt64}(undef, ITERS)
-    for i = 1:ITERS
+    for i in 1:ITERS
         GC.gc(false)
         t0 = time_ns()
         f()
@@ -121,8 +121,8 @@ for m in term_counts
     nn = count_ast_nodes(expr)
     t_ns = time_min(() -> analyze(expr, M))
     push!(karcher_nodes, nn)
-    push!(karcher_times, t_ns / 1e3)  # microseconds
-    @printf("  Karcher m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1e3)
+    push!(karcher_times, t_ns / 1.0e3)  # microseconds
+    @printf("  Karcher m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1.0e3)
 end
 
 # Tyler (DGCP)
@@ -133,8 +133,8 @@ for m in term_counts
     nn = count_ast_nodes(expr)
     t_ns = time_min(() -> analyze(expr, M))
     push!(tyler_nodes, nn)
-    push!(tyler_times, t_ns / 1e3)
-    @printf("  Tyler  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1e3)
+    push!(tyler_times, t_ns / 1.0e3)
+    @printf("  Tyler  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1.0e3)
 end
 
 # Scalar DCP
@@ -145,8 +145,8 @@ for m in term_counts
     nn = count_ast_nodes(expr)
     t_ns = time_min(() -> analyze(expr))
     push!(scalar_nodes, nn)
-    push!(scalar_times, t_ns / 1e3)
-    @printf("  Scalar m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1e3)
+    push!(scalar_times, t_ns / 1.0e3)
+    @printf("  Scalar m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1.0e3)
 end
 
 # Fit
@@ -257,22 +257,22 @@ for m in phase_term_counts
         (
             m = m,
             nodes = nn,
-            canon = t_canon / 1e3,
-            sign = t_sign / 1e3,
-            curv = t_curv / 1e3,
-            gcurv = t_gcurv / 1e3,
+            canon = t_canon / 1.0e3,
+            sign = t_sign / 1.0e3,
+            curv = t_curv / 1.0e3,
+            gcurv = t_gcurv / 1.0e3,
         ),
     )
 
-    total = (t_canon + t_sign + t_curv + t_gcurv) / 1e3
+    total = (t_canon + t_sign + t_curv + t_gcurv) / 1.0e3
     @printf(
         "  m=%2d  nodes=%5d  canon=%6.1f  sign=%6.1f  curv=%6.1f  gcurv=%6.1f  total=%7.1f us\n",
         m,
         nn,
-        t_canon / 1e3,
-        t_sign / 1e3,
-        t_curv / 1e3,
-        t_gcurv / 1e3,
+        t_canon / 1.0e3,
+        t_sign / 1.0e3,
+        t_curv / 1.0e3,
+        t_gcurv / 1.0e3,
         total
     )
 end
@@ -354,8 +354,8 @@ for n in dims
     nn = count_ast_nodes(expr)
     t_ns = time_min(() -> analyze(expr, M))
     push!(dim_nodes, nn)
-    push!(dim_times, t_ns / 1e3)
-    @printf("  n=%3d  nodes=%5d  time=%10.1f us\n", n, nn, t_ns / 1e3)
+    push!(dim_times, t_ns / 1.0e3)
+    @printf("  n=%3d  nodes=%5d  time=%10.1f us\n", n, nn, t_ns / 1.0e3)
 end
 
 @printf(

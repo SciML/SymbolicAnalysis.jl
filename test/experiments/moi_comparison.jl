@@ -55,11 +55,11 @@ println("  Sense:       $(JuMP.objective_sense(model1))")
 moi1, vmap1 = to_moi_model(cf1)
 exp_ci = MOI.get(
     moi1,
-    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.ExponentialCone}(),
+    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64}, MOI.ExponentialCone}(),
 )
 norm_ci = MOI.get(
     moi1,
-    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.NormOneCone}(),
+    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64}, MOI.NormOneCone}(),
 )
 println("  ExpCone constraints:     $(length(exp_ci))")
 println("  NormOneCone constraints: $(length(norm_ci))")
@@ -155,7 +155,7 @@ print_conic_form(cf5)
 moi5, _ = to_moi_model(cf5)
 re_ci = MOI.get(
     moi5,
-    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64},MOI.RelativeEntropyCone}(),
+    MOI.ListOfConstraintIndices{MOI.VectorAffineFunction{Float64}, MOI.RelativeEntropyCone}(),
 )
 println("  RelativeEntropyCone constraints: $(length(re_ci))")
 
@@ -197,7 +197,7 @@ println("  Convex.jl can verify this: NO")
 println("  SymbolicAnalysis.jl:       $(result_karcher.gcurvature) ✓")
 
 # Tyler's M-estimator
-xs = [randn(5) for _ = 1:3]
+xs = [randn(5) for _ in 1:3]
 expr_tyler =
     sum(SymbolicAnalysis.log_quad_form(v, inv(X)) for v in xs) +
     (1 / 5) * LinearAlgebra.logdet(X) |> Symbolics.unwrap
@@ -223,17 +223,19 @@ println("  SymbolicAnalysis.jl:       $(result_sdiv.gcurvature) ✓")
 println("\n" * "="^70)
 println("  Summary")
 println("="^70)
-println("""
-  DCP (Euclidean) examples:
-    exp(x) + abs(y)  → Convex  → ExponentialCone + NormOneCone
-    x^2              → Convex  → RotatedSecondOrderCone
-    log(x)           → Concave → ExponentialCone (maximize)
-    rel_entr(x,y)    → Convex  → RelativeEntropyCone
+println(
+    """
+      DCP (Euclidean) examples:
+        exp(x) + abs(y)  → Convex  → ExponentialCone + NormOneCone
+        x^2              → Convex  → RotatedSecondOrderCone
+        log(x)           → Concave → ExponentialCone (maximize)
+        rel_entr(x,y)    → Convex  → RelativeEntropyCone
 
-  DGCP (Riemannian) examples -- Convex.jl returns "not DCP":
-    Karcher mean     → GConvex (sum of squared distances)
-    Tyler M-est.     → GConvex (log_quad_form + logdet)
-    S-divergence     → GConvex (symmetric Stein divergence)
+      DGCP (Riemannian) examples -- Convex.jl returns "not DCP":
+        Karcher mean     → GConvex (sum of squared distances)
+        Tyler M-est.     → GConvex (log_quad_form + logdet)
+        S-divergence     → GConvex (symmetric Stein divergence)
 
-  Pipeline: symbolic expr → analyze() → to_conic_form() → to_jump_model()
-""")
+      Pipeline: symbolic expr → analyze() → to_conic_form() → to_jump_model()
+    """
+)

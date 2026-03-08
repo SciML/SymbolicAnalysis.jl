@@ -7,7 +7,7 @@ using LinearAlgebra, Test
 y = setmetadata(
     y,
     SymbolicAnalysis.VarDomain,
-    Symbolics.DomainSets.HalfLine{Number,:open}(),
+    Symbolics.DomainSets.HalfLine{Number, :open}(),
 )
 ex1 = exp(y) - log(y) |> unwrap
 ex1 = propagate_curvature(propagate_sign(ex1))

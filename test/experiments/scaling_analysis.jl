@@ -88,8 +88,8 @@ function make_karcher_expr(m; n = MATRIX_DIM)
     M = SymmetricPositiveDefinite(n)
     As = [
         let B = randn(n, n)
-            B * B' + I
-        end for _ = 1:m
+                B * B' + I
+        end for _ in 1:m
     ]
     expr = sum(Manifolds.distance(M, Ai, X)^2 for Ai in As) |> Symbolics.unwrap
     return expr, M
@@ -103,12 +103,12 @@ Build a Tyler M-estimator objective with m observation vectors.
 function make_tyler_expr(m; n = MATRIX_DIM)
     @variables X[1:n, 1:n]
     M = SymmetricPositiveDefinite(n)
-    xs = [randn(n) for _ = 1:m]
+    xs = [randn(n) for _ in 1:m]
     expr =
         (
-            sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
+        sum(SymbolicAnalysis.log_quad_form(x, inv(X)) for x in xs) +
             (1 / n) * logdet(X)
-        ) |> Symbolics.unwrap
+    ) |> Symbolics.unwrap
     return expr, M
 end
 
@@ -121,7 +121,7 @@ Each term adds a fixed number of AST nodes.
 function make_scalar_dcp_expr(m)
     @variables x[1:m]
     # Each term: exp(x_i) + log(x_i) contributes a fixed number of AST nodes
-    expr = sum(exp(x[i]) + log(x[i]) for i = 1:m) |> Symbolics.unwrap
+    expr = sum(exp(x[i]) + log(x[i]) for i in 1:m) |> Symbolics.unwrap
     return expr
 end
 
@@ -138,12 +138,12 @@ Uses `time_ns()` for sub-microsecond precision.
 """
 function time_min(f; warmup = WARMUP_ITERS, iters = TIMING_ITERS)
     # Warmup
-    for _ = 1:warmup
+    for _ in 1:warmup
         f()
     end
     # Collect timings
     times = Vector{UInt64}(undef, iters)
-    for i = 1:iters
+    for i in 1:iters
         GC.gc(false)  # minor GC to reduce interference
         t0 = time_ns()
         f()
@@ -159,12 +159,12 @@ end
 Time and measure allocations for `f()`.
 """
 function time_with_alloc(f; warmup = WARMUP_ITERS, iters = TIMING_ITERS)
-    for _ = 1:warmup
+    for _ in 1:warmup
         f()
     end
     min_t = typemax(UInt64)
     min_alloc = typemax(Int)
-    for _ = 1:iters
+    for _ in 1:iters
         GC.gc(false)
         alloc = @allocated begin
             t0 = time_ns()
@@ -231,7 +231,7 @@ function run_part1_scaling()
         t_ns, _ = time_min(() -> analyze(expr, M))
         push!(karcher_nodes, nn)
         push!(karcher_times_ns, t_ns)
-        @printf("  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1e3)
+        @printf("  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1.0e3)
     end
 
     alpha_k, _, R2_k = fit_power_law(karcher_nodes, karcher_times_ns)
@@ -251,7 +251,7 @@ function run_part1_scaling()
         t_ns, _ = time_min(() -> analyze(expr, M))
         push!(tyler_nodes, nn)
         push!(tyler_times_ns, t_ns)
-        @printf("  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1e3)
+        @printf("  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1.0e3)
     end
 
     alpha_t, _, R2_t = fit_power_law(tyler_nodes, tyler_times_ns)
@@ -271,7 +271,7 @@ function run_part1_scaling()
         t_ns, _ = time_min(() -> analyze(expr))
         push!(scalar_nodes, nn)
         push!(scalar_times_ns, t_ns)
-        @printf("  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1e3)
+        @printf("  m=%2d  nodes=%5d  time=%10.1f us\n", m, nn, t_ns / 1.0e3)
     end
 
     alpha_s, _, R2_s = fit_power_law(scalar_nodes, scalar_times_ns)
@@ -383,11 +383,11 @@ function run_part2_phase_decomposition()
             "  m=%2d  %5d  %10.1f  %10.1f  %10.1f  %10.1f  %10.1f\n",
             m,
             nn,
-            t_canon / 1e3,
-            t_sign / 1e3,
-            t_curv / 1e3,
-            t_gcurv / 1e3,
-            total / 1e3
+            t_canon / 1.0e3,
+            t_sign / 1.0e3,
+            t_curv / 1.0e3,
+            t_gcurv / 1.0e3,
+            total / 1.0e3
         )
 
         push!(
@@ -418,8 +418,8 @@ function run_part2_phase_decomposition()
         100 * last.gcurv_ns / dgcp_total
     )
     println()
-    @printf("DCP-only time (3 phases):  %.1f us\n", dcp_total / 1e3)
-    @printf("DGCP total   (4 phases):   %.1f us\n", dgcp_total / 1e3)
+    @printf("DCP-only time (3 phases):  %.1f us\n", dcp_total / 1.0e3)
+    @printf("DGCP total   (4 phases):   %.1f us\n", dgcp_total / 1.0e3)
     @printf("DGCP / DCP ratio:          %.2fx\n", dgcp_total / dcp_total)
     println()
 
@@ -428,11 +428,11 @@ function run_part2_phase_decomposition()
         nodes_vec = [d.nodes for d in phase_data]
         println("Per-phase scaling exponents:")
         for (name, getter) in [
-            ("canonize", d -> d.canon_ns),
-            ("propagate_sign", d -> d.sign_ns),
-            ("propagate_curvature", d -> d.curv_ns),
-            ("propagate_gcurvature", d -> d.gcurv_ns),
-        ]
+                ("canonize", d -> d.canon_ns),
+                ("propagate_sign", d -> d.sign_ns),
+                ("propagate_curvature", d -> d.curv_ns),
+                ("propagate_gcurvature", d -> d.gcurv_ns),
+            ]
             times_vec = [getter(d) for d in phase_data]
             if all(t -> t > 0, times_vec)
                 alpha, _, R2 = fit_power_law(nodes_vec, times_vec)
@@ -473,7 +473,7 @@ function run_part3_memory()
         push!(mem_nodes, nn)
         push!(mem_alloc, alloc)
         push!(mem_time, t_ns)
-        @printf("  m=%2d  %5d  %10.1f    %10.1f\n", m, nn, t_ns / 1e3, alloc / 1024)
+        @printf("  m=%2d  %5d  %10.1f    %10.1f\n", m, nn, t_ns / 1.0e3, alloc / 1024)
     end
     println()
 
@@ -542,7 +542,7 @@ function run_part4_conic()
         push!(conic_epi, n_epi)
         push!(conic_cons, n_con)
 
-        @printf("  m=%2d  %5d  %10.1f    %8d  %10d\n", m, nn, t_ns / 1e3, n_epi, n_con)
+        @printf("  m=%2d  %5d  %10.1f    %8d  %10d\n", m, nn, t_ns / 1.0e3, n_epi, n_con)
     end
     println()
 
@@ -582,7 +582,7 @@ function run_part5_summary_table(part1, part2, part3, part4)
     println("  " * "-"^44)
     for i in eachindex(part1.karcher.nodes)
         nn = part1.karcher.nodes[i]
-        t_us = part1.karcher.times_ns[i] / 1e3
+        t_us = part1.karcher.times_ns[i] / 1.0e3
         alloc_kb = i <= length(part3.alloc_bytes) ? part3.alloc_bytes[i] / 1024 : NaN
         @printf("  %5d  %10.1f  %10.1f  %10.3f\n", nn, t_us, alloc_kb, t_us / nn)
     end
@@ -602,16 +602,16 @@ function run_part5_summary_table(part1, part2, part3, part4)
         @printf("  %-24s  %10s  %8s\n", "Phase", "Time(us)", "Fraction")
         println("  " * "-"^46)
         for (name, t) in phases
-            @printf("  %-24s  %10.1f  %7.1f%%\n", name, t / 1e3, 100 * t / total)
+            @printf("  %-24s  %10.1f  %7.1f%%\n", name, t / 1.0e3, 100 * t / total)
         end
         dcp_only = last.canon_ns + last.sign_ns + last.curv_ns
         @printf(
             "  %-24s  %10.1f  %7.1f%%\n",
             "DCP total (3 phases)",
-            dcp_only / 1e3,
+            dcp_only / 1.0e3,
             100 * dcp_only / total
         )
-        @printf("  %-24s  %10.1f  %7.1f%%\n", "DGCP total (4 phases)", total / 1e3, 100.0)
+        @printf("  %-24s  %10.1f  %7.1f%%\n", "DGCP total (4 phases)", total / 1.0e3, 100.0)
         @printf("  DGCP/DCP ratio: %.2fx\n", total / dcp_only)
     end
     println()
@@ -624,7 +624,7 @@ function run_part5_summary_table(part1, part2, part3, part4)
         @printf(
             "  %5d  %10.1f  %8d  %11d\n",
             part4.nodes[i],
-            part4.times_ns[i] / 1e3,
+            part4.times_ns[i] / 1.0e3,
             part4.epi_vars[i],
             part4.constraints[i]
         )
@@ -673,7 +673,7 @@ function run_part5_summary_table(part1, part2, part3, part4)
         @printf(
             "  %.4f, %.4f\n",
             log(part1.karcher.nodes[i]),
-            log(part1.karcher.times_ns[i] / 1e3)
+            log(part1.karcher.times_ns[i] / 1.0e3)
         )
     end
     println("# Tyler DGCP: log(nodes), log(time_us)")
@@ -681,7 +681,7 @@ function run_part5_summary_table(part1, part2, part3, part4)
         @printf(
             "  %.4f, %.4f\n",
             log(part1.tyler.nodes[i]),
-            log(part1.tyler.times_ns[i] / 1e3)
+            log(part1.tyler.times_ns[i] / 1.0e3)
         )
     end
     println("# Scalar DCP: log(nodes), log(time_us)")
@@ -689,10 +689,10 @@ function run_part5_summary_table(part1, part2, part3, part4)
         @printf(
             "  %.4f, %.4f\n",
             log(part1.scalar.nodes[i]),
-            log(part1.scalar.times_ns[i] / 1e3)
+            log(part1.scalar.times_ns[i] / 1.0e3)
         )
     end
-    println()
+    return println()
 end
 
 # ============================================================================
@@ -723,7 +723,7 @@ function run_part6_matrix_independence()
         dd = ast_depth(expr)
         t_ns, _ = time_min(() -> analyze(expr, M))
 
-        @printf("  %3d  %5d  %5d  %10.1f\n", n, nn, dd, t_ns / 1e3)
+        @printf("  %3d  %5d  %5d  %10.1f\n", n, nn, dd, t_ns / 1.0e3)
         push!(independence_data, (n = n, nodes = nn, depth = dd, time_ns = t_ns))
     end
     println()
@@ -741,8 +741,8 @@ function run_part6_matrix_independence()
     )
     @printf(
         "Time range: %.1f - %.1f us (%.1fx)\n",
-        minimum(times_vec) / 1e3,
-        maximum(times_vec) / 1e3,
+        minimum(times_vec) / 1.0e3,
+        maximum(times_vec) / 1.0e3,
         time_range
     )
 

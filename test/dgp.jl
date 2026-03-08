@@ -26,7 +26,7 @@ ex = propagate_gcurvature(ex, M)
 SymbolicAnalysis.getcurvature(ex)
 
 @variables Sigma[1:5, 1:5]
-xs = [rand(5) for i = 1:2]
+xs = [rand(5) for i in 1:2]
 ex =
     sum(SymbolicAnalysis.log_quad_form(x, inv(Sigma)) for x in xs) +
     1 / 5 * logdet(Sigma) |> Symbolics.unwrap
@@ -58,8 +58,8 @@ ex = propagate_gcurvature(ex, M)
 # vexity(ex)
 
 ## Karcher Mean
-As = [rand(5, 5) for i = 1:5]
-As = [As[i] * As[i]' for i = 1:5]
+As = [rand(5, 5) for i in 1:5]
+As = [As[i] * As[i]' for i in 1:5]
 
 ex = SymbolicAnalysis.sdivergence(X, As[1]) |> unwrap
 ex = SymbolicAnalysis.propagate_sign(ex)
@@ -67,7 +67,7 @@ ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
 
 @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
 
-ex = sum(SymbolicAnalysis.sdivergence(X, As[i]) for i = 1:5) |> Symbolics.unwrap
+ex = sum(SymbolicAnalysis.sdivergence(X, As[i]) for i in 1:5) |> Symbolics.unwrap
 ex = SymbolicAnalysis.propagate_sign(ex)
 ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
 
@@ -80,7 +80,7 @@ ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
 @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
 
 M = SymmetricPositiveDefinite(5)
-objective_expr = sum(Manifolds.distance(M, As[i], X)^2 for i = 1:5) |> Symbolics.unwrap
+objective_expr = sum(Manifolds.distance(M, As[i], X)^2 for i in 1:5) |> Symbolics.unwrap
 analyze_res = analyze(objective_expr, M)
 @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
 
@@ -125,9 +125,9 @@ m = 100
 σ = 0.005
 q = Matrix{Float64}(LinearAlgebra.I(5)) .+ 2.0
 
-data2 = [exp(M, q, σ * rand(M; vector_at = q)) for i = 1:m];
+data2 = [exp(M, q, σ * rand(M; vector_at = q)) for i in 1:m];
 
-f(x, p = nothing) = sum(SymbolicAnalysis.distance(M, data2[i], x)^2 for i = 1:5)
+f(x, p = nothing) = sum(SymbolicAnalysis.distance(M, data2[i], x)^2 for i in 1:5)
 optf = OptimizationFunction(f, Optimization.AutoZygote())
 prob = OptimizationProblem(optf, data2[1]; manifold = M, structural_analysis = true)
 
@@ -136,11 +136,11 @@ opt = OptimizationManopt.GradientDescentOptimizer()
 @test sol.objective < 1.0e-2
 
 M = SymmetricPositiveDefinite(5)
-xs = [rand(5) for i = 1:5]
+xs = [rand(5) for i in 1:5]
 
 function f(S, p = nothing)
     return 1 / length(xs) * sum(SymbolicAnalysis.log_quad_form(x, S) for x in xs) +
-           1 / 5 * logdet(inv(S))
+        1 / 5 * logdet(inv(S))
 end
 
 optf = OptimizationFunction(f, Optimization.AutoZygote())
@@ -159,7 +159,7 @@ A = A * A' #make it a SPD matrix
 
 function matsqrt(X, p = nothing) #setup objective function
     return SymbolicAnalysis.sdivergence(X, A) +
-           SymbolicAnalysis.sdivergence(X, Matrix{Float64}(LinearAlgebra.I(5)))
+        SymbolicAnalysis.sdivergence(X, Matrix{Float64}(LinearAlgebra.I(5)))
 end
 
 optf = OptimizationFunction(matsqrt, Optimization.AutoZygote()) #setup oracles
@@ -195,7 +195,7 @@ ex = SymbolicAnalysis.propagate_sign(ex)
 ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
 @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
 
-ys = [rand(5) for i = 1:5]
+ys = [rand(5) for i in 1:5]
 ex = SymbolicAnalysis.log_quad_form(ys, X) |> unwrap
 ex = SymbolicAnalysis.propagate_sign(ex)
 ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
@@ -233,7 +233,7 @@ anres = analyze(ex, M)
 
 B = rand(5, 5)
 B = B * B'
-Ys = [rand(5, 5) for i = 1:5]
+Ys = [rand(5, 5) for i in 1:5]
 Ys = [Y * Y' for Y in Ys]
 ex = tr(SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, B, Ys[1])) |> unwrap
 anres = analyze(ex, M)

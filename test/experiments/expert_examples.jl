@@ -55,8 +55,8 @@ function run_expert_examples()
     A = A * A' + I
     B = randn(5, 5)
     B = B * B' + I
-    xs = [randn(5) for _ = 1:5]
-    As = [randn(5, 5) |> x -> x * x' + I for _ = 1:5]
+    xs = [randn(5) for _ in 1:5]
+    As = [randn(5, 5) |> x -> x * x' + I for _ in 1:5]
 
     # Warmup: run analyze once to avoid JIT overhead in timing measurements
     analyze(logdet(X) |> Symbolics.unwrap, M)
@@ -67,9 +67,9 @@ function run_expert_examples()
 
     expr =
         (
-            sum(SymbolicAnalysis.log_quad_form(xi, inv(X)) for xi in xs) +
+        sum(SymbolicAnalysis.log_quad_form(xi, inv(X)) for xi in xs) +
             (1 / 5) * logdet(X)
-        ) |> Symbolics.unwrap
+    ) |> Symbolics.unwrap
 
     t = @elapsed result = analyze(expr, M)
 
@@ -90,7 +90,7 @@ function run_expert_examples()
     println("  Reference: $(cases[end].reference)")
     println("  Expert difficulty: $(cases[end].verification_difficulty)")
     println("  DGCP result: $(result.gcurvature)")
-    println("  DGCP time: $(round(t * 1000, digits=3)) ms")
+    println("  DGCP time: $(round(t * 1000, digits = 3)) ms")
     println()
     println("  Expert verification would require:")
     println("    1. Recognizing log-quadratic form as composition of log ∘ quad form")
@@ -124,7 +124,7 @@ function run_expert_examples()
     println("  Reference: $(cases[end].reference)")
     println("  Expert difficulty: $(cases[end].verification_difficulty)")
     println("  DGCP result: $(result.gcurvature)")
-    println("  DGCP time: $(round(t * 1000, digits=3)) ms")
+    println("  DGCP time: $(round(t * 1000, digits = 3)) ms")
     println()
     println("  Expert verification would require:")
     println("    1. Understanding conjugation action on SPD matrices")
@@ -138,9 +138,9 @@ function run_expert_examples()
 
     expr =
         (
-            SymbolicAnalysis.sdivergence(X, A) +
+        SymbolicAnalysis.sdivergence(X, A) +
             SymbolicAnalysis.sdivergence(X, Matrix{Float64}(I(5)))
-        ) |> Symbolics.unwrap
+    ) |> Symbolics.unwrap
 
     t = @elapsed result = analyze(expr, M)
 
@@ -161,7 +161,7 @@ function run_expert_examples()
     println("  Reference: $(cases[end].reference)")
     println("  Expert difficulty: $(cases[end].verification_difficulty)")
     println("  DGCP result: $(result.gcurvature)")
-    println("  DGCP time: $(round(t * 1000, digits=3)) ms")
+    println("  DGCP time: $(round(t * 1000, digits = 3)) ms")
     println()
     println("  Expert verification would require:")
     println("    1. Knowing S-divergence is g-convex in first argument")
@@ -194,7 +194,7 @@ function run_expert_examples()
     println("  Reference: $(cases[end].reference)")
     println("  Expert difficulty: $(cases[end].verification_difficulty)")
     println("  DGCP result: $(result.gcurvature)")
-    println("  DGCP time: $(round(t * 1000, digits=3)) ms")
+    println("  DGCP time: $(round(t * 1000, digits = 3)) ms")
     println()
     println("  Expert verification would require:")
     println("    1. Proving d²(A, X) is g-convex in X")
@@ -228,7 +228,7 @@ function run_expert_examples()
     println("  Reference: $(cases[end].reference)")
     println("  Expert difficulty: $(cases[end].verification_difficulty)")
     println("  DGCP result: $(result.gcurvature)")
-    println("  DGCP time: $(round(t * 1000, digits=3)) ms")
+    println("  DGCP time: $(round(t * 1000, digits = 3)) ms")
     println()
     println("  Expert verification would require:")
     println("    1. Verifying tr(X⁻¹) is g-convex")
@@ -261,7 +261,7 @@ function run_expert_examples()
     println("  Reference: $(cases[end].reference)")
     println("  Expert difficulty: $(cases[end].verification_difficulty)")
     println("  DGCP result: $(result.gcurvature)")
-    println("  DGCP time: $(round(t * 1000, digits=3)) ms")
+    println("  DGCP time: $(round(t * 1000, digits = 3)) ms")
     println()
     println("  Expert verification would require:")
     println("    1. Understanding log map pulls back to tangent space")
@@ -306,7 +306,7 @@ function run_expert_examples()
     hard_cases = count(c -> c.verification_difficulty == "Hard", cases)
 
     println()
-    println("Total DGCP verification time: $(round(total_time, digits=3)) ms")
+    println("Total DGCP verification time: $(round(total_time, digits = 3)) ms")
     println("Number of 'Hard' cases verified: $hard_cases")
     println()
     println("KEY FINDING:")
