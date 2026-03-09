@@ -42,7 +42,7 @@ end
 add_gdcprule(
     lorentz_log_barrier,
     Manifolds.Lorentz,
-    Positive,
+    AnySign,
     GConvex,
     GIncreasing;
     cone = MOI.ExponentialCone,

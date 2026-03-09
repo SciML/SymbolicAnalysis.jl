@@ -20,6 +20,13 @@ using CairoMakie
 
 Random.seed!(42)
 
+const FIGURES_DIR = get(
+    ENV,
+    "SYMBOLICANALYSIS_FIGURES_DIR",
+    joinpath(@__DIR__, "..", "..", "_MPC_v2__DGCP", "figures"),
+)
+mkpath(FIGURES_DIR)
+
 # ============================================================================
 # AST utilities
 # ============================================================================
@@ -217,11 +224,11 @@ lines!(
 axislegend(ax1, position = :lt, framevisible = false, labelsize = 10)
 
 save(
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/figures/scaling_verification.pdf",
+    joinpath(FIGURES_DIR, "scaling_verification.pdf"),
     fig1,
 )
 save(
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/figures/scaling_verification.png",
+    joinpath(FIGURES_DIR, "scaling_verification.png"),
     fig1,
     px_per_unit = 3,
 )
@@ -327,11 +334,11 @@ Legend(
 )
 
 save(
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/figures/phase_decomposition.pdf",
+    joinpath(FIGURES_DIR, "phase_decomposition.pdf"),
     fig2,
 )
 save(
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/figures/phase_decomposition.png",
+    joinpath(FIGURES_DIR, "phase_decomposition.png"),
     fig2,
     px_per_unit = 3,
 )
@@ -388,11 +395,11 @@ mean_t = mean(dim_times)
 hlines!(ax3, [mean_t], linestyle = :dash, color = :gray60, linewidth = 1)
 
 save(
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/figures/matrix_independence.pdf",
+    joinpath(FIGURES_DIR, "matrix_independence.pdf"),
     fig3,
 )
 save(
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/figures/matrix_independence.png",
+    joinpath(FIGURES_DIR, "matrix_independence.png"),
     fig3,
     px_per_unit = 3,
 )
@@ -425,7 +432,7 @@ println()
 )
 @printf("  Time variation: %.1fx\n", maximum(dim_times) / minimum(dim_times))
 println()
-println("Figures saved to _MPC_v2__DGCP/figures/")
+println("Figures saved to $(FIGURES_DIR)")
 println("  scaling_verification.pdf")
 println("  phase_decomposition.pdf")
 println("  matrix_independence.pdf")

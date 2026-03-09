@@ -5,6 +5,13 @@ Produces listing/11.png, listing/12.png, listing/13.png
 
 using CairoMakie
 
+const LISTING_DIR = get(
+    ENV,
+    "SYMBOLICANALYSIS_LISTING_DIR",
+    joinpath(@__DIR__, "..", "..", "_MPC_v2__DGCP", "listing"),
+)
+mkpath(LISTING_DIR)
+
 function make_listing_image(
         code_lines::Vector{String},
         output_lines::Vector{String},
@@ -47,19 +54,19 @@ make_listing_image(
         "       println(result.gcurvature)",
     ],
     ["GUnknownCurvature"],
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/listing/11.png",
+    joinpath(LISTING_DIR, "11.png"),
 )
 
 # Listing 12: sin of logdet (non-DCP atom)
 make_listing_image(
     ["julia> result = analyze(sin(logdet(X)), M)", "       println(result.gcurvature)"],
     ["GUnknownCurvature"],
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/listing/12.png",
+    joinpath(LISTING_DIR, "12.png"),
 )
 
 # Listing 13: sqrt of trace (concave of convex)
 make_listing_image(
     ["julia> result = analyze(sqrt(tr(X)), M)", "       println(result.gcurvature)"],
     ["GUnknownCurvature"],
-    "/Users/vaibhavdixit02/SymbolicAnalysis.jl/_MPC_v2__DGCP/listing/13.png",
+    joinpath(LISTING_DIR, "13.png"),
 )

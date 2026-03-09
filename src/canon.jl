@@ -35,7 +35,7 @@ function canonize(ex)
         @rule (adjoint(~x) * (~Y * ~x))[1] => quad_form(~x, ~Y)
 
         # Conjugation recognition: B'*X*B → conjugation(X, B)
-        @rule ((adjoint(~B) * ~X) * ~B)[Base.OneTo(size(~B, 2)), Base.OneTo(size(~B, 1))] =>
+        @rule ((adjoint(~B) * ~X) * ~B)[Base.OneTo(size(~B, 2)), Base.OneTo(size(~B, 2))] =>
             conjugation(~X, ~B)
 
         # Double inverse: inv(inv(X)) → X

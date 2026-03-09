@@ -50,7 +50,7 @@ These atoms are defined on the Lorentz model of hyperbolic space, a Cartan-Hadam
 | Atom | Domain | Sign | G-Curvature | Monotonicity | Source | Reference |
 |------|--------|------|-------------|--------------|--------|-----------|
 | `distance(M, p, q)` | Lorentz | Positive | GConvex | GAnyMono | Literature | Bacak (2014) |
-| `lorentz_log_barrier(p)` | Lorentz | Positive | GConvex | GIncreasing | Literature | Ferreira et al. (2022) |
+| `lorentz_log_barrier(p)` | Lorentz | AnySign | GConvex | GIncreasing | Literature | Ferreira et al. (2022) |
 | `lorentz_homogeneous_quadratic(A, p)` | Lorentz | Positive | GConvex | GAnyMono | Literature | Ferreira et al. (2022) |
 | `lorentz_homogeneous_diagonal(a, p)` | Lorentz | Positive | GConvex | GAnyMono | Literature | Ferreira et al. (2022) |
 | `lorentz_nonhomogeneous_quadratic(A, b, c, p)` | Lorentz | AnySign | GConvex | AnyMono | Literature | Ferreira et al. (2023) |
@@ -94,11 +94,11 @@ These atoms follow standard Disciplined Convex Programming rules and are defined
 | `huber(x, M)` | Real | Positive | Convex | increasing_if_positive | SecondOrderCone | Literature | Grant & Boyd (2006) |
 | `inv(x)` | Positive Real | Positive | Convex | Decreasing | RotatedSecondOrderCone | Literature | Grant & Boyd (2006) |
 | `inv(X)` | Semidefinite | AnySign | Convex | Decreasing | PSDConeTriangle | Literature | Grant & Boyd (2006) |
-| `xlogx(x)` | Real | AnySign | Convex | AnyMono | ExponentialCone | Literature | Grant & Boyd (2006) |
+| `xlogx(x)` | Real | AnySign | Convex | AnyMono | RelativeEntropyCone | Literature | Grant & Boyd (2006) |
 | `logistic(x)` | Real | Positive | Convex | Increasing | ExponentialCone | Literature | Grant & Boyd (2006) |
 | `max(x, y)` | Real | AnySign | Convex | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
 | `maximum(x)` | Real arrays | AnySign | Convex | Increasing | Reals (LP) | Literature | Grant & Boyd (2006) |
-| `norm(x, p)` | Real arrays, p >= 1 | Positive | Convex | increasing_if_positive | SecondOrderCone | Literature | Grant & Boyd (2006) |
+| `norm(x, p)` | Real arrays, p >= 1 | Positive | Convex | increasing_if_positive | Depends on p (unannotated) | Literature | Grant & Boyd (2006) |
 | `dotsort(x, y)` | Real vectors | AnySign | Convex | varying | Reals (LP) | New | - |
 | `eigmax(X)` | Symmetric | AnySign | Convex | AnyMono | PSDConeTriangle | Literature | Grant & Boyd (2006) |
 | `eigsummax(X, k)` | Symmetric | AnySign | Convex | AnyMono | PSDConeTriangle | New | - |
