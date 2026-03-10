@@ -1,0 +1,45 @@
+[
+  {
+    "atom": "lorentz_distance",
+    "meaning": "d_{\\mathbb{H}}(p, q)",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GAny",
+    "docUrl": "https://juliamanifolds.github.io/Manifolds.jl/stable/interface/#ManifoldsBase.distance-Tuple{AbstractManifold,%20Any,%20Any}"
+  },
+  {
+    "atom": "lorentz_log_barrier",
+    "meaning": "-\\log(-1 + p_{d+1})",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GIncreasing"
+  },
+  {
+    "atom": "lorentz_homogeneous_quadratic",
+    "meaning": "p^\\top A\\, p",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GAny"
+  },
+  {
+    "atom": "lorentz_homogeneous_diagonal",
+    "meaning": "\\sum_i a_i\\, p_i^2",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GAny"
+  },
+  {
+    "atom": "lorentz_least_squares",
+    "meaning": "\\|y - Xp\\|_2^2",
+    "sign": "Positive",
+    "curvature": "GConvex",
+    "monotonicity": "GAny"
+  },
+  {
+    "atom": "lorentz_transform",
+    "meaning": "Op",
+    "sign": "—",
+    "curvature": "—",
+    "monotonicity": "—"
+  }
+]

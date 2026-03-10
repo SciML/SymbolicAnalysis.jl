@@ -1,0 +1,471 @@
+[
+  {
+    "atom": "dot",
+    "meaning": "x^\\top y",
+    "domain": "\\mathbb{R}^n \\times \\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.dot"
+  },
+  {
+    "atom": "dotsort",
+    "meaning": "\\operatorname{sort}(x)^\\top \\operatorname{sort}(y)",
+    "domain": "\\mathbb{R}^n \\times \\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "(Any, Incr. if pos. ∘ minimum)"
+  },
+  {
+    "atom": "geomean",
+    "meaning": "\\left(\\prod_{i=1}^n x_i\\right)^{1/n}",
+    "domain": "\\mathbb{R}_{++}^n",
+    "sign": "Positive",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/StatsBase.jl/stable/scalarstats/#StatsBase.geomean"
+  },
+  {
+    "atom": "harmmean",
+    "meaning": "\\frac{n}{\\sum_{i=1}^n x_i^{-1}}",
+    "domain": "\\mathbb{R}_{++}^n",
+    "sign": "Positive",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/StatsBase.jl/stable/scalarstats/#StatsBase.harmmean"
+  },
+  {
+    "atom": "invprod",
+    "meaning": "\\frac{1}{\\prod_{i} x_i}",
+    "domain": "\\mathbb{R}_{++}^n",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Decreasing"
+  },
+  {
+    "atom": "eigmax",
+    "meaning": "\\lambda_{\\max}(X)",
+    "domain": "\\mathbb{S}^n",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.eigmax"
+  },
+  {
+    "atom": "eigmin",
+    "meaning": "\\lambda_{\\min}(X)",
+    "domain": "\\mathbb{S}^n",
+    "sign": "AnySign",
+    "curvature": "Concave",
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.eigmin"
+  },
+  {
+    "atom": "eigsummax",
+    "meaning": "\\sum_{i=1}^{k} \\lambda_i^{\\downarrow}(X)",
+    "domain": "\\mathbb{R}^{m \\times n} \\times \\mathbb{R}",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Any"
+  },
+  {
+    "atom": "eigsummin",
+    "meaning": "\\sum_{i=1}^{k} \\lambda_i^{\\uparrow}(X)",
+    "domain": "\\mathbb{R}^{m \\times n} \\times \\mathbb{R}",
+    "sign": "AnySign",
+    "curvature": "Concave",
+    "monotonicity": "Any"
+  },
+  {
+    "atom": "logdet",
+    "meaning": "\\log \\det(X)",
+    "domain": "\\mathbb{S}_+^n",
+    "sign": "AnySign",
+    "curvature": "Concave",
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.logdet"
+  },
+  {
+    "atom": "logsumexp",
+    "meaning": "\\log \\sum_{i} e^{x_i}",
+    "domain": "\\mathbb{R}^{m \\times n}",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.logsumexp"
+  },
+  {
+    "atom": "matrix_frac",
+    "meaning": "x^\\top P^{-1} x",
+    "domain": "\\mathbb{R}^n \\times \\mathbb{S}_{++}^n",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Any"
+  },
+  {
+    "atom": "maximum",
+    "meaning": "\\max_i\\, x_i",
+    "domain": "\\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/collections/#Base.maximum"
+  },
+  {
+    "atom": "minimum",
+    "meaning": "\\min_i\\, x_i",
+    "domain": "\\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/collections/#Base.minimum"
+  },
+  {
+    "atom": "norm (p ≥ 1)",
+    "meaning": "\\|x\\|_p",
+    "domain": "\\mathbb{R}^n \\times [1, \\infty)",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Incr. if pos.",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.norm"
+  },
+  {
+    "atom": "norm (0 < p < 1)",
+    "meaning": "\\|x\\|_p",
+    "domain": "\\mathbb{R}^n \\times [0, 1)",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Incr. if pos.",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.norm"
+  },
+  {
+    "atom": "perspective(f, x, s)",
+    "meaning": "s \\cdot f(x/s)",
+    "domain": "f \\times \\mathbb{R} \\times \\mathbb{R}_+",
+    "sign": "Same as f",
+    "curvature": "Same as f",
+    "monotonicity": "Any"
+  },
+  {
+    "atom": "quad_form",
+    "meaning": "x^\\top P x",
+    "domain": "\\mathbb{R}^n \\times \\mathbb{S}_+^n",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "(Incr. if pos., Increasing)"
+  },
+  {
+    "atom": "quad_over_lin",
+    "meaning": "\\|x\\|_2^2 / y",
+    "domain": "\\mathbb{R}^n \\times \\mathbb{R}_{++}",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "(Incr. if pos., Decreasing)"
+  },
+  {
+    "atom": "quad_over_lin",
+    "meaning": "x^2 / y",
+    "domain": "\\mathbb{R} \\times \\mathbb{R}_{++}",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "(Incr. if pos., Decreasing)"
+  },
+  {
+    "atom": "sum",
+    "meaning": "\\sum_{ij} X_{ij}",
+    "domain": "\\mathbb{R}^{m \\times n}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/collections/#Base.sum"
+  },
+  {
+    "atom": "sum_largest",
+    "meaning": "\\sum_{i=1}^{k} x_i^{\\downarrow}",
+    "domain": "\\mathbb{R}^{m \\times n} \\times \\mathbb{Z}",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Increasing"
+  },
+  {
+    "atom": "sum_smallest",
+    "meaning": "\\sum_{i=1}^{k} x_i^{\\uparrow}",
+    "domain": "\\mathbb{R}^{m \\times n} \\times \\mathbb{Z}",
+    "sign": "AnySign",
+    "curvature": "Concave",
+    "monotonicity": "Increasing"
+  },
+  {
+    "atom": "tr",
+    "meaning": "\\operatorname{tr}(X)",
+    "domain": "\\mathbb{R}^{m \\times n}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.tr"
+  },
+  {
+    "atom": "trinv",
+    "meaning": "\\operatorname{tr}(X^{-1})",
+    "domain": "\\mathbb{S}_{++}^n",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Any"
+  },
+  {
+    "atom": "tv (vector)",
+    "meaning": "\\sum_i |x_{i+1} - x_i|",
+    "domain": "\\mathbb{R}^n",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Any"
+  },
+  {
+    "atom": "tv (matrix)",
+    "meaning": "\\sum_{i,j} \\|x_{i+1,j} - x_{i,j}\\|_2",
+    "domain": "(\\mathbb{R}^{m \\times n})^k",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Any"
+  },
+  {
+    "atom": "abs",
+    "meaning": "|x|",
+    "domain": "\\mathbb{C}",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Incr. if pos.",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.abs"
+  },
+  {
+    "atom": "conj",
+    "meaning": "\\bar{x}",
+    "domain": "\\mathbb{C}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.conj"
+  },
+  {
+    "atom": "exp",
+    "meaning": "e^x",
+    "domain": "\\mathbb{R}",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.exp-Tuple{Float64}"
+  },
+  {
+    "atom": "xlogx",
+    "meaning": "x \\log x",
+    "domain": "\\mathbb{R}",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Any",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.xlogx"
+  },
+  {
+    "atom": "huber",
+    "meaning": "\\begin{cases} x^2 \\quad |x|\\le M & \\\\ 2M|x|-M^2 & \\text{else} \\end{cases}",
+    "domain": "\\mathbb{R} \\times \\mathbb{R}_+",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Incr. if pos."
+  },
+  {
+    "atom": "imag",
+    "meaning": "\\operatorname{Im}(x)",
+    "domain": "\\mathbb{C}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Any",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.imag"
+  },
+  {
+    "atom": "inv (scalar)",
+    "meaning": "1/x",
+    "domain": "\\mathbb{R}_{++}",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Decreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.inv-Tuple{Number}"
+  },
+  {
+    "atom": "log (scalar)",
+    "meaning": "\\log x",
+    "domain": "\\mathbb{R}_{++}",
+    "sign": "AnySign",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.log-Tuple{Number}"
+  },
+  {
+    "atom": "log (matrix)",
+    "meaning": "\\log(X)",
+    "domain": "\\mathbb{R}^{m \\times n}",
+    "sign": "Positive",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.log-Tuple{Number}"
+  },
+  {
+    "atom": "inv (matrix)",
+    "meaning": "X^{-1}",
+    "domain": "\\mathbb{S}_+^n",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Decreasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.inv-Tuple{AbstractMatrix}"
+  },
+  {
+    "atom": "sqrt (matrix)",
+    "meaning": "X^{1/2}",
+    "domain": "\\mathbb{S}_+^n",
+    "sign": "Positive",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.sqrt-Tuple{AbstractMatrix}"
+  },
+  {
+    "atom": "kldivergence",
+    "meaning": "\\sum_i x_i \\log\\!\\left(\\frac{x_i}{y_i}\\right)",
+    "domain": "\\mathbb{R}_{++}^n \\times \\mathbb{R}_{++}^n",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Any",
+    "docUrl": "https://juliastats.org/StatsBase.jl/stable/signalcorr/#StatsBase.kldivergence"
+  },
+  {
+    "atom": "lognormcdf",
+    "meaning": "\\log \\Phi(x)",
+    "domain": "\\mathbb{R}",
+    "sign": "Negative",
+    "curvature": "Concave",
+    "monotonicity": "Increasing"
+  },
+  {
+    "atom": "log1p",
+    "meaning": "\\log(1 + x)",
+    "domain": "(-1, \\infty)",
+    "sign": "Negative",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.log1p"
+  },
+  {
+    "atom": "logistic",
+    "meaning": "\\log(1 + e^x)",
+    "domain": "\\mathbb{R}",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.logistic"
+  },
+  {
+    "atom": "max",
+    "meaning": "\\max(x, y)",
+    "domain": "\\mathbb{R} \\times \\mathbb{R}",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.max"
+  },
+  {
+    "atom": "min",
+    "meaning": "\\min(x, y)",
+    "domain": "\\mathbb{R} \\times \\mathbb{R}",
+    "sign": "AnySign",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.min"
+  },
+  {
+    "atom": "real",
+    "meaning": "\\operatorname{Re}(x)",
+    "domain": "\\mathbb{C}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.real"
+  },
+  {
+    "atom": "rel_entr",
+    "meaning": "x \\log(x / y)",
+    "domain": "\\mathbb{R}_{++} \\times \\mathbb{R}_{++}",
+    "sign": "AnySign",
+    "curvature": "Convex",
+    "monotonicity": "(Any, Decreasing)"
+  },
+  {
+    "atom": "sqrt (scalar)",
+    "meaning": "\\sqrt{x}",
+    "domain": "\\mathbb{R}_+",
+    "sign": "Positive",
+    "curvature": "Concave",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/math/#Base.sqrt-Tuple{Real}"
+  },
+  {
+    "atom": "xexpx",
+    "meaning": "x e^x",
+    "domain": "\\mathbb{R}_+",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Increasing",
+    "docUrl": "https://juliastats.org/LogExpFunctions.jl/stable/api/#LogExpFunctions.xexpx"
+  },
+  {
+    "atom": "conv",
+    "meaning": "x * y",
+    "domain": "\\mathbb{R}^n \\times \\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Any",
+    "docUrl": "https://docs.juliadsp.org/stable/convolutions/#DSP.conv"
+  },
+  {
+    "atom": "cumsum",
+    "meaning": "\\left[\\sum_{j=1}^{i} x_j\\right]_i",
+    "domain": "\\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/arrays/#Base.cumsum"
+  },
+  {
+    "atom": "diagm",
+    "meaning": "\\left[\\begin{smallmatrix}x_1 & & \\\\ & \\ddots & \\\\ & & x_n\\end{smallmatrix}\\right]",
+    "domain": "\\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.diagm"
+  },
+  {
+    "atom": "diag",
+    "meaning": "[X_{11}, \\ldots, X_{nn}]",
+    "domain": "\\mathbb{R}^{m \\times n}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.diag"
+  },
+  {
+    "atom": "diff",
+    "meaning": "[x_{i+1} - x_i]_i",
+    "domain": "\\mathbb{R}^n",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/base/arrays/#Base.diff"
+  },
+  {
+    "atom": "kron",
+    "meaning": "X \\otimes Y",
+    "domain": "\\mathbb{R}^{m \\times n} \\times \\mathbb{R}^{m \\times n}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing",
+    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.kron"
+  }
+]
