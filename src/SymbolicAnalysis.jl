@@ -3,10 +3,13 @@ module SymbolicAnalysis
 using DomainSets
 using LinearAlgebra
 using LogExpFunctions
+using MathOptInterface
 using PrecompileTools
 using StatsBase
 using Distributions
 using DSP, DataStructures
+
+const MOI = MathOptInterface
 
 using Symbolics
 import Symbolics: Symbolic, issym, Term
@@ -58,12 +61,13 @@ end
 
 export analyze
 
+include("conic.jl")
+include("moi_bridge.jl")
+
 @setup_workload begin
     @compile_workload begin
         @variables x y
-        y_with_domain = setmetadata(
-            y, VarDomain, DomainSets.HalfLine{Number, :open}()
-        )
+        y_with_domain = setmetadata(y, VarDomain, DomainSets.HalfLine{Number, :open}())
 
         ex1 = exp(y_with_domain) - log(y_with_domain) |> unwrap
         analyze(ex1)
