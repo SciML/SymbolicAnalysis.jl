@@ -1,0 +1,7 @@
+Case,Difficulty,Result,Time_ms
+Tyler M-Est,Hard,GConvex,1.697708
+Brascamp-Lieb,Hard,GConvex,0.910375
+S-Divergence Sum,Medium,GConvex,0.663292
+Karcher Mean,Hard,GConvex,2.073875
+Diagonal Loading,Medium,GConvex,1.692666
+Spectral Fn,Hard,GConvex,0.620917

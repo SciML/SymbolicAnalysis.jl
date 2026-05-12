@@ -60,9 +60,9 @@ using Test
         x = BigFloat[1.0 2.0; 3.0 4.0]
         result = SymbolicAnalysis.sum_largest(x, 2)
         @test result isa BigFloat
-        # sum_largest sums the k largest elements: sorted = [1,2,3,4], (end-k):end = 3:4+1 = 3 elements
-        # Looking at the code: sort(vec(x))[(end - k):end] = [2, 3, 4] when k=2, so sum = 9
-        @test result == BigFloat(9.0)
+        # sum_largest sums the k largest elements: sorted = [1,2,3,4], (end-k+1):end = 3:4 = 2 elements
+        # sort(vec(x))[(end - k + 1):end] = [3, 4] when k=2, so sum = 7
+        @test result == BigFloat(7.0)
     end
 
     @testset "sum_smallest" begin

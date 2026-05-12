@@ -9,7 +9,7 @@ makedocs(;
     sitename = "SymbolicAnalysis.jl",
     format = DocumenterVitepress.MarkdownVitepress(
         repo = "https://github.com/SciML/SymbolicAnalysis.jl",
-        devurl = "dev"
+        devurl = "dev",
     ),
     pages = [
         "Home" => "index.md",
@@ -17,7 +17,7 @@ makedocs(;
         "Atoms" => "atoms.md",
         "Special Functions" => "functions.md",
     ],
-    warnonly = true
+    warnonly = true,
 )
 
 deploydocs(; repo = "github.com/SciML/SymbolicAnalysis.jl", push_preview = true)

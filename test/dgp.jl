@@ -27,7 +27,8 @@ SymbolicAnalysis.getcurvature(ex)
 
 @variables Sigma[1:5, 1:5]
 xs = [rand(5) for i in 1:2]
-ex = sum(SymbolicAnalysis.log_quad_form(x, inv(Sigma)) for x in xs) +
+ex =
+    sum(SymbolicAnalysis.log_quad_form(x, inv(Sigma)) for x in xs) +
     1 / 5 * logdet(Sigma) |> Symbolics.unwrap
 analyze_res = SymbolicAnalysis.analyze(ex, M)
 @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
@@ -84,9 +85,11 @@ analyze_res = analyze(objective_expr, M)
 @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
 
 @variables Y[1:5, 1:5]
-ex = sqrt(X * Y)
-analyze_res = analyze(ex, M)
-@test analyze_res.gcurvature == SymbolicAnalysis.GUnknownCurvature
+ex = sqrt(X * Y) |> unwrap
+ex = SymbolicAnalysis.propagate_sign(ex)
+# sqrt(X * Y) is not DGCP-verifiable, should return GUnknownCurvature
+ex = SymbolicAnalysis.propagate_gcurvature(ex, M)
+@test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GUnknownCurvature
 
 # ex = exp(X*Y) |> unwrap
 # ex = SymbolicAnalysis.propagate_sign(ex)
@@ -145,7 +148,7 @@ prob = OptimizationProblem(
     optf,
     Array{Float64}(LinearAlgebra.I(5));
     manifold = M,
-    structural_analysis = true
+    structural_analysis = true,
 )
 
 opt = OptimizationManopt.GradientDescentOptimizer()
@@ -242,7 +245,32 @@ anres = analyze(ex, M)
 
 A = rand(5, 5)
 A = A * A'
-ex = logdet(SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, A, B)) |>
+ex =
+    logdet(SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, A, B)) |>
     unwrap
 anres = analyze(ex, M)
 @test anres.gcurvature == SymbolicAnalysis.GConvex
+
+# DGCP reduces to DCP: standard DCP-convex expressions on SPD manifolds
+# should still be correctly classified by the DGCP analyzer.
+# This validates the proposition that DGCP is a strict generalization of DCP.
+@testset "DGCP reduces to DCP" begin
+    @variables X[1:5, 1:5]
+    M = SymmetricPositiveDefinite(5)
+
+    # logdet is concave in DCP, and g-linear on SPD => should get GConvex or GLinear
+    ex_logdet = logdet(X) |> unwrap
+    res = analyze(ex_logdet, M)
+    @test res.gcurvature in (SymbolicAnalysis.GConvex, SymbolicAnalysis.GLinear)
+
+    # tr(inv(X)) is convex in DCP, and g-convex on SPD
+    ex_trinv = tr(inv(X)) |> unwrap
+    res = analyze(ex_trinv, M)
+    @test res.gcurvature == SymbolicAnalysis.GConvex
+
+    # tr(inv(X)) + logdet(X) combines convex and concave DCP atoms,
+    # but both are g-convex on SPD (logdet is g-linear)
+    ex_combined = (tr(inv(X)) + logdet(X)) |> unwrap
+    res = analyze(ex_combined, M)
+    @test res.gcurvature == SymbolicAnalysis.GConvex
+end

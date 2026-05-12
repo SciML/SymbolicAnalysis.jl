@@ -1,0 +1,8 @@
+Expression,DGCP,EuclConvex,GConvex
+logdet(X),GLinear,false,true
+tr(inv(X)),GConvex,false,true
+distance²,GConvex,false,true
+S-divergence,GConvex,false,true
+logdet(A'X⁻¹A),GConvex,false,true
+Tyler M-Est,GConvex,false,true
+Karcher Mean,GConvex,false,true

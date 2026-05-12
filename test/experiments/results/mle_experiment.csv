@@ -1,0 +1,11 @@
+Problem,n,Samples,GConvex,EuclConvex,DGCP_s,DCP_s
+Frechet,3,3,true,false,0.0023815,0.002554959
+Frechet,3,5,true,false,0.003815334,0.00226975
+Frechet,3,10,true,false,0.005494333,0.004362959
+Frechet,5,3,true,false,0.002322542,0.001811792
+Frechet,5,5,true,false,0.003041708,0.002246459
+Frechet,5,10,true,false,0.005835917,0.004371791
+Tyler,3,3,true,false,0.001779875,0.001194583
+Tyler,3,5,true,false,0.002560083,0.001657083
+Tyler,5,3,true,false,0.001490792,0.001206125
+Tyler,5,5,true,false,0.002085209,0.001821917

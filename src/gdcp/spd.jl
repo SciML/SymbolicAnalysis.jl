@@ -4,9 +4,10 @@
 add_gdcprule(
     LinearAlgebra.logdet,
     SymmetricPositiveDefinite,
-    Positive,
+    AnySign,  # logdet(X) can be negative when eigenvalues < 1
     GLinear,
-    GIncreasing
+    GIncreasing;
+    cone = MOI.LogDetConeTriangle,
 )
 
 """
@@ -27,14 +28,42 @@ end
     size = (size(B, 2), size(B, 2))
 end
 
-add_gdcprule(conjugation, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    conjugation,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
+)
 
 @register_symbolic LinearAlgebra.tr(X::Union{Symbolics.Arr, Matrix{Num}})
-add_gdcprule(LinearAlgebra.tr, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    LinearAlgebra.tr,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.Reals,
+)
 
-add_gdcprule(sum, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    sum,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.Reals,
+)
 
-add_gdcprule(adjoint, SymmetricPositiveDefinite, Positive, GLinear, GIncreasing)
+add_gdcprule(
+    adjoint,
+    SymmetricPositiveDefinite,
+    Positive,
+    GLinear,
+    GIncreasing;
+    cone = MOI.Reals,
+)
 
 """
     scalar_mat(X, k=size(X, 1))
@@ -52,9 +81,23 @@ end
 
 @register_symbolic scalar_mat(X::Union{Symbolics.Arr, Matrix{Num}}, k::Int)
 
-add_gdcprule(scalar_mat, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    scalar_mat,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.Reals,
+)
 
-add_gdcprule(LinearAlgebra.diag, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    LinearAlgebra.diag,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.Reals,
+)
 
 # """
 #     pinching(X, Ps)
@@ -88,14 +131,28 @@ function sdivergence(X, Y)
 end
 
 @register_symbolic sdivergence(X::Matrix{Num}, Y::Matrix)
-add_gdcprule(sdivergence, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    sdivergence,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.LogDetConeTriangle,
+)
 
 @register_symbolic Manifolds.distance(
     M::Manifolds.SymmetricPositiveDefinite,
     X::AbstractMatrix,
-    Y::Union{Symbolics.Arr, Matrix{Num}}
+    Y::Union{Symbolics.Arr, Matrix{Num}},
 )
-add_gdcprule(Manifolds.distance, SymmetricPositiveDefinite, Positive, GConvex, GAnyMono)
+add_gdcprule(
+    Manifolds.distance,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GAnyMono;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
+)
 
 # @register_symbolic LinearAlgebra.exp(X::Union{Symbolics.Arr, Matrix{Num}})
 # add_gdcprule(exp, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
@@ -107,7 +164,8 @@ add_gdcprule(
     SymmetricPositiveDefinite,
     Positive,
     GConvex,
-    GIncreasing
+    GIncreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
 )
 
 add_gdcprule(
@@ -115,7 +173,8 @@ add_gdcprule(
     SymmetricPositiveDefinite,
     Positive,
     GConvex,
-    GIncreasing
+    GIncreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
 )
 
 """
@@ -138,17 +197,36 @@ function log_quad_form(ys::Vector{<:Vector}, X::Matrix)
 end
 
 @register_symbolic log_quad_form(y::Vector, X::Matrix{Num})
-add_gdcprule(log_quad_form, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    log_quad_form,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
+)
 
-add_gdcprule(inv, SymmetricPositiveDefinite, Positive, GConvex, GDecreasing)
-
-add_gdcprule(diag, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    inv,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GDecreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
+)
 
 @register_array_symbolic Base.log(X::Matrix{Num}) begin
     size = (size(X, 1), size(X, 2))
 end
 
-add_gdcprule(eigsummax, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    eigsummax,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
+)
 
 """
     schatten_norm(X, p=2)
@@ -165,7 +243,14 @@ function schatten_norm(X::AbstractMatrix, p::Int = 2)
 end
 
 @register_symbolic schatten_norm(X::Matrix{Num}, p::Int)
-add_gdcprule(schatten_norm, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    schatten_norm,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.NormNuclearCone,
+)
 
 """
     sum_log_eigmax(X, k)
@@ -195,7 +280,14 @@ function sum_log_eigmax(X::AbstractMatrix, k::Int)
 end
 
 @register_symbolic sum_log_eigmax(X::Matrix{Num}, k::Int) false
-add_gdcprule(sum_log_eigmax, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    sum_log_eigmax,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.LogDetConeTriangle,
+)
 
 """
     affine_map(f, X, B, Y)
@@ -229,7 +321,7 @@ end
     conjf::typeof(conjugation),
     X::Matrix{Num},
     B::Matrix,
-    Y::Union{Matrix, Vector{<:Matrix}}
+    Y::Union{Matrix, Vector{<:Matrix}},
 ) begin
     size = (size(B, 1), size(B, 2))
 end
@@ -244,12 +336,19 @@ end
 @register_array_symbolic affine_map(
     diagtrf::Union{typeof(diag), typeof(tr)},
     X::Matrix{Num},
-    B::Matrix
+    B::Matrix,
 ) begin
     size = (size(B, 1), size(B, 2))
 end false
 
-add_gdcprule(affine_map, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    affine_map,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
+)
 
 """
     hadamard_product(X, B)
@@ -273,7 +372,14 @@ end
     size = (size(B, 1), size(B, 2))
 end
 
-add_gdcprule(hadamard_product, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+add_gdcprule(
+    hadamard_product,
+    SymmetricPositiveDefinite,
+    Positive,
+    GConvex,
+    GIncreasing;
+    cone = MOI.PositiveSemidefiniteConeTriangle,
+)
 
 function affine_map(f::typeof(hadamard_product), X::Matrix, Y::Matrix, B::Matrix)
     if !(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)
@@ -286,7 +392,7 @@ end
     hadamard_product::typeof(hadamard_product),
     X::Matrix{Num},
     Y::Matrix,
-    B::Matrix
+    B::Matrix,
 ) begin
     size = (size(B, 1), size(B, 2))
 end false
