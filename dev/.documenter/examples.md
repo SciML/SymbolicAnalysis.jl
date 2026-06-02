@@ -20,7 +20,7 @@ Convex::Curvature = 0
 ```
 
 
-This example analyzes a simple expression `exp(x) - log(x)`, determining that it&#39;s convex and can have any sign.
+This example analyzes a simple expression `exp(x) - log(x)`, determining that it's convex and can have any sign.
 
 ## Analysis on Manifolds {#Analysis-on-Manifolds}
 
@@ -80,7 +80,7 @@ Convex::Curvature = 0
 ```
 
 
-This example analyzes a quadratic expression over a linear expression, showing that it&#39;s convex.
+This example analyzes a quadratic expression over a linear expression, showing that it's convex.
 
 ## Analysis on the Lorentz Manifold {#Analysis-on-the-Lorentz-Manifold}
 

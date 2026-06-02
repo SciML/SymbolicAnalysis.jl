@@ -615,7 +615,7 @@ lorentz_homogeneous_quadratic(A::AbstractMatrix, p::AbstractVector)
 ```
 
 
-Computes the homogeneous quadratic function f(p) = p&#39;Ap on the Lorentz model. For geodesic convexity, A must satisfy one of the conditions in Theorem 21.
+Computes the homogeneous quadratic function f(p) = p'Ap on the Lorentz model. For geodesic convexity, A must satisfy one of the conditions in Theorem 21.
 
 **Arguments**
 
@@ -691,7 +691,7 @@ lorentz_nonhomogeneous_quadratic(A::AbstractMatrix, b::AbstractVector, c::Real, 
 ```
 
 
-Computes the non-homogeneous quadratic function f(p) = p&#39;Ap + b&#39;p + c on the Lorentz model. For geodesic convexity, p&#39;Ap must be geodesically convex and b must be in the Lorentz cone L.
+Computes the non-homogeneous quadratic function f(p) = p'Ap + b'p + c on the Lorentz model. For geodesic convexity, p'Ap must be geodesically convex and b must be in the Lorentz cone L.
 
 **Arguments**
 
