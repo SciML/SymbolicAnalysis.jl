@@ -1,16 +1,15 @@
 using SafeTestsets, Test
+using SymbolicAnalysis:
+    propagate_curvature,
+    propagate_sign,
+    propagate_gcurvature,
+    getcurvature,
+    getsign,
+    getgcurvature
 
 const GROUP = get(ENV, "GROUP", "All")
 
 if GROUP == "All" || GROUP == "Core"
-    using SymbolicAnalysis:
-        propagate_curvature,
-        propagate_sign,
-        propagate_gcurvature,
-        getcurvature,
-        getsign,
-        getgcurvature
-
     @testset "DCP" begin
         include("test.jl")
     end
