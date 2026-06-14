@@ -1,4 +1,5 @@
 using SymbolicAnalysis
+using SymbolicAnalysis: propagate_curvature, propagate_sign, getcurvature, getsign
 using Symbolics, SymbolicAnalysis.LogExpFunctions
 using Symbolics: unwrap
 using LinearAlgebra, Test
