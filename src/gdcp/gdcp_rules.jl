@@ -101,6 +101,8 @@ function find_gcurvature(ex)
     if iscall(ex)
         f, args = operation(ex), arguments(ex)
         knowngcurv = false
+        f_curvature = GUnknownCurvature
+        f_monotonicity = (GAnyMono,)
 
         if hasgdcprule(f) && !any(iscall.(args))
             rule, args = gdcprule(f, args...)
@@ -170,7 +172,7 @@ function find_gcurvature(ex)
                 elseif argscurv == GConcave
                     return GConvex
                 else
-                    argscurv
+                    return argscurv
                 end
             else
                 @warn "Disciplined Programming does not support multiple non-constant arguments in multiplication"

@@ -16,19 +16,20 @@ using Symbolics: Symbolic, @register_symbolic, unwrap, variables
 add_gdcprule(Manifolds.distance, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
 
 """
-    lorentz_log_barrier(a, p)
+    lorentz_log_barrier(p)
 
-Computes the log-barrier function for the Lorentz model: `-log(-1 - <a, p>_L)`.
+Computes the log-barrier function for the Lorentz model: `-log(-1 - <a, p>_L)`,
+with the fixed vector `a = (0, ..., 0, 1)` in R^(d+1).
 
 # Arguments
 
-    - `a`: The vector (0, ..., 0, 1) in R^(d+1).
     - `p`: A point on the Lorentz manifold.
 """
 function lorentz_log_barrier(p::AbstractVector)
-    # Lorentzian inner product: a⋅p_L = a1*p1 + ... + a_d*p_d - a_{d+1}*p_{d+1}
-    inner_prod = a[end] * p[end]
-    return -log(-1 + inner_prod)
+    # a = (0, ..., 0, 1), so the Lorentzian inner product
+    # <a, p>_L = a1*p1 + ... + a_d*p_d - a_{d+1}*p_{d+1} reduces to -p[end].
+    # The barrier is -log(-1 - <a, p>_L) = -log(-1 + p[end]).
+    return -log(-1 + p[end])
 end
 
 @register_symbolic lorentz_log_barrier(p::Union{Symbolics.Arr, AbstractVector})

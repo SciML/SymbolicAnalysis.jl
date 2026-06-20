@@ -420,7 +420,7 @@ Returns the log of the normal cumulative distribution function of `x`.
     - `x::Real`: A Real.
 """
 function lognormcdf(x::Real)
-    return logcdf(Normal, x)
+    return logcdf(Normal(), x)
 end
 Symbolics.@register_symbolic lognormcdf(x::Real)
 add_dcprule(lognormcdf, RealLine(), Negative, Concave, Increasing)

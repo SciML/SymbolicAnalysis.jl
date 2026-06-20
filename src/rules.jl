@@ -7,6 +7,10 @@ struct CustomDomain{T} <: Domain{T}
 end
 
 Base.in(x, c::CustomDomain) = c.in(x)
+# Disambiguate against Symbolics' `in(::Num/::Symbolic, ::Domain)`, since
+# `CustomDomain <: Domain` makes the symbolic-variable calls match both methods.
+Base.in(x::Union{Symbolics.Num, Symbolic{<:Number}}, c::CustomDomain) = c.in(x)
+Base.in(x::NTuple{N, Union{Symbolics.Num, Symbolic{<:Number}}}, c::CustomDomain) where {N} = c.in(x)
 
 function array_domain(element_domain)
     return CustomDomain{AbstractArray}() do xs
@@ -332,7 +336,7 @@ function find_curvature(ex)
                 elseif argscurv == Concave
                     return Convex
                 else
-                    argscurv
+                    return argscurv
                 end
             else
                 @warn "DCP does not support multiple non-constant arguments in multiplication"
