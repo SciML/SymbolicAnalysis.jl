@@ -60,7 +60,11 @@ ex = propagate_curvature(propagate_sign(ex))
 obj = x^2 + y^2 + z^2 |> unwrap
 
 ex = propagate_curvature(propagate_sign(obj))
-@test_broken getcurvature(ex) == SymbolicAnalysis.Convex
+# `x^2 + y^2 + z^2` is Convex, and the curvature pass derives that up to
+# Symbolics 6.37.1. A change in Symbolics 6.38 reshaped the `+`-of-`^` tree so
+# the pass returns UnknownCurvature; gate the known regression on that version
+# (the Downgrade env pins Symbolics 6.37.1, where the assertion must hold).
+@test getcurvature(ex) == SymbolicAnalysis.Convex broken = (pkgversion(Symbolics) >= v"6.38")
 @test getsign(ex) == SymbolicAnalysis.Positive
 
 cons = [
