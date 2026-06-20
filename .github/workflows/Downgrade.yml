@@ -15,4 +15,8 @@ jobs:
     uses: "SciML/.github/.github/workflows/downgrade.yml@v1"
     with:
       julia-version: "lts"
+      # Downgrade the test project too: its deps (Optimization/Zygote/ForwardDiff)
+      # have floors that pull transitive deps (SciMLBase) far above the package's
+      # own minima, so pinning only the root project leaves an unsatisfiable env.
+      projects: ".,test"
     secrets: "inherit"
