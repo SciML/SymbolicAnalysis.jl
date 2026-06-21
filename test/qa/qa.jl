@@ -37,10 +37,6 @@ run_qa(
     aqua_kwargs = (;
         ambiguities = (; exclude = ATOM_AMBIGUITIES),
         piracies = (; treat_as_own = SYMBOLIC_OWN),
-        # `RecursiveArrayTools` is pulled in transitively on Symbolics v6 but not on
-        # v7, where Aqua then reports it as a stale (declared-but-unloaded) dep. It
-        # is kept as a declared dependency for the v6 path, so ignore it here.
-        stale_deps = (; ignore = [:RecursiveArrayTools]),
     ),
     jet_kwargs = (; target_modules = (SymbolicAnalysis,), mode = :typo),
 )

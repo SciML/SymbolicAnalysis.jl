@@ -9,7 +9,7 @@ using LinearAlgebra
 using Symbolics: @register_symbolic, unwrap, variables
 
 # See the SPD `distance` note in gdcp/spd.jl: build the term directly off the
-# symbolic point so the SPD and Lorentz methods do not collide on Symbolics v7.
+# symbolic point so the SPD and Lorentz methods do not collide.
 function Manifolds.distance(
         M::Manifolds.Lorentz,
         p::AbstractVector,

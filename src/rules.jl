@@ -5,8 +5,8 @@
 # Symbolics v7 wraps numeric literals (multiplication coefficients, exponents,
 # broadcasted functions, ...) as constant `BasicSymbolic`s, so a plain
 # `arg isa Number` test no longer recognises them. `Symbolics.value` collapses a
-# wrapped constant back to its underlying value and is the identity on v6 and on
-# already-unwrapped values, so use it before any `isa Number` dispatch.
+# wrapped constant back to its underlying value (identity on already-unwrapped
+# values), so use it before any `isa Number` dispatch.
 constval(x) = Symbolics.value(x)
 
 struct CustomDomain{T} <: Domain{T}
@@ -17,7 +17,7 @@ Base.in(x, c::CustomDomain) = c.in(x)
 # Disambiguate against Symbolics' `in(::Num/::Symbolic, ::Domain)`, since
 # `CustomDomain <: Domain` makes the symbolic-variable calls match both methods.
 # `InDomainSymbolic` matches Symbolics' own dispatch type so these remain strictly
-# more specific (no ambiguity) on both v6 and v7.
+# more specific (no ambiguity).
 Base.in(x::Union{Symbolics.Num, InDomainSymbolic}, c::CustomDomain) = c.in(x)
 Base.in(x::NTuple{N, Union{Symbolics.Num, InDomainSymbolic}}, c::CustomDomain) where {N} = c.in(x)
 

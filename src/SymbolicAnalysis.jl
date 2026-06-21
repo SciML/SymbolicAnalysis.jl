@@ -14,27 +14,15 @@ using SymbolicUtils: iscall, BasicSymbolic
 using SymbolicUtils.Rewriters
 SymbolicUtils.inspect_metadata[] = true
 
-# Symbolics v7 / SymbolicUtils v4 removed the `Symbolic` abstract type. On v6 the
-# package dispatches on `Symbolics.Symbolic`, which also covers array expressions
-# such as `ArrayOp` (these are *not* `BasicSymbolic`), so keep using it there. On
-# v7 every symbolic — scalar or array — is a `BasicSymbolic{SymReal}`, which is the
-# stand-in. (`BasicSymbolic`'s parameter is now a `SymVariant`, so the old
-# `Symbolic{<:Number}` spelling is also gone.)
-const Symbolic = if isdefined(Symbolics, :Symbolic)
-    Symbolics.Symbolic
-else
-    BasicSymbolic
-end
+# Symbolics v7 / SymbolicUtils v4 removed the `Symbolic` abstract type: every
+# symbolic — scalar or array — is now a `BasicSymbolic{SymReal}`.
+const Symbolic = BasicSymbolic
 
 # The scalar-symbolic type Symbolics uses when dispatching `in(::symbolic, ::Domain)`.
 # Matching it exactly lets the `in(::_, ::CustomDomain)` disambiguators below stay
-# strictly more specific than Symbolics' `IntervalSets.Domain` method (which would
-# otherwise be ambiguous on v7, where it is keyed on `BasicSymbolic{SymReal}`).
-const InDomainSymbolic = if isdefined(Symbolics, :Symbolic)
-    Symbolic{<:Number}
-else
-    BasicSymbolic{SymbolicUtils.SymReal}
-end
+# strictly more specific than Symbolics' `IntervalSets.Domain` method (which is
+# keyed on `BasicSymbolic{SymReal}`).
+const InDomainSymbolic = BasicSymbolic{SymbolicUtils.SymReal}
 
 struct VarDomain end
 

@@ -23,12 +23,12 @@ function conjugation(X, B)
     return B' * X * B
 end
 
-# Build an unevaluated matrix-valued term off a symbolic matrix argument. On
-# Symbolics v7 the `@register_array_symbolic`-generated `promote_shape` for these
-# custom atoms is not `maketerm`-safe (rewriting a nested expression such as
+# Build an unevaluated matrix-valued term off a symbolic matrix argument. The
+# `@register_array_symbolic`-generated `promote_shape` for these custom atoms is
+# not `maketerm`-safe on Symbolics v7 (rewriting a nested expression such as
 # `conjugation(inv(X), A)` recomputes a dimensionless `Array{T}` type and throws),
-# so on v7 the symbolic methods are defined directly via `SymbolicUtils.term`,
-# which round-trips cleanly through the rewriter. v6 keeps the macro registration.
+# so the symbolic methods are defined directly via `SymbolicUtils.term`, which
+# round-trips cleanly through the rewriter.
 function array_atom_term(f, X, args...)
     x = Symbolics.unwrap(X)
     return Symbolics.wrap(
@@ -36,21 +36,12 @@ function array_atom_term(f, X, args...)
     )
 end
 
-if pkgversion(Symbolics) < v"7"
-    @register_array_symbolic conjugation(X::Matrix{Num}, B::Matrix) begin
-        size = (size(B, 2), size(B, 2))
-    end
-else
-    conjugation(X::Symbolics.Arr, B::AbstractMatrix) = array_atom_term(conjugation, X, B)
-end
+conjugation(X::Symbolics.Arr, B::AbstractMatrix) = array_atom_term(conjugation, X, B)
 
 add_gdcprule(conjugation, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
-# Symbolics v7 builds a `tr` term natively for symbolic matrices; on v6 it did
-# not, so the registration is only needed (and only non-colliding) on v6.
-if pkgversion(Symbolics) < v"7"
-    @register_symbolic LinearAlgebra.tr(X::Matrix{Num})
-end
+# Symbolics v7 builds a `tr` term natively for symbolic matrices, so no
+# registration is needed here.
 add_gdcprule(LinearAlgebra.tr, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
 add_gdcprule(sum, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
@@ -114,8 +105,8 @@ add_gdcprule(sdivergence, SymmetricPositiveDefinite, Positive, GConvex, GIncreas
 # Symbolic geodesic distance must remain an unevaluated `distance` term so the
 # gDCP pass can dispatch on `operation(ex) == Manifolds.distance`. The SPD and
 # Lorentz registrations both collapse to the same all-`BasicSymbolic{SymReal}`
-# method on Symbolics v7 and collide, so the term is built directly off the
-# symbolic point argument here (works on v6 and v7).
+# method on Symbolics v7 and would collide, so the term is built directly off the
+# symbolic point argument here.
 function Manifolds.distance(
         M::Manifolds.SymmetricPositiveDefinite,
         X::AbstractMatrix,
@@ -282,14 +273,8 @@ function hadamard_product(X::AbstractMatrix, B::AbstractMatrix)
     return B .* X
 end
 
-if pkgversion(Symbolics) < v"7"
-    @register_array_symbolic hadamard_product(X::Matrix{Num}, B::Matrix) begin
-        size = (size(B, 1), size(B, 2))
-    end
-else
-    function hadamard_product(X::Symbolics.Arr, B::AbstractMatrix)
-        return array_atom_term(hadamard_product, X, B)
-    end
+function hadamard_product(X::Symbolics.Arr, B::AbstractMatrix)
+    return array_atom_term(hadamard_product, X, B)
 end
 
 add_gdcprule(hadamard_product, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
@@ -307,7 +292,7 @@ end
 # express this on Symbolics v7: the function-typed first argument plus the
 # `Matrix{Num}` argument collapse so the conjugation- and hadamard-flavoured
 # registrations generate the same `BasicSymbolic{SymReal}` method and collide.
-# Build the term directly off the symbolic `X` instead (works on v6 and v7).
+# Build the term directly off the symbolic `X` instead.
 function affine_map_term(f, X, args...)
     x = Symbolics.unwrap(X)
     uargs = map(Symbolics.unwrap, args)
