@@ -2,6 +2,13 @@
 @enum Curvature Convex Concave Affine UnknownCurvature
 @enum Monotonicity Increasing Decreasing AnyMono
 
+# Symbolics v7 wraps numeric literals (multiplication coefficients, exponents,
+# broadcasted functions, ...) as constant `BasicSymbolic`s, so a plain
+# `arg isa Number` test no longer recognises them. `Symbolics.value` collapses a
+# wrapped constant back to its underlying value and is the identity on v6 and on
+# already-unwrapped values, so use it before any `isa Number` dispatch.
+constval(x) = Symbolics.value(x)
+
 struct CustomDomain{T} <: Domain{T}
     in::Function
 end
@@ -9,8 +16,10 @@ end
 Base.in(x, c::CustomDomain) = c.in(x)
 # Disambiguate against Symbolics' `in(::Num/::Symbolic, ::Domain)`, since
 # `CustomDomain <: Domain` makes the symbolic-variable calls match both methods.
-Base.in(x::Union{Symbolics.Num, Symbolic{<:Number}}, c::CustomDomain) = c.in(x)
-Base.in(x::NTuple{N, Union{Symbolics.Num, Symbolic{<:Number}}}, c::CustomDomain) where {N} = c.in(x)
+# `InDomainSymbolic` matches Symbolics' own dispatch type so these remain strictly
+# more specific (no ambiguity) on both v6 and v7.
+Base.in(x::Union{Symbolics.Num, InDomainSymbolic}, c::CustomDomain) = c.in(x)
+Base.in(x::NTuple{N, Union{Symbolics.Num, InDomainSymbolic}}, c::CustomDomain) where {N} = c.in(x)
 
 function array_domain(element_domain)
     return CustomDomain{AbstractArray}() do xs
@@ -155,8 +164,11 @@ function add_sign(args)
     for i in eachindex(args)
         arg = args[i]
         if iscall(arg)
+            # Don't write the propagated arg back into `args`: on Symbolics v7 the
+            # matched `~~x` is a read-only vector. The aggregate sign only needs
+            # the local propagated value, and the surrounding Postwalk/Prewalk
+            # already persists each child's sign metadata on the expression tree.
             arg = propagate_sign(arg)
-            args[i] = arg
         end
         s = getsign(arg)
         if s == AnySign
@@ -186,7 +198,8 @@ function mul_sign(args)
     # Avoid allocating intermediate arrays
     neg_count = 0
     for arg in args
-        s = getsign(arg)
+        v = constval(arg)
+        s = v isa Number ? getsign(v) : getsign(arg)
         if s == AnySign
             return AnySign
         elseif s == Negative
@@ -197,6 +210,10 @@ function mul_sign(args)
 end
 
 function propagate_sign(ex)
+    # Work on the raw symbolic so the sign metadata survives the rewrite walk on
+    # Symbolics v7 (a `Num`/`Arr` wrapper round-trips through wrap/unwrap and drops
+    # it). `analyze` already unwraps; mirror that for direct callers.
+    ex = Symbolics.unwrap(ex)
     # Step 1: set the sign of all variables to be AnySign
     rs = [
         @rule ~x::issym => setsign(~x, AnySign) where {hassign(~x)}
@@ -244,7 +261,7 @@ function mul_curvature(args)
                 return UnknownCurvature
             end
         else
-            constant_prod *= arg
+            constant_prod *= constval(arg)
         end
     end
 
@@ -292,6 +309,8 @@ function add_curvature(args)
 end
 
 function propagate_curvature(ex)
+    # See `propagate_sign`: unwrap so the curvature metadata survives the v7 walk.
+    ex = Symbolics.unwrap(ex)
     rs = [
         @rule *(~~x) => setcurvature(~MATCH, mul_curvature(~~x))
         @rule +(~~x) => setcurvature(~MATCH, add_curvature(~~x))
@@ -327,9 +346,10 @@ function find_curvature(ex)
         if hasdcprule(f)
             rule, args = dcprule(f, args...)
         elseif Symbol(f) == :*
-            if args[1] isa Number && args[1] > 0
+            a1 = constval(args[1])
+            if a1 isa Number && a1 > 0
                 return find_curvature(args[2])
-            elseif args[1] isa Number && args[1] < 0
+            elseif a1 isa Number && a1 < 0
                 argscurv = find_curvature(args[2])
                 if argscurv == Convex
                     return Concave

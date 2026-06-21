@@ -6,13 +6,19 @@
 
 using Manifolds
 using LinearAlgebra
-using Symbolics: Symbolic, @register_symbolic, unwrap, variables
+using Symbolics: @register_symbolic, unwrap, variables
 
-@register_symbolic Manifolds.distance(
-    M::Manifolds.Lorentz,
-    p::AbstractVector,
-    q::Union{Symbolics.Arr, AbstractVector}
-) false
+# See the SPD `distance` note in gdcp/spd.jl: build the term directly off the
+# symbolic point so the SPD and Lorentz methods do not collide on Symbolics v7.
+function Manifolds.distance(
+        M::Manifolds.Lorentz,
+        p::AbstractVector,
+        q::Symbolics.Arr
+    )
+    return Symbolics.wrap(
+        SymbolicUtils.term(Manifolds.distance, M, p, Symbolics.unwrap(q); type = Real)
+    )
+end
 add_gdcprule(Manifolds.distance, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
 
 """
@@ -32,7 +38,7 @@ function lorentz_log_barrier(p::AbstractVector)
     return -log(-1 + p[end])
 end
 
-@register_symbolic lorentz_log_barrier(p::Union{Symbolics.Arr, AbstractVector})
+@register_symbolic lorentz_log_barrier(p::Vector{Num})
 add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, Positive, GConvex, GIncreasing)
 
 """
@@ -70,7 +76,7 @@ end
 
 @register_symbolic lorentz_homogeneous_quadratic(
     A::AbstractMatrix,
-    p::Union{Symbolics.Arr, AbstractVector}
+    p::Vector{Num}
 )
 add_gdcprule(lorentz_homogeneous_quadratic, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
 
@@ -103,7 +109,7 @@ end
 
 @register_symbolic lorentz_homogeneous_diagonal(
     a::AbstractVector,
-    p::Union{Symbolics.Arr, AbstractVector}
+    p::Vector{Num}
 )
 add_gdcprule(lorentz_homogeneous_diagonal, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
 
@@ -204,7 +210,7 @@ end
 
 @register_symbolic lorentz_transform(
     O::AbstractMatrix,
-    p::Union{Symbolics.Arr, AbstractVector}
+    p::Vector{Num}
 )
 # Not adding a rule since this preserves geodesic convexity but doesn't have a specific curvature
 

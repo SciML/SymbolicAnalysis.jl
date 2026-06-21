@@ -231,7 +231,14 @@ function quad_over_lin(x::AbstractVector{<:Real}, y::Real)
     return sum(x .^ 2) / y
 end
 
-Symbolics.@register_symbolic quad_over_lin(x::AbstractVector, y::Real) false
+# On Symbolics v7 both scalar- and array-valued registered symbolics share the
+# concrete type `BasicSymbolic{SymReal}`, so this vector registration would
+# generate the same `quad_over_lin(::BasicSymbolic{SymReal}, ::Real)` method as
+# the scalar one below and collide. Only register it on v6, where vector and
+# scalar symbolics are distinct `BasicSymbolic` types.
+if pkgversion(Symbolics) < v"7"
+    Symbolics.@register_symbolic quad_over_lin(x::AbstractVector, y::Real) false
+end
 
 """
     quad_over_lin(x::Real, y::Real)
@@ -393,13 +400,73 @@ add_dcprule(imag, ℂ, AnySign, Affine, AnyMono)
 add_dcprule(inv, HalfLine{Real, :open}(), Positive, Convex, Decreasing)
 add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 
-@register_symbolic Base.log(A::Symbolics.Arr)
+# Matrix-valued atoms (`log`, `inv`, `sqrt` of a symbolic matrix). On Symbolics
+# v7 / SymbolicUtils v4 a symbolic matrix unwraps to `BasicSymbolic{SymReal}` —
+# the same concrete type as a symbolic scalar — so the `@register_symbolic`
+# macros would emit a `f(::BasicSymbolic{SymReal})` method that overwrites
+# SymbolicUtils' own scalar `f` and aborts precompilation. Build the matrix term
+# directly off the `Arr` wrapper instead; `SymbolicUtils.term(f, x; type)` is the
+# stable constructor on both v6 and v7 and leaves the scalar methods untouched.
+# On Symbolics v7 some scalar atoms (e.g. `sqrt`) register a `promote_shape` that
+# rejects matrix shapes, which `term` would invoke unless the shape is supplied up
+# front. v6's `term` does not take a `shape` kwarg (and doesn't need it), so only
+# pass it on v7.
+@static if pkgversion(Symbolics) < v"7"
+    function matrix_atom(f, A::Symbolics.Arr)
+        a = Symbolics.unwrap(A)
+        return Symbolics.wrap(SymbolicUtils.term(f, a; type = SymbolicUtils.symtype(a)))
+    end
+    function matrix_atom(f, A::AbstractMatrix{<:Num})
+        a = Symbolics.unwrap.(A)
+        return Symbolics.wrap(SymbolicUtils.term(f, a; type = Matrix{Real}))
+    end
+else
+    function matrix_atom(f, A::Symbolics.Arr)
+        a = Symbolics.unwrap(A)
+        return Symbolics.wrap(
+            SymbolicUtils.term(
+                f, a; type = SymbolicUtils.symtype(a), shape = Symbolics.shape(a)
+            )
+        )
+    end
+    function matrix_atom(f, A::AbstractMatrix{<:Num})
+        a = Symbolics.unwrap.(A)
+        return Symbolics.wrap(
+            SymbolicUtils.term(f, a; type = Matrix{Real}, shape = map(Base.OneTo, size(A)))
+        )
+    end
+end
+
+@static if pkgversion(Symbolics) >= v"7"
+    # Symbolics v6 returns a wrapped `Arr` from a symbolic matrix–matrix product;
+    # v7 returns a bare `BasicSymbolic`. Re-wrap the 2-argument `Arr` product so it
+    # reaches the matrix-atom methods below (which dispatch on `Arr`), restoring the
+    # v6 shape. This 2-arg method is more specific than Symbolics' variadic `*`, so
+    # it does not overwrite it.
+    function Base.:*(x::Symbolics.Arr{<:Any, 2}, y::Symbolics.Arr{<:Any, 2})
+        return Symbolics.wrap(Symbolics.unwrap(x) * Symbolics.unwrap(y))
+    end
+
+    # SymbolicUtils v4 gives `log` a matrix-permissive `promote_shape` but leaves
+    # `sqrt` scalar-only, so rewriting a matrix `sqrt` term (e.g. during the
+    # analysis walk's `maketerm`) throws "Invalid shapes for sqrt". Add a matrix
+    # rule for `sqrt`; dispatching on the concrete `ShapeVecT` (rather than the
+    # `ShapeT` union SymbolicUtils uses) makes this strictly more specific, so it
+    # extends rather than overwrites the existing method.
+    function SymbolicUtils.promote_shape(::typeof(sqrt), sh::SymbolicUtils.ShapeVecT)
+        (length(sh) == 0 || length(sh) == 2) && return sh
+        return SymbolicUtils._throw_array(sqrt, sh)
+    end
+end
+
+Base.log(A::Symbolics.Arr) = matrix_atom(log, A)
+Base.log(A::Matrix{Num}) = matrix_atom(log, A)
 add_dcprule(log, array_domain(RealLine(), 2), Positive, Concave, Increasing)
 
-@register_symbolic LinearAlgebra.inv(A::Symbolics.Arr)
+LinearAlgebra.inv(A::Symbolics.Arr) = matrix_atom(inv, A)
 add_dcprule(inv, semidefinite_domain(), AnySign, Convex, Decreasing)
 
-@register_symbolic LinearAlgebra.sqrt(A::Symbolics.Arr)
+LinearAlgebra.sqrt(A::Symbolics.Arr) = matrix_atom(sqrt, A)
 add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
 
 add_dcprule(
@@ -434,6 +501,11 @@ add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 
 # special cases which depend on arguments:
 function dcprule(::typeof(^), x::Symbolic, i)
+    # On Symbolics v7 a literal exponent is wrapped as a constant `BasicSymbolic`,
+    # so `isinteger`/`isone`/comparisons below would operate on a symbolic and
+    # error; `Symbolics.value` unwraps it to the underlying number (identity on v6
+    # and for already-numeric exponents).
+    i = Symbolics.value(i)
     args = (x, i)
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
@@ -512,7 +584,10 @@ add_dcprule(vec, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 add_dcprule(vcat, array_domain(array_domain(RealLine(), 1), 1), AnySign, Affine, Increasing)
 
 function dcprule(::typeof(broadcast), f, x...)
-    return dcprule(f, x...)
+    # On Symbolics v7 the broadcasted function is wrapped as a constant symbolic
+    # (e.g. `broadcast(exp, z)` carries a symbolic `exp`); `Symbolics.value`
+    # recovers the underlying function (identity on v6 / for a plain function).
+    return dcprule(Symbolics.value(f), x...)
 end
 hasdcprule(::typeof(broadcast)) = true
 

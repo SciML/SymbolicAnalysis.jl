@@ -48,7 +48,7 @@ function mul_gcurvature(args)
                 return GUnknownCurvature
             end
         else
-            constant_prod *= arg
+            constant_prod *= constval(arg)
         end
     end
     if non_constant_expr !== nothing
@@ -163,9 +163,10 @@ function find_gcurvature(ex)
                 end
             end
         elseif Symbol(f) == :*
-            if args[1] isa Number && args[1] > 0
+            a1 = constval(args[1])
+            if a1 isa Number && a1 > 0
                 return find_gcurvature(args[2])
-            elseif args[1] isa Number && args[1] < 0
+            elseif a1 isa Number && a1 < 0
                 argscurv = find_gcurvature(args[2])
                 if argscurv == GConvex
                     return GConcave
@@ -244,6 +245,11 @@ function find_gcurvature(ex)
 end
 
 function propagate_gcurvature(ex, M::AbstractManifold)
+    # Operate on the raw symbolic: on Symbolics v7 walking a `Num`/`Arr` wrapper
+    # round-trips through wrap/unwrap and loses the gcurvature metadata that the
+    # final `getgcurvature` reads. `analyze` already unwraps; do the same here so
+    # the function is correct when called directly on a wrapped expression.
+    ex = Symbolics.unwrap(ex)
     r = [
         @rule *(~~x) => setgcurvature(~MATCH, mul_gcurvature(~~x))
         @rule +(~~x) => setgcurvature(~MATCH, add_gcurvature(~~x))

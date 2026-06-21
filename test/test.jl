@@ -46,7 +46,9 @@ ex = propagate_curvature(propagate_sign(ex))
 @variables x[1:3] y
 ex = x .- y |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
-@test_broken getcurvature(ex) == SymbolicAnalysis.Affine
+# Symbolics v7 keeps the broadcasted `x .- y` in a form the curvature pass can
+# resolve to Affine; on v6 it does not (the broadcast tree blocks propagation).
+@test getcurvature(ex) == SymbolicAnalysis.Affine broken = (pkgversion(Symbolics) < v"7")
 @test getsign(ex) == SymbolicAnalysis.AnySign
 
 ex = exp.(x) |> unwrap
@@ -60,11 +62,11 @@ ex = propagate_curvature(propagate_sign(ex))
 obj = x^2 + y^2 + z^2 |> unwrap
 
 ex = propagate_curvature(propagate_sign(obj))
-# `x^2 + y^2 + z^2` is Convex, and the curvature pass derives that up to
-# Symbolics 6.37.1. A change in Symbolics 6.38 reshaped the `+`-of-`^` tree so
-# the pass returns UnknownCurvature; gate the known regression on that version
-# (the Downgrade env pins Symbolics 6.37.1, where the assertion must hold).
-@test getcurvature(ex) == SymbolicAnalysis.Convex broken = (pkgversion(Symbolics) >= v"6.38")
+# `x^2 + y^2 + z^2` is Convex, and the curvature pass derives that on Symbolics
+# 6.37.1 and again on v7. A change in the Symbolics 6.38–6.x `+`-of-`^` tree
+# shape makes the pass return UnknownCurvature there, so gate the known
+# regression to that range (the Downgrade env pins 6.37.1, where it must hold).
+@test getcurvature(ex) == SymbolicAnalysis.Convex broken = (v"6.38" <= pkgversion(Symbolics) < v"7")
 @test getsign(ex) == SymbolicAnalysis.Positive
 
 cons = [

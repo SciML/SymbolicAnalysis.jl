@@ -10,6 +10,11 @@ const SYMBOLIC_OWN = Any[
     Base.log, SA.LinearAlgebra.tr, SA.LinearAlgebra.inv, SA.LinearAlgebra.sqrt,
     SA.LinearAlgebra.logdet, SA.Manifolds.distance, SA.LogExpFunctions.xlogx,
     SA.Symbolics.arguments, SA.Symbolics.hasmetadata, SA.Symbolics.promote_symtype,
+    # Symbolics v7 support: matrix `*` is re-wrapped to an `Arr` and `sqrt`/atom
+    # registrations contribute `promote_shape` methods on non-owned functions.
+    # These are intentional extensions of the symbolic machinery (the package's
+    # core purpose), so declare them as own.
+    Base.:*, SA.SymbolicUtils.promote_shape,
 ]
 
 # The scalar/array `@register_symbolic`/`@register_array_symbolic` registrations
@@ -32,6 +37,10 @@ run_qa(
     aqua_kwargs = (;
         ambiguities = (; exclude = ATOM_AMBIGUITIES),
         piracies = (; treat_as_own = SYMBOLIC_OWN),
+        # `RecursiveArrayTools` is pulled in transitively on Symbolics v6 but not on
+        # v7, where Aqua then reports it as a stale (declared-but-unloaded) dep. It
+        # is kept as a declared dependency for the v6 path, so ignore it here.
+        stale_deps = (; ignore = [:RecursiveArrayTools]),
     ),
     jet_kwargs = (; target_modules = (SymbolicAnalysis,), mode = :typo),
 )

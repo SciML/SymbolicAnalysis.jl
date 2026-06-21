@@ -23,13 +23,34 @@ function conjugation(X, B)
     return B' * X * B
 end
 
-@register_array_symbolic conjugation(X::Union{Symbolics.Arr, Matrix{Num}}, B::Matrix) begin
-    size = (size(B, 2), size(B, 2))
+# Build an unevaluated matrix-valued term off a symbolic matrix argument. On
+# Symbolics v7 the `@register_array_symbolic`-generated `promote_shape` for these
+# custom atoms is not `maketerm`-safe (rewriting a nested expression such as
+# `conjugation(inv(X), A)` recomputes a dimensionless `Array{T}` type and throws),
+# so on v7 the symbolic methods are defined directly via `SymbolicUtils.term`,
+# which round-trips cleanly through the rewriter. v6 keeps the macro registration.
+function array_atom_term(f, X, args...)
+    x = Symbolics.unwrap(X)
+    return Symbolics.wrap(
+        SymbolicUtils.term(f, x, map(Symbolics.unwrap, args)...; type = Matrix{Real})
+    )
+end
+
+if pkgversion(Symbolics) < v"7"
+    @register_array_symbolic conjugation(X::Matrix{Num}, B::Matrix) begin
+        size = (size(B, 2), size(B, 2))
+    end
+else
+    conjugation(X::Symbolics.Arr, B::AbstractMatrix) = array_atom_term(conjugation, X, B)
 end
 
 add_gdcprule(conjugation, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
-@register_symbolic LinearAlgebra.tr(X::Union{Symbolics.Arr, Matrix{Num}})
+# Symbolics v7 builds a `tr` term natively for symbolic matrices; on v6 it did
+# not, so the registration is only needed (and only non-colliding) on v6.
+if pkgversion(Symbolics) < v"7"
+    @register_symbolic LinearAlgebra.tr(X::Matrix{Num})
+end
 add_gdcprule(LinearAlgebra.tr, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
 add_gdcprule(sum, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
@@ -50,7 +71,7 @@ function scalar_mat(X, k = size(X, 1))
     return tr(X) * I(k)
 end
 
-@register_symbolic scalar_mat(X::Union{Symbolics.Arr, Matrix{Num}}, k::Int)
+@register_symbolic scalar_mat(X::Matrix{Num}, k::Int)
 
 add_gdcprule(scalar_mat, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
@@ -90,11 +111,20 @@ end
 @register_symbolic sdivergence(X::Matrix{Num}, Y::Matrix)
 add_gdcprule(sdivergence, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
-@register_symbolic Manifolds.distance(
-    M::Manifolds.SymmetricPositiveDefinite,
-    X::AbstractMatrix,
-    Y::Union{Symbolics.Arr, Matrix{Num}}
-)
+# Symbolic geodesic distance must remain an unevaluated `distance` term so the
+# gDCP pass can dispatch on `operation(ex) == Manifolds.distance`. The SPD and
+# Lorentz registrations both collapse to the same all-`BasicSymbolic{SymReal}`
+# method on Symbolics v7 and collide, so the term is built directly off the
+# symbolic point argument here (works on v6 and v7).
+function Manifolds.distance(
+        M::Manifolds.SymmetricPositiveDefinite,
+        X::AbstractMatrix,
+        Y::Symbolics.Arr
+    )
+    return Symbolics.wrap(
+        SymbolicUtils.term(Manifolds.distance, M, X, Symbolics.unwrap(Y); type = Real)
+    )
+end
 add_gdcprule(Manifolds.distance, SymmetricPositiveDefinite, Positive, GConvex, GAnyMono)
 
 # @register_symbolic LinearAlgebra.exp(X::Union{Symbolics.Arr, Matrix{Num}})
@@ -144,9 +174,9 @@ add_gdcprule(inv, SymmetricPositiveDefinite, Positive, GConvex, GDecreasing)
 
 add_gdcprule(diag, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
-@register_array_symbolic Base.log(X::Matrix{Num}) begin
-    size = (size(X, 1), size(X, 2))
-end
+# Matrix `log` (both `Arr` and `Matrix{Num}` forms) is defined in atoms.jl via
+# `matrix_atom`; the `@register_array_symbolic` form collides with SymbolicUtils'
+# scalar `log` on Symbolics v7 (see the note there).
 
 add_gdcprule(eigsummax, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
@@ -225,29 +255,12 @@ function affine_map(f::typeof(conjugation), X::Matrix, B::Matrix, Ys::Vector{<:M
     return B + sum(conjugation(X, Y) for Y in Ys)
 end
 
-@register_array_symbolic affine_map(
-    conjf::typeof(conjugation),
-    X::Matrix{Num},
-    B::Matrix,
-    Y::Union{Matrix, Vector{<:Matrix}}
-) begin
-    size = (size(B, 1), size(B, 2))
-end
-
 function affine_map(f::Union{typeof(diag), typeof(tr)}, X::AbstractMatrix, B::AbstractMatrix)
     if !(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)
         throw(DomainError(B, "B must be positive semi-definite."))
     end
     return B + f(X)
 end
-
-@register_array_symbolic affine_map(
-    diagtrf::Union{typeof(diag), typeof(tr)},
-    X::Matrix{Num},
-    B::Matrix
-) begin
-    size = (size(B, 1), size(B, 2))
-end false
 
 add_gdcprule(affine_map, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
@@ -269,8 +282,14 @@ function hadamard_product(X::AbstractMatrix, B::AbstractMatrix)
     return B .* X
 end
 
-@register_array_symbolic hadamard_product(X::Matrix{Num}, B::Matrix) begin
-    size = (size(B, 1), size(B, 2))
+if pkgversion(Symbolics) < v"7"
+    @register_array_symbolic hadamard_product(X::Matrix{Num}, B::Matrix) begin
+        size = (size(B, 1), size(B, 2))
+    end
+else
+    function hadamard_product(X::Symbolics.Arr, B::AbstractMatrix)
+        return array_atom_term(hadamard_product, X, B)
+    end
 end
 
 add_gdcprule(hadamard_product, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
@@ -282,11 +301,24 @@ function affine_map(f::typeof(hadamard_product), X::Matrix, Y::Matrix, B::Matrix
     return B + hadamard_product(X, Y)
 end
 
-@register_array_symbolic affine_map(
-    hadamard_product::typeof(hadamard_product),
-    X::Matrix{Num},
-    Y::Matrix,
-    B::Matrix
-) begin
-    size = (size(B, 1), size(B, 2))
-end false
+# Symbolic `affine_map` over a symbolic matrix `X` must stay an unevaluated
+# `affine_map` term (the gDCP rule and curvature pass dispatch on
+# `operation(ex) == affine_map`). The `@register_array_symbolic` macro cannot
+# express this on Symbolics v7: the function-typed first argument plus the
+# `Matrix{Num}` argument collapse so the conjugation- and hadamard-flavoured
+# registrations generate the same `BasicSymbolic{SymReal}` method and collide.
+# Build the term directly off the symbolic `X` instead (works on v6 and v7).
+function affine_map_term(f, X, args...)
+    x = Symbolics.unwrap(X)
+    uargs = map(Symbolics.unwrap, args)
+    return Symbolics.wrap(SymbolicUtils.term(affine_map, f, x, uargs...; type = Matrix{Real}))
+end
+function affine_map(f::typeof(conjugation), X::Symbolics.Arr, B::AbstractMatrix, Y::AbstractMatrix)
+    return affine_map_term(f, X, B, Y)
+end
+function affine_map(f::Union{typeof(diag), typeof(tr)}, X::Symbolics.Arr, B::AbstractMatrix)
+    return affine_map_term(f, X, B)
+end
+function affine_map(f::typeof(hadamard_product), X::Symbolics.Arr, Y::AbstractMatrix, B::AbstractMatrix)
+    return affine_map_term(f, X, Y, B)
+end
