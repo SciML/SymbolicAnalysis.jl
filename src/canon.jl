@@ -1,13 +1,9 @@
 function canonize(ex)
+    # Symbolics v7 flattens `x' * (Y * x)` / `(B' * X) * B` to a single
+    # scalar/matrix `*` term, so match the flattened `*` directly.
     rs = [
-        @rule (adjoint(~x) * (~Y * ~x))[1] => quad_form(~x, ~Y)
-        @rule ((adjoint(~B) * ~X) * ~B)[
-            Base.OneTo(size(~B, 2)), Base.OneTo(
-                size(
-                    ~B, 1
-                )
-            ),
-        ] => conjugation(~X, ~B)
+        @rule adjoint(~x) * ~Y * ~x => quad_form(~x, ~Y)
+        @rule adjoint(~B) * ~X * ~B => conjugation(~X, ~B)
     ]
     try
         rc = SymbolicUtils.Chain(rs)
