@@ -2,31 +2,19 @@ using SymbolicAnalysis, Aqua, JET, SciMLTesting
 
 const SA = SymbolicAnalysis
 
-# Functions this package deliberately extends with symbolic-analysis methods.
-# Registering DCP/GDCP methods on these non-owned functions (and the Symbolics
-# traversal/symtype hooks) is the core purpose of the package, so they are
-# intentional and declared to Aqua's piracy check via `treat_as_own`.
+# SymbolicAnalysis's entire purpose is to teach the symbolic-analysis machinery
+# about existing functions: it registers DCP/gDCP curvature methods (and the
+# Symbolics traversal/symtype/shape hooks they need) on functions owned by Base,
+# LinearAlgebra, Symbolics/SymbolicUtils, Manifolds and LogExpFunctions. Those are
+# intentional, by-design extensions of non-owned functions, so they are declared to
+# Aqua's piracy check via `treat_as_own`. This is the only Aqua exception the
+# package needs; ambiguities, stale-deps, etc. all pass cleanly.
 const SYMBOLIC_OWN = Any[
-    Base.log, SA.LinearAlgebra.tr, SA.LinearAlgebra.inv, SA.LinearAlgebra.sqrt,
-    SA.LinearAlgebra.logdet, SA.Manifolds.distance, SA.LogExpFunctions.xlogx,
+    Base.:*, Base.log, Base.sqrt,
+    SA.LinearAlgebra.inv, SA.LinearAlgebra.logdet,
     SA.Symbolics.arguments, SA.Symbolics.hasmetadata, SA.Symbolics.promote_symtype,
-    # Symbolics v7 support: matrix `*` is re-wrapped to an `Arr` and `sqrt`/atom
-    # registrations contribute `promote_shape` methods on non-owned functions.
-    # These are intentional extensions of the symbolic machinery (the package's
-    # core purpose), so declare them as own.
-    Base.:*, SA.SymbolicUtils.promote_shape,
-]
-
-# The scalar/array `@register_symbolic`/`@register_array_symbolic` registrations
-# for the package's own atoms generate overlapping signatures (e.g. a scalar and
-# an array method of the same atom), which Aqua reports as internal ambiguities.
-# These are all between SymbolicAnalysis's own methods (no cross-package
-# ambiguity remains) and are benign; concrete calls dispatch unambiguously.
-# Excluding only these atoms keeps the check live for everything else.
-const ATOM_AMBIGUITIES = Any[
-    SA.affine_map, SA.sdivergence, SA.lorentz_least_squares, SA.conjugation,
-    SA.log_quad_form, SA.lorentz_homogeneous_quadratic, SA.hadamard_product,
-    SA.lorentz_homogeneous_diagonal, SA.lorentz_transform, SA.quad_over_lin,
+    SA.SymbolicUtils.promote_shape,
+    SA.Manifolds.distance, SA.LogExpFunctions.xlogx,
 ]
 
 run_qa(
@@ -34,9 +22,6 @@ run_qa(
     Aqua = Aqua,
     JET = JET,
     jet = true,
-    aqua_kwargs = (;
-        ambiguities = (; exclude = ATOM_AMBIGUITIES),
-        piracies = (; treat_as_own = SYMBOLIC_OWN),
-    ),
+    aqua_kwargs = (; piracies = (; treat_as_own = SYMBOLIC_OWN)),
     jet_kwargs = (; target_modules = (SymbolicAnalysis,), mode = :typo),
 )

@@ -29,10 +29,10 @@ end
 # `conjugation(inv(X), A)` recomputes a dimensionless `Array{T}` type and throws),
 # so the symbolic methods are defined directly via `SymbolicUtils.term`, which
 # round-trips cleanly through the rewriter.
-function array_atom_term(f, X, args...)
+function array_atom_term(f, X, args...; type = Matrix{Real})
     x = Symbolics.unwrap(X)
     return Symbolics.wrap(
-        SymbolicUtils.term(f, x, map(Symbolics.unwrap, args)...; type = Matrix{Real})
+        SymbolicUtils.term(f, x, map(Symbolics.unwrap, args)...; type = type)
     )
 end
 
@@ -99,7 +99,21 @@ function sdivergence(X, Y)
     return logdet((X + Y) / 2) - 1 / 2 * logdet(X * Y)
 end
 
-@register_symbolic sdivergence(X::Matrix{Num}, Y::Matrix)
+# `@register_symbolic sdivergence(X::Matrix{Num}, Y::Matrix)` is not used: on
+# Symbolics v7 the macro expands a two-array signature into a combinatorial set of
+# `Num`/`BasicSymbolic`/`Arr` wrapper methods that are mutually ambiguous (Aqua
+# flags them). Build the unevaluated `sdivergence` term directly off the symbolic
+# argument instead (the gDCP pass only needs `operation(ex) == sdivergence`),
+# matching the `array_atom_term`/`conjugation` pattern above.
+function sdivergence(X::Symbolics.Arr, Y::AbstractMatrix)
+    return array_atom_term(sdivergence, X, Y; type = Real)
+end
+function sdivergence(X::AbstractMatrix, Y::Symbolics.Arr)
+    return array_atom_term(sdivergence, X, Y; type = Real)
+end
+function sdivergence(X::Symbolics.Arr, Y::Symbolics.Arr)
+    return array_atom_term(sdivergence, X, Y; type = Real)
+end
 add_gdcprule(sdivergence, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
 # Symbolic geodesic distance must remain an unevaluated `distance` term so the
@@ -158,7 +172,20 @@ function log_quad_form(ys::Vector{<:Vector}, X::Matrix)
     return log(sum(y' * X * y for y in ys))
 end
 
-@register_symbolic log_quad_form(y::Vector, X::Matrix{Num})
+# See the `sdivergence` note: a `@register_symbolic` two-array registration is
+# ambiguous on Symbolics v7. Build the `log_quad_form(y, X)` term directly off the
+# symbolic argument, preserving the `(y, X)` argument order (the typical call site,
+# e.g. `log_quad_form(x, inv(Σ))`, passes a concrete `y` and a symbolic `X`).
+function _log_quad_form_term(y, X)
+    return Symbolics.wrap(
+        SymbolicUtils.term(
+            log_quad_form, Symbolics.unwrap(y), Symbolics.unwrap(X); type = Real
+        )
+    )
+end
+log_quad_form(y::AbstractVector, X::Symbolics.Arr) = _log_quad_form_term(y, X)
+log_quad_form(y::Symbolics.Arr, X::AbstractMatrix) = _log_quad_form_term(y, X)
+log_quad_form(y::Symbolics.Arr, X::Symbolics.Arr) = _log_quad_form_term(y, X)
 add_gdcprule(log_quad_form, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
 add_gdcprule(inv, SymmetricPositiveDefinite, Positive, GConvex, GDecreasing)

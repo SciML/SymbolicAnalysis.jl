@@ -177,7 +177,18 @@ function lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::Abstract
     return lorentz_nonhomogeneous_quadratic(A, b, c, p)
 end
 
-@register_symbolic lorentz_least_squares(X::Matrix{Num}, y::Vector{Num}, p::Vector{Num})
+# A `@register_symbolic` three-array registration explodes into a combinatorial,
+# mutually-ambiguous set of wrapper methods on Symbolics v7 (Aqua flags them; see
+# the `sdivergence` note in gdcp/spd.jl). Build the `lorentz_least_squares(X, y, p)`
+# term directly off the symbolic point `p` instead (the gDCP pass only needs
+# `operation(ex) == lorentz_least_squares`).
+function lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::Symbolics.Arr)
+    return Symbolics.wrap(
+        SymbolicUtils.term(
+            lorentz_least_squares, X, y, Symbolics.unwrap(p); type = Real
+        )
+    )
+end
 add_gdcprule(lorentz_least_squares, Manifolds.Lorentz, Positive, GConvex, AnyMono)
 
 """
