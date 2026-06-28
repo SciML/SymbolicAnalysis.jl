@@ -46,7 +46,7 @@ ex = propagate_curvature(propagate_sign(ex))
 @variables x[1:3] y
 ex = x .- y |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
-@test_broken getcurvature(ex) == SymbolicAnalysis.Affine
+@test getcurvature(ex) == SymbolicAnalysis.Affine
 @test getsign(ex) == SymbolicAnalysis.AnySign
 
 ex = exp.(x) |> unwrap
@@ -60,7 +60,7 @@ ex = propagate_curvature(propagate_sign(ex))
 obj = x^2 + y^2 + z^2 |> unwrap
 
 ex = propagate_curvature(propagate_sign(obj))
-@test_broken getcurvature(ex) == SymbolicAnalysis.Convex
+@test getcurvature(ex) == SymbolicAnalysis.Convex
 @test getsign(ex) == SymbolicAnalysis.Positive
 
 cons = [

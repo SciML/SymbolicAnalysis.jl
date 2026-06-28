@@ -9,10 +9,20 @@ using Distributions
 using DSP, DataStructures
 
 using Symbolics
-import Symbolics: Symbolic, issym, Term
-using SymbolicUtils: iscall
+import Symbolics: issym, Term
+using SymbolicUtils: iscall, BasicSymbolic
 using SymbolicUtils.Rewriters
 SymbolicUtils.inspect_metadata[] = true
+
+# Symbolics v7 / SymbolicUtils v4 removed the `Symbolic` abstract type: every
+# symbolic — scalar or array — is now a `BasicSymbolic{SymReal}`.
+const Symbolic = BasicSymbolic
+
+# The scalar-symbolic type Symbolics uses when dispatching `in(::symbolic, ::Domain)`.
+# Matching it exactly lets the `in(::_, ::CustomDomain)` disambiguators below stay
+# strictly more specific than Symbolics' `IntervalSets.Domain` method (which is
+# keyed on `BasicSymbolic{SymReal}`).
+const InDomainSymbolic = BasicSymbolic{SymbolicUtils.SymReal}
 
 struct VarDomain end
 
