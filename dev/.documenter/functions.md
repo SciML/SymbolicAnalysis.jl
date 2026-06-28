@@ -662,16 +662,15 @@ Computes the least squares function `‖y - Xp‖²_2 = y'y - 2y'Xp + p'X'Xp` fo
 
 
 ```julia
-lorentz_log_barrier(a, p)
+lorentz_log_barrier(p)
 ```
 
 
-Computes the log-barrier function for the Lorentz model: `-log(-1 - <a, p>_L)`.
+Computes the log-barrier function for the Lorentz model: `-log(-1 - <a, p>_L)`, with the fixed vector `a = (0, ..., 0, 1)` in R^(d+1).
 
 **Arguments**
 
 ```julia
-- `a`: The vector (0, ..., 0, 1) in R^(d+1).
 - `p`: A point on the Lorentz manifold.
 ```
 
