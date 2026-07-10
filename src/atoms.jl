@@ -583,3 +583,20 @@ hasdcprule(::typeof(broadcast)) = true
 
 add_dcprule(LinearAlgebra.adjoint, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
 add_dcprule(Base.getindex, array_domain(RealLine(), 1), AnySign, Affine, AnyMono)
+
+# On Symbolics v7 / SymbolicUtils v4, reductions and maps over symbolic arrays
+# trace to `SymbolicUtils.Mapreducer`/`SymbolicUtils.Mapper` operations rather
+# than to `sum`/`map` themselves, so the static rule table never sees them.
+# A plain sum — `mapreduce(identity, add_sum, x)`
+# for any `dims`/`init` — delegates to the registered `sum` rule (an `init`
+# only shifts by a constant, which preserves the affine composition), and
+# `map(f, xs...)` delegates to `f`'s rule exactly like `broadcast`.
+hasdcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(Base.add_sum)}) = true
+function dcprule(
+        ::SymbolicUtils.Mapreducer{typeof(identity), typeof(Base.add_sum)}, args...
+    )
+    return dcprules_dict[sum], args
+end
+
+hasdcprule(op::SymbolicUtils.Mapper) = hasdcprule(op.f)
+dcprule(op::SymbolicUtils.Mapper, args...) = dcprule(op.f, args...)
