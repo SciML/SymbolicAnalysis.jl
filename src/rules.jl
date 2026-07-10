@@ -237,8 +237,10 @@ function propagate_sign(ex)
     ex = Symbolics.unwrap(ex)
     # A single bottom-up walk: `Postwalk` rebuilds each node from its annotated
     # children before the annotation function sees it, so every node's sign is
-    # computed exactly once.
-    return Postwalk(x -> setsign(x, node_sign(x)))(ex)
+    # computed exactly once. Only symbols and calls are annotated — wrapped
+    # constants can't carry metadata on older SymbolicUtils v4 releases, and
+    # every getter already falls back correctly for them.
+    return Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x)) : x)(ex)
 end
 
 ### Curvature ###
@@ -329,9 +331,9 @@ end
 
 function propagate_curvature(ex)
     # See `propagate_sign`: unwrap so the curvature metadata survives the v7 walk,
-    # and annotate in a single bottom-up pass.
+    # and annotate symbols and calls in a single bottom-up pass.
     ex = Symbolics.unwrap(ex)
-    return Postwalk(x -> setcurvature(x, node_curvature(x)))(ex)
+    return Postwalk(x -> issym(x) || iscall(x) ? setcurvature(x, node_curvature(x)) : x)(ex)
 end
 
 function get_arg_property(monotonicity, i, args)

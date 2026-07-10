@@ -264,5 +264,5 @@ function propagate_gcurvature(ex, M::AbstractManifold)
     # final `getgcurvature` reads. `analyze` already unwraps; do the same here so
     # the function is correct when called directly on a wrapped expression.
     ex = Symbolics.unwrap(ex)
-    return Postwalk(x -> setgcurvature(x, node_gcurvature(x)))(ex)
+    return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
 end
