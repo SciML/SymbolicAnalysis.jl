@@ -79,3 +79,15 @@ end
     @test allocs_add <= 3
     @test allocs_mul <= 3
 end
+
+@testset "Analysis allocation scaling" begin
+    # Regression guard for the single-pass propagation engine: the old
+    # rule-rewriting engine allocated ~14 MB analyzing this expression, the
+    # single-pass walk ~1.2 MB. Generous headroom over the latter so the test
+    # only trips on a return to per-node rewriting, not on minor churn.
+    vars = Symbolics.variables(:q, 1:200)
+    ex = Symbolics.unwrap(sum(exp(v) + v^2 for v in vars))
+    res = SymbolicAnalysis.analyze(ex)
+    @test res.curvature == Convex
+    @test (@allocated SymbolicAnalysis.analyze(ex)) < 8_000_000
+end
