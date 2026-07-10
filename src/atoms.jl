@@ -154,21 +154,29 @@ add_dcprule(maximum, array_domain(RealLine()), AnySign, Convex, Increasing)
 
 add_dcprule(minimum, array_domain(RealLine()), AnySign, Concave, Increasing)
 
-#incorrect for p<1
-add_dcprule(
-    norm,
-    (array_domain(RealLine()), Interval{:closed, :open}(1, Inf)),
-    Positive,
-    Convex,
-    increasing_if_positive
-)
-add_dcprule(
-    norm,
-    (array_domain(RealLine()), Interval{:closed, :open}(0, 1)),
-    Positive,
-    Convex,
-    increasing_if_positive
-)
+# `norm(x, p)` is only a norm (hence convex) for p >= 1. For 0 < p < 1 the
+# generalized "norm" (sum |x_i|^p)^(1/p) is concave on the nonnegative orthant
+# and has no DCP curvature for sign-unknown arguments; for p <= 0 it is not
+# DCP-representable. The rule depends on the value of `p`, so it is a
+# specialized `dcprule` method like `^` rather than a static table entry.
+function dcprule(::typeof(norm), x, p)
+    pv = constval(p)
+    args = (x, p)
+    if !(pv isa Number)
+        return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
+    elseif pv >= 1
+        return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), args
+    elseif pv > 0
+        curv = getsign(x) == Positive ? Concave : UnknownCurvature
+        return makerule(array_domain(HalfLine()), Positive, curv, Increasing), args
+    else
+        return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
+    end
+end
+function dcprule(::typeof(norm), x)
+    return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), (x,)
+end
+hasdcprule(::typeof(norm)) = true
 
 """
     perspective(f::Function, x, s::Real)

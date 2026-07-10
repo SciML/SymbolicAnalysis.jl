@@ -96,21 +96,20 @@ function dcprule(f, args...)
     end
 
     if dcprules_dict[f] isa Vector
-        for i in 1:length(dcprules_dict[f])
-            if (dcprules_dict[f][i].domain isa Domain) &&
-                    all(issubset.(argsdomain, Ref(dcprules_dict[f][i].domain)))
-                return dcprules_dict[f][i], args
-            elseif !(dcprules_dict[f][i].domain isa Domain) &&
-                    all(issubset.(argsdomain, dcprules_dict[f][i].domain))
-                return dcprules_dict[f][i], args
-            else
-                throw(
-                    ArgumentError(
-                        "No DCP rule found for $f with arguments $args with domain $argsdomain",
-                    ),
-                )
+        for rule in dcprules_dict[f]
+            if (rule.domain isa Domain) &&
+                    all(issubset.(argsdomain, Ref(rule.domain)))
+                return rule, args
+            elseif !(rule.domain isa Domain) &&
+                    all(issubset.(argsdomain, rule.domain))
+                return rule, args
             end
         end
+        throw(
+            ArgumentError(
+                "No DCP rule found for $f with arguments $args with domain $argsdomain",
+            ),
+        )
     elseif (dcprules_dict[f].domain isa Domain) &&
             all(issubset.(argsdomain, Ref(dcprules_dict[f].domain)))
         return dcprules_dict[f], args
@@ -327,11 +326,34 @@ function get_arg_property(monotonicity, i, args)
     @label start
     return if monotonicity isa Function
         monotonicity(args[i])
-    elseif monotonicity isa Tuple && i <= length(monotonicity)
-        monotonicity = monotonicity[i]
+    elseif monotonicity isa Tuple
+        # A rule may declare fewer monotonicities than the call has arguments —
+        # in particular `add_dcprule` wraps a scalar monotonicity into a
+        # single-entry tuple that applies to every argument — so the last
+        # declared entry covers the remaining arguments.
+        monotonicity = monotonicity[min(i, length(monotonicity))]
         @goto start
     else
         monotonicity
+    end
+end
+
+# The DCP composition rule: an atom of curvature `target` keeps that curvature
+# when every argument is affine, matches `target` under an increasing slot, or
+# matches the flipped curvature under a decreasing slot.
+function composes_as(target::Curvature, f_monotonicity, args)
+    flipped = target == Convex ? Concave : Convex
+    return all(enumerate(args)) do (i, arg)
+        arg_curv = find_curvature(arg)
+        arg_curv == Affine && return true
+        m = get_arg_property(f_monotonicity, i, args)
+        if arg_curv == target
+            m == Increasing
+        elseif arg_curv == flipped
+            m == Decreasing
+        else
+            false
+        end
     end
 end
 
@@ -368,44 +390,16 @@ function find_curvature(ex)
         f_curvature = rule.curvature
         f_monotonicity = rule.monotonicity
 
-        if f_curvature == Affine
-            if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_curvature(arg)
-                    arg_curv == Affine
-                end
-                return Affine
-            end
-        elseif f_curvature == Convex || f_curvature == Affine
-            if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_curvature(arg)
-                    m = get_arg_property(f_monotonicity, i, args)
-                    # @show f_monotonicity
-                    # @show arg
-                    # @show m
-                    if arg_curv == Convex
-                        m == Increasing
-                    elseif arg_curv == Concave
-                        m == Decreasing
-                    else
-                        arg_curv == Affine
-                    end
-                end
-                return Convex
-            end
-        elseif f_curvature == Concave || f_curvature == Affine
-            if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_curvature(arg)
-                    m = f_monotonicity[i]
-                    if arg_curv == Concave
-                        m == Increasing
-                    elseif arg_curv == Convex
-                        m == Decreasing
-                    else
-                        arg_curv == Affine
-                    end
-                end
-                return Concave
-            end
+        if f_curvature == Convex
+            return composes_as(Convex, f_monotonicity, args) ? Convex : UnknownCurvature
+        elseif f_curvature == Concave
+            return composes_as(Concave, f_monotonicity, args) ? Concave : UnknownCurvature
+        elseif f_curvature == Affine
+            # An affine atom composes both as a convex and as a concave one; it
+            # stays affine only when both hold, i.e. every argument is affine.
+            cvx = composes_as(Convex, f_monotonicity, args)
+            ccv = composes_as(Concave, f_monotonicity, args)
+            return cvx && ccv ? Affine : cvx ? Convex : ccv ? Concave : UnknownCurvature
         end
         return UnknownCurvature
     else
