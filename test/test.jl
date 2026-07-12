@@ -161,3 +161,20 @@ ex = propagate_curvature(propagate_sign(ex))
 ex = map(exp, z) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.Convex
+
+# maximum/minimum over symbolic arrays reduce with max/min, tracing to
+# SymbolicUtils.Mapreducer{identity, max}/{identity, min} rather than
+# maximum/minimum; previously they analyzed as UnknownCurvature.
+@variables z[1:4]
+
+ex = maximum(z) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Convex
+
+ex = minimum(z) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Concave
+
+ex = maximum(exp.(z)) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Convex
