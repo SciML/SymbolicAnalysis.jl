@@ -598,5 +598,20 @@ function dcprule(
     return dcprules_dict[sum], args
 end
 
+# `maximum`/`minimum` over a symbolic array reduce with `max`/`min`, so they
+# trace to `Mapreducer{identity, max}` / `Mapreducer{identity, min}` and, like
+# `sum`, never reach the `maximum`/`minimum` rules directly. Reducing over any
+# `dims` preserves the convex-increasing / concave-increasing curvature, so
+# delegate to the registered rule regardless of `dims`/`init`.
+hasdcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(max)}) = true
+function dcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(max)}, args...)
+    return dcprules_dict[maximum], args
+end
+
+hasdcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(min)}) = true
+function dcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(min)}, args...)
+    return dcprules_dict[minimum], args
+end
+
 hasdcprule(op::SymbolicUtils.Mapper) = hasdcprule(op.f)
 dcprule(op::SymbolicUtils.Mapper, args...) = dcprule(op.f, args...)
