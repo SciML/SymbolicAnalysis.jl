@@ -7,7 +7,7 @@ SymbolicAnalysis = "4297ee4d-0239-47d8-ba5d-195ecdf594fe"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
-SymbolicAnalysis = {path = "../.."}
+SymbolicAnalysis = {path = "/home/crackauc/sandbox/tmp_20260710_001526_74854/SA-phase1"}
 
 [compat]
 Aqua = "0.8"
