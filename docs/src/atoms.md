@@ -47,7 +47,6 @@ This page is intended to be a reference for the atoms that are currently impleme
 | kldivergence              | (array_domain(HalfLine{Real,:open}, 1), array_domain(HalfLine{Real,:open}, 1)) | Positive  | Convex    | AnyMono                                     |
 | lognormcdf                | ℝ                                                                              | Negative  | Concave   | Increasing                                  |
 | log1p                     | Interval{:open,:open}(-1, Inf)                                                 | Negative  | Concave   | Increasing                                  |
-| logistic                  | ℝ                                                                              | Positive  | Convex    | Increasing                                  |
 | max                       | (ℝ, ℝ)                                                                         | AnySign   | Convex    | Increasing                                  |
 | min                       | (ℝ, ℝ)                                                                         | AnySign   | Concave   | Increasing                                  |
 | ^(x, i)                   | See below                                                                      | See below | See below | See below                                   |

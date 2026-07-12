@@ -204,7 +204,7 @@ function find_gcurvature(ex)
             else
                 return GUnknownCurvature
             end
-        elseif f_curvature == Concave || f_curvature == Affine
+        elseif f_curvature == Concave
             if all(enumerate(args)) do (i, arg)
                     arg_curv = find_gcurvature(arg)
                     m = f_monotonicity[i]
@@ -217,15 +217,6 @@ function find_gcurvature(ex)
                     end
                 end
                 return GConcave
-            else
-                return GUnknownCurvature
-            end
-        elseif f_curvature == Affine
-            if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_gcurvature(arg)
-                    arg_curv == GLinear
-                end
-                return GLinear
             else
                 return GUnknownCurvature
             end
