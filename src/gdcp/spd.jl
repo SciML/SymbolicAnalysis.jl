@@ -190,8 +190,6 @@ add_gdcprule(log_quad_form, SymmetricPositiveDefinite, Positive, GConvex, GIncre
 
 add_gdcprule(inv, SymmetricPositiveDefinite, Positive, GConvex, GDecreasing)
 
-add_gdcprule(diag, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
-
 # Matrix `log` (both `Arr` and `Matrix{Num}` forms) is defined in atoms.jl via
 # `matrix_atom`; the `@register_array_symbolic` form collides with SymbolicUtils'
 # scalar `log` on Symbolics v7 (see the note there).
