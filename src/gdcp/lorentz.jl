@@ -142,9 +142,7 @@ function lorentz_nonhomogeneous_quadratic(
 
     # This call will check if A satisfies the geodesic convexity conditions
     homogeneous_part = lorentz_homogeneous_quadratic(A, p)
-    println(size(homogeneous_part))
     affine_part = (Matrix(b') * p)
-    println(size(affine_part))
     return homogeneous_part + affine_part[1] + c
 end
 

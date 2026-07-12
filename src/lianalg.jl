@@ -22,6 +22,5 @@ function LinearAlgebra._chol!(x::Num, uplo)
     rxr = sqrt(abs(rx))
     rval = convert(promote_type(typeof(x), typeof(rxr)), rxr)
     d = rx - abs(x) |> simplify
-    println(d)
     return isapprox(d, 0.0) ? (rval, convert(BlasInt, 0)) : (rval, convert(BlasInt, 1))
 end
