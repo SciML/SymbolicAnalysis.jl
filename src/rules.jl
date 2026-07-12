@@ -162,13 +162,8 @@ function add_sign(args)
     all_positive = true
     for i in eachindex(args)
         arg = args[i]
-        if iscall(arg)
-            # Don't write the propagated arg back into `args`: on Symbolics v7 the
-            # matched `~~x` is a read-only vector. The aggregate sign only needs
-            # the local propagated value, and the surrounding Postwalk/Prewalk
-            # already persists each child's sign metadata on the expression tree.
-            arg = propagate_sign(arg)
-        end
+        # The bottom-up pass annotates children before their parent, so each
+        # argument already carries its sign metadata here.
         s = getsign(arg)
         if s == AnySign
             has_anysign = true
@@ -208,32 +203,44 @@ function mul_sign(args)
     return isodd(neg_count) ? Negative : Positive
 end
 
+# Sign of a single node whose children have already been annotated by the
+# bottom-up walk. Mirrors the priority the old rule chain established through
+# successive overwrites: `*`/`+` aggregation wins over a GDCP rule, which wins
+# over a DCP rule, which wins over the `AnySign` default (also overwriting any
+# stale metadata from a previous analysis).
+function node_sign(ex)
+    if iscall(ex)
+        f = operation(ex)
+        if Symbol(f) == :*
+            return mul_sign(arguments(ex))
+        elseif Symbol(f) == :+
+            return add_sign(arguments(ex))
+        elseif hasgdcprule(f)
+            return gdcprule(f, arguments(ex)...)[1].sign
+        elseif hasdcprule(f)
+            return dcprule(f, arguments(ex)...)[1].sign
+        end
+    elseif issym(ex)
+        if hasgdcprule(ex)
+            return gdcprule(ex)[1].sign
+        elseif hasdcprule(ex)
+            return dcprule(ex)[1].sign
+        end
+    end
+    return AnySign
+end
+
 function propagate_sign(ex)
-    # Work on the raw symbolic so the sign metadata survives the rewrite walk on
+    # Work on the raw symbolic so the sign metadata survives the walk on
     # Symbolics v7 (a `Num`/`Arr` wrapper round-trips through wrap/unwrap and drops
     # it). `analyze` already unwraps; mirror that for direct callers.
     ex = Symbolics.unwrap(ex)
-    # Step 1: set the sign of all variables to be AnySign
-    rs = [
-        @rule ~x::issym => setsign(~x, AnySign) where {hassign(~x)}
-        @rule ~x::iscall => setsign(~x, AnySign) where {hassign(~x)}
-        @rule ~x::issym => setsign(~x, (dcprule(~x))[1].sign) where {hasdcprule(~x)}
-        @rule ~x::issym => setsign(~x, (gdcprule(~x))[1].sign) where {hasgdcprule(~x)}
-        @rule ~x::iscall => setsign(
-            ~x,
-            (dcprule(operation(~x), arguments(~x)...)[1].sign)
-        ) where {hasdcprule(operation(~x))}
-        @rule ~x::iscall => setsign(
-            ~x,
-            (gdcprule(operation(~x), arguments(~x)...)[1].sign)
-        ) where {hasgdcprule(operation(~x))}
-        @rule *(~~x) => setsign(~MATCH, mul_sign(~~x))
-        @rule +(~~x) => setsign(~MATCH, add_sign(~~x))
-    ]
-    rc = Chain(rs)
-    ex = Postwalk(rc)(ex)
-    ex = Prewalk(rc)(ex)
-    return ex
+    # A single bottom-up walk: `Postwalk` rebuilds each node from its annotated
+    # children before the annotation function sees it, so every node's sign is
+    # computed exactly once. Only symbols and calls are annotated — wrapped
+    # constants can't carry metadata on older SymbolicUtils v4 releases, and
+    # every getter already falls back correctly for them.
+    return Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x)) : x)(ex)
 end
 
 ### Curvature ###
@@ -307,19 +314,26 @@ function add_curvature(args)
     end
 end
 
+# Curvature of a single node whose children have already been annotated by the
+# bottom-up walk (so the `find_curvature` recursion terminates at the children's
+# cached metadata).
+function node_curvature(ex)
+    if iscall(ex)
+        f = operation(ex)
+        if Symbol(f) == :*
+            return mul_curvature(arguments(ex))
+        elseif Symbol(f) == :+
+            return add_curvature(arguments(ex))
+        end
+    end
+    return find_curvature(ex)
+end
+
 function propagate_curvature(ex)
-    # See `propagate_sign`: unwrap so the curvature metadata survives the v7 walk.
+    # See `propagate_sign`: unwrap so the curvature metadata survives the v7 walk,
+    # and annotate symbols and calls in a single bottom-up pass.
     ex = Symbolics.unwrap(ex)
-    rs = [
-        @rule *(~~x) => setcurvature(~MATCH, mul_curvature(~~x))
-        @rule +(~~x) => setcurvature(~MATCH, add_curvature(~~x))
-        @rule ~x => setcurvature(~x, find_curvature(~x))
-    ]
-    rc = Chain(rs)
-    ex = Postwalk(rc)(ex)
-    ex = Prewalk(rc)(ex)
-    # SymbolicUtils.inspect(ex, metadata = true)
-    return ex
+    return Postwalk(x -> issym(x) || iscall(x) ? setcurvature(x, node_curvature(x)) : x)(ex)
 end
 
 function get_arg_property(monotonicity, i, args)

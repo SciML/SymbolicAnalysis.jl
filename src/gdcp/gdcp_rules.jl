@@ -244,18 +244,25 @@ function find_gcurvature(ex)
     return GUnknownCurvature
 end
 
+# See `node_curvature`: geodesic curvature of a single node whose children the
+# bottom-up walk has already annotated.
+function node_gcurvature(ex)
+    if iscall(ex)
+        f = operation(ex)
+        if Symbol(f) == :*
+            return mul_gcurvature(arguments(ex))
+        elseif Symbol(f) == :+
+            return add_gcurvature(arguments(ex))
+        end
+    end
+    return find_gcurvature(ex)
+end
+
 function propagate_gcurvature(ex, M::AbstractManifold)
     # Operate on the raw symbolic: on Symbolics v7 walking a `Num`/`Arr` wrapper
     # round-trips through wrap/unwrap and loses the gcurvature metadata that the
     # final `getgcurvature` reads. `analyze` already unwraps; do the same here so
     # the function is correct when called directly on a wrapped expression.
     ex = Symbolics.unwrap(ex)
-    r = [
-        @rule *(~~x) => setgcurvature(~MATCH, mul_gcurvature(~~x))
-        @rule +(~~x) => setgcurvature(~MATCH, add_gcurvature(~~x))
-        @rule ~x => setgcurvature(~x, find_gcurvature(~x))
-    ]
-    ex = Postwalk(Chain(r))(ex)
-    ex = Prewalk(Chain(r))(ex)
-    return ex
+    return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
 end
