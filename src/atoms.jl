@@ -72,6 +72,9 @@ Symbolics.@register_symbolic invprod(x::AbstractVector)
 
 add_dcprule(invprod, array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing)
 
+# `eigmax`/`eigmin` build symbolic terms via Symbolics' own registration (a Base
+# LinearAlgebra function belongs to Symbolics, not pirated here); we only attach
+# the DCP curvature rule, exactly as for `tr`.
 add_dcprule(eigmax, symmetric_domain(), AnySign, Convex, AnyMono)
 
 add_dcprule(eigmin, symmetric_domain(), AnySign, Concave, AnyMono)

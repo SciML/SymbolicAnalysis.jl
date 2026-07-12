@@ -199,3 +199,14 @@ ex = propagate_curvature(propagate_sign(ex))
 ex = logistic(x) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.UnknownCurvature
+# eigmax/eigmin of a symbolic matrix must build symbolic atoms (Convex/Concave),
+# not fall through to numeric eigmax and crash on eigvals!(::Matrix{Num}).
+@variables X[1:3, 1:3]
+
+ex = eigmax(X) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Convex
+
+ex = eigmin(X) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Concave
