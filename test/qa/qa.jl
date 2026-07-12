@@ -14,7 +14,7 @@ const SYMBOLIC_OWN = Any[
     SA.LinearAlgebra.inv, SA.LinearAlgebra.logdet,
     SA.Symbolics.arguments, SA.Symbolics.hasmetadata, SA.Symbolics.promote_symtype,
     SA.SymbolicUtils.promote_shape,
-    SA.Manifolds.distance, SA.LogExpFunctions.xlogx,
+    SA.Manifolds.distance, SA.LogExpFunctions.xlogx, SA.LogExpFunctions.logsumexp,
 ]
 
 run_qa(
