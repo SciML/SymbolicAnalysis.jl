@@ -178,3 +178,13 @@ ex = propagate_curvature(propagate_sign(ex))
 ex = maximum(exp.(z)) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.Convex
+
+# logistic (the sigmoid 1/(1+exp(-x))) is NOT globally convex: f'' is positive
+# for x<0, zero at x=0, negative for x>0 (inflection at 0), so no single-curvature
+# DCP rule is valid. The rule was dead today (logistic expands to `/`) but a latent
+# trap: it must carry no rule and analyze as UnknownCurvature, not a false Convex.
+@variables x
+@test !SymbolicAnalysis.hasdcprule(logistic)
+ex = logistic(x) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.UnknownCurvature
