@@ -482,8 +482,6 @@ add_dcprule(lognormcdf, RealLine(), Negative, Concave, Increasing)
 
 add_dcprule(log1p, Interval{:open, :open}(-1, Inf), Negative, Concave, Increasing)
 
-add_dcprule(logistic, RealLine(), Positive, Convex, Increasing)
-
 add_dcprule(max, (RealLine(), RealLine()), AnySign, Convex, Increasing)
 add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 
