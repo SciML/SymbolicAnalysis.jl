@@ -16,7 +16,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | eigsummax                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Convex    | AnyMono                                     |
 | eigsummin                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Concave   | AnyMono                                     |
 | logdet                    | semidefinite_domain()                                                          | AnySign   | Concave   | AnyMono                                     |
-| LogExpFunctions.logsumexp | array_domain(ℝ, 2)                                                             | AnySign   | Convex    | Increasing                                  |
+| LogExpFunctions.logsumexp | array_domain(ℝ)                                                                | AnySign   | Convex    | Increasing                                  |
 | matrix_frac               | (array_domain(ℝ, 1), definite_domain())                                        | AnySign   | Convex    | AnyMono                                     |
 | maximum                   | array_domain(ℝ)                                                                | AnySign   | Convex    | Increasing                                  |
 | minimum                   | array_domain(ℝ)                                                                | AnySign   | Concave   | Increasing                                  |

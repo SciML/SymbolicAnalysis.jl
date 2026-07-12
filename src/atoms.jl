@@ -117,9 +117,24 @@ add_dcprule(eigsummin, (array_domain(RealLine(), 2), RealLine()), AnySign, Conca
 
 add_dcprule(logdet, semidefinite_domain(), AnySign, Concave, AnyMono)
 
+# `LogExpFunctions.logsumexp` on a symbolic vector must stay an unevaluated
+# `logsumexp` term so the curvature pass can dispatch on it; Symbolics' own
+# vector method expands it to `log(sum(exp, x))`, which erases the atom and
+# leaves the expression UnknownCurvature. Dispatching on the concrete
+# `Symbolics.Arr` is strictly more specific, so this extends rather than
+# overwrites, and — unlike a `@register_symbolic ::Vector{Num}` form — emits no
+# scalar `BasicSymbolic{SymReal}` method that could clobber the scalar `logsumexp`.
+function LogExpFunctions.logsumexp(x::Symbolics.Arr)
+    return Symbolics.wrap(
+        SymbolicUtils.term(LogExpFunctions.logsumexp, Symbolics.unwrap(x); type = Real)
+    )
+end
+
+# `array_domain(RealLine())` (dimension-agnostic) not `..., 2)`: logsumexp is a
+# vector reduction, so requiring `ndims == 2` never matched a 1-D vector.
 add_dcprule(
     LogExpFunctions.logsumexp,
-    array_domain(RealLine(), 2),
+    array_domain(RealLine()),
     AnySign,
     Convex,
     Increasing
