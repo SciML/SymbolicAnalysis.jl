@@ -142,3 +142,22 @@ ex = propagate_curvature(ex)
 ex = norm(z, -1) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.UnknownCurvature
+
+# sum/map over symbolic arrays trace to SymbolicUtils.Mapreducer/Mapper
+# operations, not to `sum`/`map` themselves; previously they always analyzed
+# as UnknownCurvature.
+ex = sum(exp.(z)) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Convex
+
+ex = sum(log.(z)) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Concave
+
+ex = sum(z) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Affine
+
+ex = map(exp, z) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Convex
