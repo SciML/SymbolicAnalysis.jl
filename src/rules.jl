@@ -82,10 +82,14 @@ end
 hasdcprule(f::Function) = haskey(dcprules_dict, f)
 hasdcprule(f) = false
 
-Symbolics.hasmetadata(::Union{Real, AbstractArray{<:Real}}, args...) = false
+# Only symbolic leaves can carry a `VarDomain`, and `arguments` always yields
+# `BasicSymbolic`s, so a plain type guard replaces the former
+# `Symbolics.hasmetadata(::Union{Real, AbstractArray{<:Real}}, args...) = false`
+# pirate and is strictly more robust (false for any non-symbolic argument).
+_has_vardomain(x) = (x isa Union{Num, Symbolic}) && hasmetadata(x, VarDomain)
 
 function dcprule(f, args...)
-    if all(hasmetadata.(args, Ref(VarDomain)))
+    if all(_has_vardomain, args)
         argsdomain = getmetadata.(args, Ref(VarDomain))
     else
         if dcprules_dict[f] isa Vector
@@ -149,8 +153,6 @@ hassign(ex) = ex isa Real
 
 hassign(ex::typeof(Base.broadcast)) = true
 getsign(ex::typeof(Base.broadcast)) = Positive
-
-Symbolics.arguments(x::Number) = x
 
 function add_sign(args)
     if hassign(args)

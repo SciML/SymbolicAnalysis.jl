@@ -469,7 +469,6 @@ Base.log(A::Symbolics.Arr) = matrix_atom(log, A)
 Base.log(A::Matrix{Num}) = matrix_atom(log, A)
 add_dcprule(log, array_domain(RealLine(), 2), Positive, Concave, Increasing)
 
-LinearAlgebra.inv(A::Symbolics.Arr) = matrix_atom(inv, A)
 add_dcprule(inv, semidefinite_domain(), AnySign, Convex, Decreasing)
 
 LinearAlgebra.sqrt(A::Symbolics.Arr) = matrix_atom(sqrt, A)
