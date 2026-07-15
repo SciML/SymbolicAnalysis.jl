@@ -11,7 +11,8 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
   outDir: '../1', // This is required for MarkdownVitepress to work correctly...
-  head: [['link', { rel: 'icon', href: 'REPLACE_ME_DOCUMENTER_VITEPRESS_FAVICON' }]],
+  head: [
+    ['meta', { name: 'robots', content: 'noindex, nofollow' }],['link', { rel: 'icon', href: 'REPLACE_ME_DOCUMENTER_VITEPRESS_FAVICON' }]],
   ignoreDeadLinks: true,
 
   markdown: {
@@ -34,19 +35,15 @@ export default defineConfig({
         detailedView: true
       }
     },
-    nav: [
-{ text: 'Home', link: '/index' },
+    nav: [{ text: 'Home', link: '/index' },
 { text: 'Examples', link: '/examples' },
 { text: 'Atoms', link: '/atoms' },
-{ text: 'Special Functions', link: '/functions' }
-]
+{ text: 'Special Functions', link: '/functions' }]
 ,
-    sidebar: [
-{ text: 'Home', link: '/index' },
+    sidebar: [{ text: 'Home', link: '/index' },
 { text: 'Examples', link: '/examples' },
 { text: 'Atoms', link: '/atoms' },
-{ text: 'Special Functions', link: '/functions' }
-]
+{ text: 'Special Functions', link: '/functions' }]
 ,
     editLink: { pattern: "https://https://github.com/SciML/SymbolicAnalysis.jl/edit/main/docs/src/:path" },
     socialLinks: [
