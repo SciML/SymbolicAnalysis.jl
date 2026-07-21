@@ -11,12 +11,21 @@ on:
     paths-ignore:
       - 'docs/**'
 jobs:
-  downgrade:
+  downgrade-core:
     uses: "SciML/.github/.github/workflows/downgrade.yml@v1"
     with:
       julia-version: "lts"
-      # Downgrade the test project too: its deps (Optimization/Zygote/ForwardDiff)
-      # have floors that pull transitive deps (SciMLBase) far above the package's
-      # own minima, so pinning only the root project leaves an unsatisfiable env.
+      group: "Core"
       projects: ".,test"
+    secrets: "inherit"
+
+  # Core and DGP intentionally resolve different LogExpFunctions generations.
+  # Separate Julia processes prevent extensions from binding to a version loaded
+  # by the other environment.
+  downgrade-dgp:
+    uses: "SciML/.github/.github/workflows/downgrade.yml@v1"
+    with:
+      julia-version: "lts"
+      group: "DGP"
+      projects: "test/DGP"
     secrets: "inherit"

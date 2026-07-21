@@ -10,6 +10,7 @@ updates:
       - "/"
       - "/docs"
       - "/test"
+      - "/test/DGP"
     schedule:
       interval: "daily"
     groups:

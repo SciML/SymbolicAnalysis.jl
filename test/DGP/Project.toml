@@ -1,0 +1,26 @@
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Manifolds = "1cead3c2-87b3-11e9-0ccd-23c62b72b94e"
+Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
+OptimizationBase = "bca83a33-5cc9-4baa-983d-23429ab6bcbb"
+OptimizationManopt = "e57b7fff-7ee7-4550-b4f0-90e9476e9fb6"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SymbolicAnalysis = "4297ee4d-0239-47d8-ba5d-195ecdf594fe"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[sources]
+SymbolicAnalysis = {path = "../.."}
+
+[compat]
+LinearAlgebra = "1.10"
+Manifolds = "0.10, 0.11"
+Optimization = "5.6.1"
+OptimizationBase = "5.2.2"
+OptimizationManopt = "1.3.2"
+Random = "1.10"
+Symbolics = "7.28"
+Test = "1"
+Zygote = "0.7.10"
+julia = "1.10"
