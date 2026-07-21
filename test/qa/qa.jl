@@ -21,6 +21,7 @@ run_qa(
     SymbolicAnalysis;
     Aqua = Aqua,
     JET = JET,
+    api_docs_kwargs = (; rendered = true),
     jet = true,
     aqua_kwargs = (; piracies = (; treat_as_own = SYMBOLIC_OWN)),
     jet_kwargs = (; target_modules = (SymbolicAnalysis,), mode = :typo),
