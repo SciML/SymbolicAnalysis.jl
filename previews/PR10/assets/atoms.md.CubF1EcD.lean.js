@@ -1,0 +1,1 @@
+import{_ as t,c as e,o as d,a6 as c}from"./chunks/framework.CtoxCwGg.js";const v=JSON.parse('{"title":"Atoms","description":"","frontmatter":{},"headers":[],"relativePath":"atoms.md","filePath":"atoms.md","lastUpdated":null}'),n={name:"atoms.md"},o=c("",6),i=[o];function l(r,a,s,g,y,x){return d(),e("div",null,i)}const h=t(n,[["render",l]]);export{v as __pageData,h as default};
