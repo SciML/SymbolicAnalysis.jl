@@ -1,7 +1,6 @@
 using Manifolds, Symbolics, SymbolicAnalysis, LinearAlgebra
-using LinearAlgebra, PDMats
 using Symbolics: unwrap
-using Test, Zygote, ForwardDiff
+using Test, Zygote
 using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvature
 
 @variables X[1:5, 1:5]
