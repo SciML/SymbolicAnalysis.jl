@@ -2,7 +2,6 @@
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterVitepress = "4710194d-e776-4893-9690-8d956a29c365"
 SymbolicAnalysis = "4297ee4d-0239-47d8-ba5d-195ecdf594fe"
-DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DomainSets = "5b8099bc-c8ec-5219-889f-1d9e522a28bf"
@@ -19,7 +18,6 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 DSP = "0.7, 0.8"
-DataStructures = "0.18, 0.19"
 Dictionaries = "0.4"
 Distributions = "0.25"
 Documenter = "1.17.0"

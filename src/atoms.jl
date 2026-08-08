@@ -129,7 +129,7 @@ add_dcprule(logdet, semidefinite_domain(), AnySign, Concave, AnyMono)
 # scalar `BasicSymbolic{SymReal}` method that could clobber the scalar `logsumexp`.
 function LogExpFunctions.logsumexp(x::Symbolics.Arr)
     return Symbolics.wrap(
-        SymbolicUtils.term(LogExpFunctions.logsumexp, Symbolics.unwrap(x); type = Real)
+        SymbolicUtils.term(LogExpFunctions.logsumexp, SymbolicUtils.unwrap(x); type = Real)
     )
 end
 
@@ -432,15 +432,15 @@ add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 # rejects matrix shapes, which `term` would invoke unless the shape is supplied up
 # front, so pass `shape` explicitly.
 function matrix_atom(f, A::Symbolics.Arr)
-    a = Symbolics.unwrap(A)
+    a = SymbolicUtils.unwrap(A)
     return Symbolics.wrap(
         SymbolicUtils.term(
-            f, a; type = SymbolicUtils.symtype(a), shape = Symbolics.shape(a)
+            f, a; type = SymbolicUtils.symtype(a), shape = SymbolicUtils.shape(a)
         )
     )
 end
 function matrix_atom(f, A::AbstractMatrix{<:Num})
-    a = Symbolics.unwrap.(A)
+    a = SymbolicUtils.unwrap.(A)
     return Symbolics.wrap(
         SymbolicUtils.term(f, a; type = Matrix{Real}, shape = map(Base.OneTo, size(A)))
     )
@@ -451,7 +451,7 @@ end
 # dispatch on `Arr`), restoring the array shape. This 2-arg method is more
 # specific than Symbolics' variadic `*`, so it does not overwrite it.
 function Base.:*(x::Symbolics.Arr{<:Any, 2}, y::Symbolics.Arr{<:Any, 2})
-    return Symbolics.wrap(Symbolics.unwrap(x) * Symbolics.unwrap(y))
+    return Symbolics.wrap(SymbolicUtils.unwrap(x) * SymbolicUtils.unwrap(y))
 end
 
 # SymbolicUtils v4 gives `log` a matrix-permissive `promote_shape` but leaves
@@ -462,7 +462,7 @@ end
 # extends rather than overwrites the existing method.
 function SymbolicUtils.promote_shape(::typeof(sqrt), sh::SymbolicUtils.ShapeVecT)
     (length(sh) == 0 || length(sh) == 2) && return sh
-    return SymbolicUtils._throw_array(sqrt, sh)
+    throw(ArgumentError("Invalid shapes for sqrt: $(sh)."))
 end
 
 Base.log(A::Symbolics.Arr) = matrix_atom(log, A)
@@ -471,7 +471,7 @@ add_dcprule(log, array_domain(RealLine(), 2), Positive, Concave, Increasing)
 
 add_dcprule(inv, semidefinite_domain(), AnySign, Convex, Decreasing)
 
-LinearAlgebra.sqrt(A::Symbolics.Arr) = matrix_atom(sqrt, A)
+Base.sqrt(A::Symbolics.Arr) = matrix_atom(sqrt, A)
 add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
 
 add_dcprule(

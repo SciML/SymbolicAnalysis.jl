@@ -30,9 +30,9 @@ end
 # so the symbolic methods are defined directly via `SymbolicUtils.term`, which
 # round-trips cleanly through the rewriter.
 function array_atom_term(f, X, args...; type = Matrix{Real})
-    x = Symbolics.unwrap(X)
+    x = SymbolicUtils.unwrap(X)
     return Symbolics.wrap(
-        SymbolicUtils.term(f, x, map(Symbolics.unwrap, args)...; type = type)
+        SymbolicUtils.term(f, x, map(SymbolicUtils.unwrap, args)...; type = type)
     )
 end
 
@@ -127,7 +127,7 @@ function Manifolds.distance(
         Y::Symbolics.Arr
     )
     return Symbolics.wrap(
-        SymbolicUtils.term(Manifolds.distance, M, X, Symbolics.unwrap(Y); type = Real)
+        SymbolicUtils.term(Manifolds.distance, M, X, SymbolicUtils.unwrap(Y); type = Real)
     )
 end
 add_gdcprule(Manifolds.distance, SymmetricPositiveDefinite, Positive, GConvex, GAnyMono)
@@ -179,7 +179,7 @@ end
 function _log_quad_form_term(y, X)
     return Symbolics.wrap(
         SymbolicUtils.term(
-            log_quad_form, Symbolics.unwrap(y), Symbolics.unwrap(X); type = Real
+            log_quad_form, SymbolicUtils.unwrap(y), SymbolicUtils.unwrap(X); type = Real
         )
     )
 end
@@ -319,8 +319,8 @@ end
 # registrations generate the same `BasicSymbolic{SymReal}` method and collide.
 # Build the term directly off the symbolic `X` instead.
 function affine_map_term(f, X, args...)
-    x = Symbolics.unwrap(X)
-    uargs = map(Symbolics.unwrap, args)
+    x = SymbolicUtils.unwrap(X)
+    uargs = map(SymbolicUtils.unwrap, args)
     return Symbolics.wrap(SymbolicUtils.term(affine_map, f, x, uargs...; type = Matrix{Real}))
 end
 function affine_map(f::typeof(conjugation), X::Symbolics.Arr, B::AbstractMatrix, Y::AbstractMatrix)
