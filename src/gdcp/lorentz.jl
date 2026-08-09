@@ -6,7 +6,7 @@
 
 using Manifolds
 using LinearAlgebra
-using Symbolics: @register_symbolic, unwrap, variables
+using Symbolics: @register_symbolic
 
 # See the SPD `distance` note in gdcp/spd.jl: build the term directly off the
 # symbolic point so the SPD and Lorentz methods do not collide.
@@ -16,20 +16,39 @@ function Manifolds.distance(
         q::Symbolics.Arr
     )
     return Symbolics.wrap(
-        SymbolicUtils.term(Manifolds.distance, M, p, Symbolics.unwrap(q); type = Real)
+        SymbolicUtils.term(Manifolds.distance, M, p, SymbolicUtils.unwrap(q); type = Real)
     )
 end
 add_gdcprule(Manifolds.distance, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
 
 """
-    lorentz_log_barrier(p)
+    lorentz_log_barrier(p) -> Real
 
-Computes the log-barrier function for the Lorentz model: `-log(-1 - <a, p>_L)`,
-with the fixed vector `a = (0, ..., 0, 1)` in R^(d+1).
+Evaluate the log-barrier `-log(-1 - <a, p>_L)` for the Lorentz model, where
+`a = (0, ..., 0, 1)` and `<., .>_L` is the Lorentzian inner product.
 
 # Arguments
 
-    - `p`: A point on the Lorentz manifold.
+- `p::AbstractVector`: point on the Lorentz manifold. Its last coordinate must
+  be greater than one for the barrier to be finite and real.
+
+# Returns
+
+- A real scalar containing the barrier value.
+
+# Throws
+
+- `DomainError`: if the last coordinate of `p` is outside the real logarithm's
+  domain.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis
+
+julia> lorentz_log_barrier([0.0, 2.0]) == 0.0
+true
+```
 """
 function lorentz_log_barrier(p::AbstractVector)
     # a = (0, ..., 0, 1), so the Lorentzian inner product
@@ -42,15 +61,35 @@ end
 add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, Positive, GConvex, GIncreasing)
 
 """
-    lorentz_homogeneous_quadratic(A::AbstractMatrix, p::AbstractVector)
+    lorentz_homogeneous_quadratic(A, p) -> Real
 
-Computes the homogeneous quadratic function f(p) = p'Ap on the Lorentz model.
-For geodesic convexity, A must satisfy one of the conditions in Theorem 21.
+Evaluate the homogeneous quadratic `transpose(p) * A * p` on the Lorentz
+model. The matrix must satisfy one of the implemented geodesic-convexity
+conditions.
 
 # Arguments
 
-    - `A::AbstractMatrix`: A symmetric matrix in R^((d+1)×(d+1)).
-    - `p::AbstractVector`: A point on the Lorentz manifold.
+- `A::AbstractMatrix`: symmetric `(d + 1)` by `(d + 1)` coefficient matrix.
+- `p::AbstractVector`: point on the Lorentz manifold.
+
+# Returns
+
+- A scalar containing the quadratic value.
+
+# Throws
+
+- `ArgumentError`: if `A` does not satisfy the geodesic-convexity conditions.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, LinearAlgebra
+
+julia> A = Matrix{Float64}(I, 3, 3);
+
+julia> lorentz_homogeneous_quadratic(A, [0.0, 0.0, 1.0])
+1.0
+```
 """
 function lorentz_homogeneous_quadratic(A::AbstractMatrix, p::AbstractVector)
     d = size(A, 1) - 1
@@ -81,15 +120,33 @@ end
 add_gdcprule(lorentz_homogeneous_quadratic, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
 
 """
-    lorentz_homogeneous_diagonal(a::AbstractVector, p::AbstractVector)
+    lorentz_homogeneous_diagonal(a, p) -> Real
 
-Computes the homogeneous diagonal quadratic function `∑(a_i * p_i^2)`.
-For geodesic convexity, min(a_1,...,a_d) + a_{d+1} ≥ 0.
+Evaluate the diagonal quadratic `sum(a[i] * p[i]^2)` on the Lorentz model.
+Geodesic convexity requires `minimum(a[1:end-1]) + a[end] >= 0`.
 
 # Arguments
 
-    - `a::AbstractVector`: A (d+1)-vector where min(a_1,...,a_d) + a_{d+1} ≥ 0.
-    - `p::AbstractVector`: A point on the Lorentz manifold.
+- `a::AbstractVector`: `(d + 1)` diagonal coefficients.
+- `p::AbstractVector`: point on the Lorentz manifold.
+
+# Returns
+
+- A scalar containing the diagonal quadratic value.
+
+# Throws
+
+- `DimensionMismatch`: if `a` and `p` have different lengths.
+- `ArgumentError`: if `a` does not satisfy the geodesic-convexity condition.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis
+
+julia> lorentz_homogeneous_diagonal([1.0, 2.0, 0.0], [0.0, 0.0, 1.0])
+0.0
+```
 """
 function lorentz_homogeneous_diagonal(a::AbstractVector, p::AbstractVector)
     if length(a) != length(p)
@@ -155,15 +212,38 @@ end
 add_gdcprule(lorentz_nonhomogeneous_quadratic, Manifolds.Lorentz, AnySign, GConvex, AnyMono)
 
 """
-    lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::AbstractVector)
+    lorentz_least_squares(X, y, p) -> Real
 
-Computes the least squares function `‖y - Xp‖²_2 = y'y - 2y'Xp + p'X'Xp` for the Lorentz model.
+Evaluate the squared residual norm `sum(abs2, y - X * p)` on the Lorentz
+model. The derived quadratic and linear terms must satisfy the implemented
+geodesic-convexity conditions.
 
 # Arguments
 
-    - `X::AbstractMatrix`: A matrix in R^(n×(d+1)).
-    - `y::AbstractVector`: A vector in R^n.
-    - `p::AbstractVector`: A point on the Lorentz manifold.
+- `X::AbstractMatrix`: design matrix with `d + 1` columns.
+- `y::AbstractVector`: response vector with one entry per row of `X`.
+- `p::AbstractVector`: point on the Lorentz manifold.
+
+# Returns
+
+- A scalar containing the squared residual norm.
+
+# Throws
+
+- `ArgumentError`: if the derived homogeneous or linear term does not satisfy
+  the geodesic-convexity conditions.
+- `DimensionMismatch`: if the dimensions of `X`, `y`, and `p` are incompatible.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, LinearAlgebra
+
+julia> X = Matrix{Float64}(I, 3, 3);
+
+julia> lorentz_least_squares(X, [0.0, 0.0, -1.0], [0.0, 0.0, 1.0])
+4.0
+```
 """
 function lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::AbstractVector)
     A = X' * X      # Homogeneous quadratic coefficient
@@ -183,22 +263,44 @@ end
 function lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::Symbolics.Arr)
     return Symbolics.wrap(
         SymbolicUtils.term(
-            lorentz_least_squares, X, y, Symbolics.unwrap(p); type = Real
+            lorentz_least_squares, X, y, SymbolicUtils.unwrap(p); type = Real
         )
     )
 end
 add_gdcprule(lorentz_least_squares, Manifolds.Lorentz, Positive, GConvex, AnyMono)
 
 """
-    lorentz_transform(O::AbstractMatrix, p::AbstractVector)
+    lorentz_transform(O, p) -> AbstractVector
 
-Applies a Lorentz transform to a point on the Lorentz manifold.
-The matrix O must be an element of the orthochronous Lorentz group O⁺(1,d).
+Apply the orthochronous Lorentz transformation `O` to the point `p`.
 
 # Arguments
 
-    - `O::AbstractMatrix`: An element of the orthochronous Lorentz group.
-    - `p::AbstractVector`: A point on the Lorentz manifold.
+- `O::AbstractMatrix`: element of the orthochronous Lorentz group.
+- `p::AbstractVector`: point on the Lorentz manifold.
+
+# Returns
+
+- The transformed point `O * p`.
+
+# Throws
+
+- `ArgumentError`: if `O` does not preserve the Lorentz metric or the positive
+  time direction.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, LinearAlgebra
+
+julia> O = Matrix{Float64}(I, 3, 3);
+
+julia> lorentz_transform(O, [0.0, 0.0, 1.0])
+3-element Vector{Float64}:
+ 0.0
+ 0.0
+ 1.0
+```
 """
 function lorentz_transform(O::AbstractMatrix, p::AbstractVector)
     d = length(p) - 1

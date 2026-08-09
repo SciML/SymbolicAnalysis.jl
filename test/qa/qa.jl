@@ -21,7 +21,14 @@ run_qa(
     SymbolicAnalysis;
     Aqua = Aqua,
     JET = JET,
-    api_docs_kwargs = (; rendered = true),
+    # These Base reduction/lowering functions are the operation identities stored
+    # in Symbolics terms; Base provides no public spelling for either identity.
+    ei_kwargs = (;
+        all_qualified_accesses_are_public = (; ignore = (:add_sum, :literal_pow)),
+        # `Domain` is the owner type for DomainSets domains, but IntervalSets does
+        # not declare it public. SymbolicAnalysis must subtype it for set dispatch.
+        all_explicit_imports_are_public = (; ignore = (:Domain,)),
+    ),
     jet = true,
     aqua_kwargs = (; piracies = (; treat_as_own = SYMBOLIC_OWN)),
     jet_kwargs = (; target_modules = (SymbolicAnalysis,), mode = :typo),

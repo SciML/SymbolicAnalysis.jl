@@ -1,5 +1,5 @@
 using Manifolds
-using Symbolics: @register_symbolic, unwrap
+using Symbolics: @register_symbolic
 using LinearAlgebra
 
 # @enum GSign GPositive GNegative GAnySign
@@ -254,6 +254,6 @@ function propagate_gcurvature(ex, M::AbstractManifold)
     # round-trips through wrap/unwrap and loses the gcurvature metadata that the
     # final `getgcurvature` reads. `analyze` already unwraps; do the same here so
     # the function is correct when called directly on a wrapped expression.
-    ex = Symbolics.unwrap(ex)
+    ex = SymbolicUtils.unwrap(ex)
     return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
 end

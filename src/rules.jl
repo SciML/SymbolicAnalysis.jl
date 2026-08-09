@@ -236,7 +236,7 @@ function propagate_sign(ex)
     # Work on the raw symbolic so the sign metadata survives the walk on
     # Symbolics v7 (a `Num`/`Arr` wrapper round-trips through wrap/unwrap and drops
     # it). `analyze` already unwraps; mirror that for direct callers.
-    ex = Symbolics.unwrap(ex)
+    ex = SymbolicUtils.unwrap(ex)
     # A single bottom-up walk: `Postwalk` rebuilds each node from its annotated
     # children before the annotation function sees it, so every node's sign is
     # computed exactly once. Only symbols and calls are annotated — wrapped
@@ -334,7 +334,7 @@ end
 function propagate_curvature(ex)
     # See `propagate_sign`: unwrap so the curvature metadata survives the v7 walk,
     # and annotate symbols and calls in a single bottom-up pass.
-    ex = Symbolics.unwrap(ex)
+    ex = SymbolicUtils.unwrap(ex)
     return Postwalk(x -> issym(x) || iscall(x) ? setcurvature(x, node_curvature(x)) : x)(ex)
 end
 

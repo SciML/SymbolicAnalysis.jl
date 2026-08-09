@@ -1,18 +1,28 @@
 module SymbolicAnalysis
 
-using DomainSets
-using LinearAlgebra
-using LogExpFunctions
-using PrecompileTools
-using StatsBase
-using Distributions
-using DSP, DataStructures
-
-using Symbolics
-import Symbolics: issym, Term
-using SymbolicUtils: iscall, BasicSymbolic
-using SymbolicUtils.Rewriters
-SymbolicUtils.inspect_metadata[] = true
+using DSP: conv
+using Distributions: Normal, logcdf
+import DomainSets
+using DomainSets: HalfLine, RealLine, ℂ, ℤ
+using IntervalSets: Domain, Interval
+import LinearAlgebra
+using LinearAlgebra: Diagonal, I, Symmetric, diag, diagm, dot, eigmax, eigmin, eigvals,
+    isposdef, issymmetric, logdet, norm, tr, triu
+import LogExpFunctions
+using LogExpFunctions: xexpx, xlogx
+import Manifolds
+using Manifolds: Lorentz, SymmetricPositiveDefinite
+using ManifoldsBase: AbstractManifold
+using PrecompileTools: @compile_workload, @setup_workload
+import StatsBase
+using StatsBase: kldivergence
+import Symbolics
+using Symbolics: @variables, Num
+import SymbolicUtils
+using SymbolicUtils: @rule, BasicSymbolic, getmetadata, hasmetadata, iscall, issym,
+    setmetadata, unwrap
+using SymbolicUtils.Rewriters: Postwalk
+using TermInterface: arguments, operation
 
 # Symbolics v7 / SymbolicUtils v4 removed the `Symbolic` abstract type: every
 # symbolic — scalar or array — is now a `BasicSymbolic{SymReal}`.
@@ -40,17 +50,46 @@ struct AnalysisResult
 end
 
 """
-    analyze(ex)
-    analyze(ex, M)
+    analyze(ex, M = nothing) -> AnalysisResult
 
-Analyze the expression `ex` and return the curvature and sign of the expression. If a manifold `M` from [Manifolds.jl](https://juliamanifolds.github.io/Manifolds.jl/stable/) is provided, also return the geodesic curvature of the expression.
-Currently supports the `SymmetricPositiveDefinite` and `Lorentz` manifolds.
+Analyze the symbolic expression `ex` and return its Euclidean curvature and sign.
+When `M` is supplied, also determine the geodesic curvature on that manifold.
 
-The returned `AnalysisResult` contains the following fields:
+# Arguments
 
-  - `curvature::SymbolicAnalysis.Curvature`: The curvature of the expression.
-  - `sign::SymbolicAnalysis.Sign`: The sign of the expression.
-  - `gcurvature::Union{SymbolicAnalysis.GCurvature,Nothing}`: The geodesic curvature of the expression if `M` is provided. Otherwise, `nothing`.
+- `ex`: Symbolics expression to analyze.
+- `M::Union{AbstractManifold, Nothing} = nothing`: optional manifold for geodesic
+  curvature analysis. `SymmetricPositiveDefinite` and `Lorentz` manifolds are
+  supported.
+
+# Returns
+
+An `AnalysisResult` with the fields:
+
+- `curvature::SymbolicAnalysis.Curvature`: Euclidean curvature of `ex`.
+- `sign::SymbolicAnalysis.Sign`: inferred sign of `ex`.
+- `gcurvature::Union{SymbolicAnalysis.GCurvature, Nothing}`: geodesic curvature
+  when `M` is supplied, or `nothing` otherwise.
+
+# Throws
+
+- `AssertionError`: if `M` is not a supported manifold.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics
+
+julia> @variables x;
+
+julia> result = analyze(exp(x));
+
+julia> result.curvature == SymbolicAnalysis.Convex
+true
+
+julia> result.gcurvature === nothing
+true
+```
 """
 function analyze(ex, M::Union{AbstractManifold, Nothing} = nothing)
     ex = unwrap(ex)

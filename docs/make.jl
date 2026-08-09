@@ -17,7 +17,8 @@ makedocs(;
         "Atoms" => "atoms.md",
         "Special Functions" => "functions.md",
     ],
-    warnonly = true
+    doctest = true,
+    checkdocs = :exports,
 )
 
 deploydocs(; repo = "github.com/SciML/SymbolicAnalysis.jl", push_preview = true)

@@ -23,3 +23,13 @@ The main interface to this package is the `analyze` function.
 Modules=[SymbolicAnalysis]
 Pages=["SymbolicAnalysis.jl"]
 ```
+
+## Lorentz model
+
+```@docs
+SymbolicAnalysis.lorentz_log_barrier
+SymbolicAnalysis.lorentz_homogeneous_quadratic
+SymbolicAnalysis.lorentz_homogeneous_diagonal
+SymbolicAnalysis.lorentz_least_squares
+SymbolicAnalysis.lorentz_transform
+```
