@@ -14,6 +14,7 @@ import Manifolds
 using Manifolds: Lorentz, SymmetricPositiveDefinite
 using ManifoldsBase: AbstractManifold
 using PrecompileTools: @compile_workload, @setup_workload
+using SciMLPublic: @public
 import StatsBase
 using StatsBase: kldivergence
 import Symbolics
@@ -34,6 +35,31 @@ const Symbolic = BasicSymbolic
 # keyed on `BasicSymbolic{SymReal}`).
 const InDomainSymbolic = BasicSymbolic{SymbolicUtils.SymReal}
 
+"""
+    VarDomain
+
+Metadata key used to attach a `DomainSets.Domain`
+to a symbolic variable. DCP rule selection uses this metadata when a rule has
+domain restrictions.
+
+# Fields
+
+`VarDomain` is a marker type and has no fields. Use the type itself as the
+metadata key with `SymbolicUtils.setmetadata`.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, DomainSets
+
+julia> @variables x;
+
+julia> x = setmetadata(x, SymbolicAnalysis.VarDomain, HalfLine{Number, :open}());
+
+julia> hasmetadata(x, SymbolicAnalysis.VarDomain)
+true
+```
+"""
 struct VarDomain end
 
 include("rules.jl")
@@ -43,11 +69,45 @@ include("gdcp/spd.jl")
 include("gdcp/lorentz.jl")
 include("canon.jl")
 
+"""
+    AnalysisResult
+
+Result returned by [`analyze`](@ref). It contains the Euclidean sign and
+curvature inferred from a symbolic expression and, when a supported manifold
+is supplied, its geodesic curvature.
+
+# Fields
+
+- `curvature::Curvature`: Euclidean curvature of the expression.
+- `sign::Sign`: inferred sign of the expression.
+- `gcurvature::Union{GCurvature, Nothing}`: geodesic curvature when manifold
+  analysis was requested, otherwise `nothing`.
+
+The result is immutable. Read its fields directly rather than relying on the
+internal metadata propagation functions.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics
+
+julia> @variables x;
+
+julia> result = analyze(exp(x));
+
+julia> (result.curvature, result.sign, result.gcurvature)
+(SymbolicAnalysis.Convex, SymbolicAnalysis.Positive, nothing)
+```
+"""
 struct AnalysisResult
     curvature::SymbolicAnalysis.Curvature
     sign::SymbolicAnalysis.Sign
     gcurvature::Union{SymbolicAnalysis.GCurvature, Nothing}
 end
+
+@public VarDomain, AnalysisResult
+@public Sign, Curvature, Monotonicity, GCurvature, GMonotonicity
+@public add_dcprule, add_gdcprule
 
 """
     analyze(ex, M = nothing) -> AnalysisResult

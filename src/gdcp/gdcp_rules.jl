@@ -3,11 +3,91 @@ using Symbolics: @register_symbolic
 using LinearAlgebra
 
 # @enum GSign GPositive GNegative GAnySign
+"""
+    GCurvature
+
+Geodesic-curvature classification propagated by the gDCP analyzer.
+
+# Values
+
+- `GConvex`: geodesically convex.
+- `GConcave`: geodesically concave.
+- `GLinear`: geodesically affine.
+- `GUnknownCurvature`: no supported geodesic-curvature rule applies.
+
+These values are accepted by [`add_gdcprule`](@ref) and are returned in
+`AnalysisResult.gcurvature` when manifold analysis is requested.
+"""
 @enum GCurvature GConvex GConcave GLinear GUnknownCurvature
+
+"""
+    GMonotonicity
+
+Monotonicity classification for an argument of a geodesic DCP atom.
+
+# Values
+
+- `GIncreasing`: the atom is nondecreasing along the manifold argument.
+- `GDecreasing`: the atom is nonincreasing along the manifold argument.
+- `GAnyMono`: the atom's monotonicity is unrestricted for the rule.
+
+These values are accepted by [`add_gdcprule`](@ref).
+"""
 @enum GMonotonicity GIncreasing GDecreasing GAnyMono
 
 const gdcprules_dict = Dict()
 
+"""
+    add_gdcprule(f, manifold, sign, curvature, monotonicity)
+
+Register a geodesic disciplined-convex-programming (gDCP) rule for the
+symbolic atom `f` on a manifold type. This is the extension point for packages
+that add atoms with known geodesic curvature.
+
+Register the symbolic operation with `Symbolics.@register_symbolic` before
+registering its rule. The function object passed here must be the operation
+stored in the symbolic term.
+
+# Arguments
+
+- `f`: function used as the operation of the symbolic atom.
+- `manifold`: manifold type on which the rule applies, such as
+  `Manifolds.SymmetricPositiveDefinite` or `Manifolds.Lorentz`.
+- `sign::Sign`: sign guaranteed by the atom.
+- `curvature::GCurvature`: geodesic curvature of the atom.
+- `monotonicity::GMonotonicity`: geodesic monotonicity of the atom. A tuple may
+  be supplied for a multi-argument atom.
+
+# Returns
+
+The registered geodesic-rule descriptor.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, Manifolds
+
+julia> test_gdcp_atom(p) = p[1];
+
+julia> @register_symbolic test_gdcp_atom(p::Vector{Num})
+
+julia> SymbolicAnalysis.add_gdcprule(
+           test_gdcp_atom, Manifolds.Lorentz, SymbolicAnalysis.Positive,
+           SymbolicAnalysis.GConvex, SymbolicAnalysis.GIncreasing
+       );
+
+julia> @variables p[1:3];
+
+julia> result = analyze(test_gdcp_atom(p), Manifolds.Lorentz(2));
+
+julia> result.gcurvature == SymbolicAnalysis.GConvex
+true
+```
+
+This registration hook is public for packages extending SymbolicAnalysis. The
+rule dictionary and `gdcprule` lookup function are implementation details and
+should not be accessed directly.
+"""
 function add_gdcprule(f, manifold, sign, curvature, monotonicity)
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
