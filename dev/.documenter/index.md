@@ -23,6 +23,82 @@ Pkg.add("SymbolicAnalysis")
 
 The main interface to this package is the `analyze` function.
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.AnalysisResult' href='#SymbolicAnalysis.AnalysisResult'><span class="jlbinding">SymbolicAnalysis.AnalysisResult</span></a> <Badge type="info" class="jlObjectType jlType" text="Type" /></summary>
+
+
+
+```julia
+AnalysisResult
+```
+
+
+Result returned by [`analyze`](/index#SymbolicAnalysis.analyze). It contains the Euclidean sign and curvature inferred from a symbolic expression and, when a supported manifold is supplied, its geodesic curvature.
+
+**Fields**
+- `curvature::Curvature`: Euclidean curvature of the expression.
+  
+- `sign::Sign`: inferred sign of the expression.
+  
+- `gcurvature::Union{GCurvature, Nothing}`: geodesic curvature when manifold analysis was requested, otherwise `nothing`.
+  
+
+The result is immutable. Read its fields directly rather than relying on the internal metadata propagation functions.
+
+**Examples**
+
+```julia
+julia> using SymbolicAnalysis, Symbolics
+
+julia> @variables x;
+
+julia> result = analyze(exp(x));
+
+julia> (result.curvature, result.sign, result.gcurvature)
+(SymbolicAnalysis.Convex, SymbolicAnalysis.Positive, nothing)
+```
+
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.VarDomain' href='#SymbolicAnalysis.VarDomain'><span class="jlbinding">SymbolicAnalysis.VarDomain</span></a> <Badge type="info" class="jlObjectType jlType" text="Type" /></summary>
+
+
+
+```julia
+VarDomain
+```
+
+
+Metadata key used to attach a `DomainSets.Domain` to a symbolic variable. DCP rule selection uses this metadata when a rule has domain restrictions.
+
+**Fields**
+
+`VarDomain` is a marker type and has no fields. Use the type itself as the metadata key with `SymbolicUtils.setmetadata`.
+
+**Examples**
+
+```julia
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, DomainSets
+
+julia> @variables x;
+
+julia> x = setmetadata(x, SymbolicAnalysis.VarDomain, HalfLine{Number, :open}());
+
+julia> hasmetadata(x, SymbolicAnalysis.VarDomain)
+true
+```
+
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.analyze' href='#SymbolicAnalysis.analyze'><span class="jlbinding">SymbolicAnalysis.analyze</span></a> <Badge type="info" class="jlObjectType jlFunction" text="Function" /></summary>
 
 
@@ -76,6 +152,8 @@ true
 
 </details>
 
+
+The supported extension contracts for adding DCP and gDCP atoms are described on the [Interfaces](/interfaces#Interfaces) page. They are separate from the internal rule propagation machinery.
 
 ## Lorentz model {#Lorentz-model}
 <details class='jldocstring custom-block' open>

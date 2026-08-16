@@ -37,11 +37,13 @@ export default defineConfig({
     },
     nav: [{ text: 'Home', link: '/index' },
 { text: 'Examples', link: '/examples' },
+{ text: 'Interfaces', link: '/interfaces' },
 { text: 'Atoms', link: '/atoms' },
 { text: 'Special Functions', link: '/functions' }]
 ,
     sidebar: [{ text: 'Home', link: '/index' },
 { text: 'Examples', link: '/examples' },
+{ text: 'Interfaces', link: '/interfaces' },
 { text: 'Atoms', link: '/atoms' },
 { text: 'Special Functions', link: '/functions' }]
 ,
