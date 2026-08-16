@@ -2,8 +2,18 @@
 # Tests that helper functions work with BigFloat and AbstractVector types
 
 using SymbolicAnalysis
+using DomainSets
 using LinearAlgebra
+using Manifolds
+using Symbolics
+using Symbolics: @register_symbolic, @variables, Num
 using Test
+
+_interface_dcp_atom(x) = x
+@register_symbolic _interface_dcp_atom(x)
+
+_interface_gdcp_atom(p) = p[1]
+@register_symbolic _interface_gdcp_atom(p::Vector{Num})
 
 @testset "BigFloat support" begin
     @testset "dotsort" begin
@@ -136,6 +146,41 @@ using Test
             @test eltype(result) == BigFloat
         end
     end
+end
+
+@testset "Generic DCP extension interface" begin
+    SymbolicAnalysis.add_dcprule(
+        _interface_dcp_atom,
+        RealLine(),
+        SymbolicAnalysis.Positive,
+        SymbolicAnalysis.Convex,
+        SymbolicAnalysis.Increasing,
+    )
+
+    @variables x
+    result = SymbolicAnalysis.analyze(_interface_dcp_atom(x))
+
+    @test result isa SymbolicAnalysis.AnalysisResult
+    @test result.curvature == SymbolicAnalysis.Convex
+    @test result.sign == SymbolicAnalysis.Positive
+    @test result.gcurvature === nothing
+end
+
+@testset "Generic gDCP extension interface" begin
+    SymbolicAnalysis.add_gdcprule(
+        _interface_gdcp_atom,
+        Manifolds.Lorentz,
+        SymbolicAnalysis.Positive,
+        SymbolicAnalysis.GConvex,
+        SymbolicAnalysis.GIncreasing,
+    )
+
+    @variables p[1:3]
+    result = SymbolicAnalysis.analyze(_interface_gdcp_atom(p), Manifolds.Lorentz(2))
+
+    @test result isa SymbolicAnalysis.AnalysisResult
+    @test result.gcurvature == SymbolicAnalysis.GConvex
+    @test result.curvature == SymbolicAnalysis.UnknownCurvature
 end
 
 @testset "AbstractVector support" begin

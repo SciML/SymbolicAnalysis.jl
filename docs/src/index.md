@@ -22,7 +22,12 @@ The main interface to this package is the `analyze` function.
 ```@autodocs
 Modules=[SymbolicAnalysis]
 Pages=["SymbolicAnalysis.jl"]
+Public=true
 ```
+
+The supported extension contracts for adding DCP and gDCP atoms are described
+on the [Interfaces](@ref) page. They are separate from the internal rule
+propagation machinery.
 
 ## Lorentz model
 

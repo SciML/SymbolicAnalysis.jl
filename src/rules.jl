@@ -1,5 +1,49 @@
+"""
+    Sign
+
+Sign classification propagated by the DCP analyzer.
+
+# Values
+
+- `Positive`: the expression is known to be positive.
+- `Negative`: the expression is known to be negative.
+- `AnySign`: no sign restriction is known.
+
+These values are accepted by [`add_dcprule`](@ref) and are returned by
+`AnalysisResult.sign`.
+"""
 @enum Sign Positive Negative AnySign
+
+"""
+    Curvature
+
+Euclidean curvature classification propagated by the DCP analyzer.
+
+# Values
+
+- `Convex`: the expression is convex.
+- `Concave`: the expression is concave.
+- `Affine`: the expression is both convex and concave.
+- `UnknownCurvature`: no supported curvature rule applies.
+
+These values are accepted by [`add_dcprule`](@ref) and are returned by
+`AnalysisResult.curvature`.
+"""
 @enum Curvature Convex Concave Affine UnknownCurvature
+
+"""
+    Monotonicity
+
+Monotonicity classification for an argument of a DCP atom.
+
+# Values
+
+- `Increasing`: the atom is nondecreasing in the argument.
+- `Decreasing`: the atom is nonincreasing in the argument.
+- `AnyMono`: the atom's monotonicity is unrestricted for the rule.
+
+These values are accepted by [`add_dcprule`](@ref).
+"""
 @enum Monotonicity Increasing Decreasing AnyMono
 
 # Symbolics v7 wraps numeric literals (multiplication coefficients, exponents,
@@ -64,6 +108,58 @@ end
 
 const dcprules_dict = Dict()
 
+"""
+    add_dcprule(f, domain, sign, curvature, monotonicity)
+
+Register a Euclidean disciplined-convex-programming (DCP) rule for the
+symbolic atom `f`. This is the extension point for packages that add a new
+symbolic atom whose sign, curvature, and argument monotonicity are known.
+
+Register the symbolic operation with `Symbolics.@register_symbolic` before
+registering its DCP rule. The function object passed to `add_dcprule` must be
+the same operation stored in the symbolic term.
+
+# Arguments
+
+- `f`: function used as the operation of the symbolic atom.
+- `domain`: a `DomainSets.Domain` for a single argument, or a tuple of domains
+  for a multi-argument atom. Domain checks use `VarDomain` metadata when it is
+  attached to the symbolic arguments.
+- `sign::Sign`: sign guaranteed by the atom on its declared domain.
+- `curvature::Curvature`: Euclidean curvature of the atom.
+- `monotonicity`: one [`Monotonicity`](@ref) value, a tuple with one value per
+  argument, or a function that computes the value from an argument. A single
+  value applies to every argument.
+
+# Returns
+
+The registered rule descriptor. Registering another rule for the same
+function appends a descriptor so that distinct domains can be supported.
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, DomainSets
+
+julia> test_atom(x) = x;
+
+julia> @register_symbolic test_atom(x)
+
+julia> SymbolicAnalysis.add_dcprule(
+           test_atom, RealLine(), SymbolicAnalysis.Positive,
+           SymbolicAnalysis.Convex, SymbolicAnalysis.Increasing
+       );
+
+julia> @variables x;
+
+julia> analyze(test_atom(x)).curvature == SymbolicAnalysis.Convex
+true
+```
+
+This registration hook is public for packages extending SymbolicAnalysis. The
+rule dictionaries and the `dcprule` dispatch function are implementation
+details and should not be accessed directly.
+"""
 function add_dcprule(f, domain, sign, curvature, monotonicity)
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
