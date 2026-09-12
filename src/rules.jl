@@ -417,11 +417,18 @@ function mul_curvature(args)
 
     if non_constant_expr !== nothing
         curv = find_curvature(non_constant_expr)
-        return if getsign(constant_prod) == Negative
+        # A linear map keeps an affine argument affine whatever the coefficients
+        # are, but it preserves a curvature only when every coefficient shares a
+        # sign: a mixed-sign constant matrix sums convex and concave terms.
+        curv == Affine && return Affine
+        constant_sign = getsign(constant_prod)
+        return if constant_sign == Negative
             # flip
             curv == Convex ? Concave : curv == Concave ? Convex : curv
-        else
+        elseif constant_sign == Positive
             curv
+        else
+            UnknownCurvature
         end
     end
     return Affine
@@ -532,22 +539,11 @@ function find_curvature(ex)
         if hasdcprule(f)
             rule, args = dcprule(f, args...)
         elseif Symbol(f) == :*
-            a1 = constval(args[1])
-            if a1 isa Number && a1 > 0
-                return find_curvature(args[2])
-            elseif a1 isa Number && a1 < 0
-                argscurv = find_curvature(args[2])
-                if argscurv == Convex
-                    return Concave
-                elseif argscurv == Concave
-                    return Convex
-                else
-                    return argscurv
-                end
-            else
-                @warn "DCP does not support multiple non-constant arguments in multiplication"
-                return UnknownCurvature
-            end
+            # `mul_curvature` handles a constant in any position and of any shape;
+            # the scalar-only version this replaced read `constval(args[1])` and
+            # required it to be a `Number`, so a constant *matrix* coefficient was
+            # rejected and `A*x - b` did not certify while `A*x .- b` did.
+            return mul_curvature(args)
         else
             return UnknownCurvature
         end
