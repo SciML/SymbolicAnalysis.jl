@@ -5,6 +5,23 @@
 
 Since some atoms are not available in the base language or other packages we have implemented them here.
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofLinearAlgebra.dot, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofLinearAlgebra.dot, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(dot), x, y)
+```
+
+
+`dot` is bilinear, so it is affine only when one side is constant: `dot(c, x)` is affine in `x`, but `dot(x, x)` is the quadratic `‖x‖²`. Registering it as unconditionally affine certified `dot(x, x)` as `Affine`, which is not a valid certificate, so the curvature depends on the arguments like `^` and `norm`.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.dotsort-Tuple{AbstractVector, AbstractVector}' href='#SymbolicAnalysis.dotsort-Tuple{AbstractVector, AbstractVector}'><span class="jlbinding">SymbolicAnalysis.dotsort</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
 
 
