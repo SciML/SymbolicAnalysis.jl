@@ -246,3 +246,9 @@ ex = logdet(SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, A,
     unwrap
 anres = analyze(ex, M)
 @test anres.gcurvature == SymbolicAnalysis.GConvex
+
+# The manifold-conditional signs in the geodesic rule table are gated on `M` being
+# passed, so `analyze(ex, M)` must still see them (`tr` is Positive on the SPD cone).
+@test analyze(tr(X), M).sign == SymbolicAnalysis.Positive
+@test analyze(eigmax(X), M).sign == SymbolicAnalysis.Positive
+@test analyze(tr(X)).sign == SymbolicAnalysis.AnySign

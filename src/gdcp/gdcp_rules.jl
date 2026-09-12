@@ -335,5 +335,11 @@ function propagate_gcurvature(ex, M::AbstractManifold)
     # final `getgcurvature` reads. `analyze` already unwraps; do the same here so
     # the function is correct when called directly on a wrapped expression.
     ex = SymbolicUtils.unwrap(ex)
+    # A geodesic rule's sign holds for a point on `M`, so the geodesic pass
+    # re-derives signs under `M` rather than inheriting the Euclidean ones a bare
+    # `propagate_sign` leaves behind. `find_gcurvature` falls back to the Euclidean
+    # rule table for atoms with no geodesic rule and picks up `increasing_if_positive`
+    # with it, so `distance(M, A, X)^2` needs `distance`'s manifold sign to compose.
+    ex = propagate_sign(ex, M)
     return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
 end
