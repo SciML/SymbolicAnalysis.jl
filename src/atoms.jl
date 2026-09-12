@@ -436,6 +436,21 @@ add_dcprule(conj, ℂ, AnySign, Affine, AnyMono)
 
 add_dcprule(exp, RealLine(), Positive, Convex, Increasing)
 
+"""
+    dcprule(::typeof(exp), x)
+
+`exp(X)` on a matrix is the matrix exponential, not the scalar law applied
+pointwise: `expm` is neither operator convex nor operator monotone, so
+`sum(exp(X))` and `tr(exp(X))` are indefinite even on the SPD cone. The
+elementwise `exp.(X)` arrives through `broadcast` and keeps the scalar law via
+`elementwise_dcprule`.
+"""
+function dcprule(::typeof(exp), x)
+    SymbolicUtils.symtype(x) <: AbstractArray &&
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), (x,)
+    return @invoke dcprule(exp::Any, x)
+end
+
 Symbolics.@register_symbolic LogExpFunctions.xlogx(x::Real)
 add_dcprule(xlogx, RealLine(), AnySign, Convex, AnyMono)
 
@@ -668,18 +683,23 @@ add_dcprule(vec, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 
 add_dcprule(vcat, array_domain(array_domain(RealLine(), 1), 1), AnySign, Affine, Increasing)
 
+"""
+    elementwise_dcprule(f, args...)
+
+The rule for `f` applied elementwise, as under a broadcast. Defaults to `f`'s own
+rule. Atoms that mean something different on a matrix than pointwise — `^` is a
+matrix power, `exp` is the matrix exponential — guard against the matrix meaning
+in `dcprule` and restore the scalar law here.
+"""
+elementwise_dcprule(f, args...) = dcprule(f, args...)
+elementwise_dcprule(::typeof(^), x, i) = power_rule(Symbolics.value(i)), (x, i)
+elementwise_dcprule(::typeof(exp), x) = @invoke dcprule(exp::Any, x)
+
 function dcprule(::typeof(broadcast), f, x...)
     # The broadcasted function is wrapped as a constant symbolic (e.g.
     # `broadcast(exp, z)` carries a symbolic `exp`); `Symbolics.value` recovers the
     # underlying function (identity for a plain function).
-    g = Symbolics.value(f)
-    # A broadcast applies `g` elementwise, so the scalar power laws hold even though
-    # the base is an array; the matrix-power guard in `dcprule(::typeof(^), ...)`
-    # must not fire here (it would reject `x .^ 2`).
-    if g === (^) && length(x) == 2
-        return power_rule(Symbolics.value(x[2])), x
-    end
-    return dcprule(g, x...)
+    return elementwise_dcprule(Symbolics.value(f), x...)
 end
 hasdcprule(::typeof(broadcast)) = true
 
@@ -718,7 +738,9 @@ function dcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(min)}, args
 end
 
 hasdcprule(op::SymbolicUtils.Mapper) = hasdcprule(op.f)
-dcprule(op::SymbolicUtils.Mapper, args...) = dcprule(op.f, args...)
+# `map` applies `op.f` elementwise, so it takes the elementwise rule for the same
+# reason `broadcast` does.
+dcprule(op::SymbolicUtils.Mapper, args...) = elementwise_dcprule(op.f, args...)
 
 # A matrix or vector assembled from scalar expressions (`[u[1] u[2]; u[2] u[3]]`)
 # traces to a `SymbolicUtils.array_literal` term whose first argument is the size
