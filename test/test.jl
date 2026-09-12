@@ -369,3 +369,50 @@ dpos = setmetadata(
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(dn^2 / dd)).curvature ==
     SymbolicAnalysis.UnknownCurvature
+
+
+# Bilinear atoms are convex only when the argument they are linear in is
+# constant. The static rule table cannot express that, so each certified both
+# arguments symbolic — the same defect `dot` was fixed for.
+@variables bx[1:2] bv[1:2] bP[1:2, 1:2] bh
+bxs = Symbolics.scalarize(bx)
+
+# quad_form is quadratic in x but *linear* in P: `quad_form([a], [b;;])` is
+# `a^2*b`, whose second difference along (1, -1) is -2.
+@test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.quad_form(bxs, collect(bP)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# A constant but indefinite P is `x[1]^2 - x[2]^2`.
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.quad_form(bxs, [1.0 0.0; 0.0 -1.0]))
+).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.quad_form(bxs, [2.0 1.0; 1.0 2.0]))
+).curvature == SymbolicAnalysis.Convex
+
+# `x'Px` is nondecreasing in each x[i] over the nonnegative orthant only when P is
+# *entrywise* nonnegative; positive definiteness alone does not give it. With
+# P = [1 -0.9; -0.9 1] (positive definite) the composition certified
+# `quad_form(exp.(v), P)` as Convex while the midpoint exceeds the chord by 1.92
+# between v = [0.64, 2.0] and [1.64, 2.3]. Asserted on the rule directly: the
+# end-to-end path currently degrades for an unrelated reason (an `array_literal`
+# argument carries no sign, so `increasing_if_positive` yields AnyMono anyway).
+@test SymbolicAnalysis.dcprule(
+    SymbolicAnalysis.quad_form, bxs, [1.0 -0.9; -0.9 1.0]
+)[1].monotonicity[1] === SymbolicAnalysis.AnyMono
+@test SymbolicAnalysis.dcprule(
+    SymbolicAnalysis.quad_form, bxs, [2.0 1.0; 1.0 2.0]
+)[1].monotonicity[1] === SymbolicAnalysis.increasing_if_positive
+
+# dotsort is a pointwise max of bilinear forms; for length-1 vectors it is x*y.
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.dotsort(bxs, Symbolics.scalarize(bv)))
+).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.dotsort(bxs, [1.0, 2.0]))
+).curvature == SymbolicAnalysis.Convex
+
+# huber is concave in its threshold: for abs(x) > M it is 2M*abs(x) - M^2.
+@test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.huber(2.0, bh))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.huber(bh, 1.0))).curvature ==
+    SymbolicAnalysis.Convex

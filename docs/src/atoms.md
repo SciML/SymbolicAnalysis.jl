@@ -6,8 +6,8 @@ This page is intended to be a reference for the atoms that are currently impleme
 
 | Atom                      | Domain                                                                         | Sign      | Curvature | Monotonicity                                |
 |:------------------------- |:------------------------------------------------------------------------------ |:--------- |:--------- |:------------------------------------------- |
-| dot                       | (array_domain(ℝ), array_domain(ℝ))                                             | AnySign   | Affine    | Increasing                                  |
-| dotsort                   | (array_domain(ℝ, 1), array_domain(ℝ, 1))                                       | AnySign   | Convex    | (AnyMono, increasing_if_positive ∘ minimum) |
+| dot                       | (array_domain(ℝ), array_domain(ℝ))                                             | AnySign   | See below | See below                                   |
+| dotsort                   | (array_domain(ℝ, 1), array_domain(ℝ, 1))                                       | AnySign   | See below | See below                                   |
 | StatsBase.geomean         | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
 | StatsBase.harmmean        | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
 | invprod                   | array_domain(HalfLine{Real,:open}())                                           | Positive  | Convex    | Decreasing                                  |
@@ -23,7 +23,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(1, Inf))                            | Positive  | Convex    | increasing_if_positive                      |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(0, 1))                              | Positive  | Convex    | increasing_if_positive                      |
 | perspective(f, x, s)      | (function_domain(), ℝ, Positive)                                               | Same as f | Same as f | AnyMono                                     |
-| quad_form                 | (array_domain(ℝ, 1), semidefinite_domain())                                    | Positive  | Convex    | (increasing_if_positive, Increasing)        |
+| quad_form                 | (array_domain(ℝ, 1), semidefinite_domain())                                    | See below | See below | See below                                   |
 | quad_over_lin             | (array_domain(ℝ), HalfLine{Real,:open}())                                      | Positive  | Convex    | (increasing_if_positive, Decreasing)        |
 | quad_over_lin             | (ℝ, HalfLine{Real,:open}())                                                    | Positive  | Convex    | (increasing_if_positive, Decreasing)        |
 | sum                       | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
@@ -37,7 +37,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | conj                      | ℂ                                                                              | AnySign   | Affine    | AnyMono                                     |
 | exp                       | ℝ                                                                              | Positive  | Convex    | Increasing                                  |
 | xlogx                     | ℝ                                                                              | AnySign   | Convex    | AnyMono                                     |
-| huber                     | (ℝ, HalfLine())                                                                | Positive  | Convex    | increasing_if_positive                      |
+| huber                     | (ℝ, HalfLine())                                                                | See below | See below | See below                                   |
 | imag                      | ℂ                                                                              | AnySign   | Affine    | AnyMono                                     |
 | inv                       | HalfLine{Real,:open}()                                                         | Positive  | Convex    | Decreasing                                  |
 | log                       | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
@@ -60,6 +60,29 @@ This page is intended to be a reference for the atoms that are currently impleme
 | diag                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
 | diff                      | array_domain(ℝ)                                                                | AnySign   | Affine    | Increasing                                  |
 | kron                      | (array_domain(ℝ, 2), array_domain(ℝ, 2))                                       | AnySign   | Affine    | Increasing                                  |
+
+### Bilinear atoms
+
+`dot`, `dotsort`, `quad_form` and `huber`'s threshold slot are bilinear: each is
+a convex (or affine) atom only when the argument it is linear in is a constant.
+With every argument symbolic the expression is indefinite, so the curvature
+depends on the arguments and there is no single table entry.
+
+| Atom                 | Condition                        | Sign     | Curvature | Monotonicity                                |
+|:-------------------- |:-------------------------------- |:-------- |:--------- |:------------------------------------------- |
+| dot(x, y)            | `x` or `y` constant              | AnySign  | Affine    | Increasing                                  |
+| dot(x, y)            | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
+| dotsort(x, y)        | `x` or `y` constant              | AnySign  | Convex    | (AnyMono, increasing_if_positive ∘ minimum) |
+| dotsort(x, y)        | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
+| quad_form(x, P)      | `P` a constant `isposdef` matrix | Positive | Convex    | (increasing_if_positive, Increasing)        |
+| quad_form(x, P)      | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
+| huber(x, M)          | `M` constant                     | Positive | Convex    | increasing_if_positive                      |
+| huber(x, M)          | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
+
+`quad_form` is *linear* in `P`, so a non-constant `P` makes `x'Px` indefinite;
+a constant but indefinite `P` does too (`quad_form(x, [1 0; 0 -1])` is
+`x[1]^2 - x[2]^2`). `isposdef` matches the `semidefinite_domain()` the rule
+declares, so a singular positive semidefinite `P` gets no certificate.
 
 ### Special Cases for ^(x, i)
 

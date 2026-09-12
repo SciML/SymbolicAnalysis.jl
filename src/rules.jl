@@ -53,6 +53,19 @@ These values are accepted by [`add_dcprule`](@ref).
 # values), so use it before any `isa Number` dispatch.
 constval(x) = Symbolics.value(x)
 
+# Whether an argument is a constant rather than something to optimize over.
+# Bilinear atoms (`dot`, `dotsort`, `quad_form`, `huber`'s threshold) are convex
+# only in that case, and the static rule table has no way to say so.
+# A constant array arrives as a wrapped `Matrix`/`Vector` — neither `issym` nor
+# `iscall` — while a symbolic one arrives as an `array_literal` call, so the test
+# has to look through `constval` rather than at the node kind.
+function isconstarg(x)
+    v = constval(x)
+    v isa Number && return true
+    v isa AbstractArray && return all(y -> constval(y) isa Number, v)
+    return false
+end
+
 struct CustomDomain{T} <: Domain{T}
     in::Function
 end

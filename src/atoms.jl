@@ -42,13 +42,23 @@ function dotsort(x::AbstractVector, y::AbstractVector)
     return dot(sort(x), sort(y))
 end
 Symbolics.@register_symbolic dotsort(x::AbstractVector, y::AbstractVector)
-add_dcprule(
-    dotsort,
-    (array_domain(RealLine(), 1), array_domain(RealLine(), 1)),
-    AnySign,
-    Convex,
-    (AnyMono, increasing_if_positive ∘ minimum)
-)
+
+"""
+    dcprule(::typeof(dotsort), x, y)
+
+`dotsort` is a pointwise maximum of bilinear forms, so — like `dot` — it is a
+convex atom only when one side is constant. With both sides symbolic it is
+indefinite: for length-1 vectors it is literally `x[1]*y[1]`.
+"""
+function dcprule(::typeof(dotsort), x, y)
+    args = (x, y)
+    vec = array_domain(RealLine(), 1)
+    isconstarg(x) || isconstarg(y) ||
+        return makerule((vec, vec), AnySign, UnknownCurvature, AnyMono), args
+    return makerule((vec, vec), AnySign, Convex, (AnyMono, increasing_if_positive ∘ minimum)),
+        args
+end
+hasdcprule(::typeof(dotsort)) = true
 
 add_dcprule(
     StatsBase.geomean,
@@ -254,13 +264,37 @@ function quad_form(x::AbstractVector, P::AbstractMatrix)
     return x' * P * x
 end
 Symbolics.@register_symbolic quad_form(x::AbstractVector, P::AbstractMatrix)
-add_dcprule(
-    quad_form,
-    (array_domain(RealLine(), 1), semidefinite_domain()),
-    Positive,
-    Convex,
-    (increasing_if_positive, Increasing)
-)
+
+"""
+    dcprule(::typeof(quad_form), x, P)
+
+`x'Px` is quadratic in `x` but **linear** in `P`, so it is convex only for a
+constant positive definite `P`. Registering it as unconditionally `Convex`
+certified both the both-symbolic form (indefinite: `quad_form([a], [b;;])` is
+`a^2*b`, whose second difference along `(1, -1)` is `-2`) and a constant
+indefinite `P` (`quad_form(x, [1 0; 0 -1])` is `x[1]^2 - x[2]^2`).
+
+`P` is checked with `isposdef`, matching the `semidefinite_domain()` the rule
+declares; a singular positive semidefinite `P` therefore gets no certificate.
+
+Slot 1 is only `increasing_if_positive` when `P` is **entrywise** nonnegative.
+`x'Px = Σ P[i,j]·x[i]·x[j]` is nondecreasing in each `x[i]` over the nonnegative
+orthant only then; positive definiteness alone does not give it. With
+`P = [1 -0.9; -0.9 1]` (which is positive definite) the composition certified
+`quad_form(exp.(v), P)` as `Convex` while it is not — the midpoint exceeds the
+chord by 1.92 between `v = [0.64, 2.0]` and `[1.64, 2.3]`.
+"""
+function dcprule(::typeof(quad_form), x, P)
+    args = (x, P)
+    dom = (array_domain(RealLine(), 1), semidefinite_domain())
+    Pv = constval(P)
+    if Pv isa AbstractMatrix && isconstarg(P) && issymmetric(Pv) && isposdef(Pv)
+        mono1 = all(>=(0), Pv) ? increasing_if_positive : AnyMono
+        return makerule(dom, Positive, Convex, (mono1, Increasing)), args
+    end
+    return makerule(dom, AnySign, UnknownCurvature, AnyMono), args
+end
+hasdcprule(::typeof(quad_form)) = true
 
 function quad_over_lin(x::AbstractVector{<:Real}, y::Real)
     if getsign(y) == Negative
@@ -427,7 +461,22 @@ function huber(x::Real, M::Real = 1)
     end
 end
 Symbolics.@register_symbolic huber(x::Real, M::Real)
-add_dcprule(huber, (RealLine(), HalfLine()), Positive, Convex, increasing_if_positive)
+
+"""
+    dcprule(::typeof(huber), x, M)
+
+Huber is convex in `x`, but for `abs(x) > M` it equals `2M*abs(x) - M^2`, which
+is **concave** in `M` (`d²/dM² = -2`). The threshold must therefore be a
+constant for the `Convex` certificate to hold.
+"""
+function dcprule(::typeof(huber), x, M)
+    args = (x, M)
+    dom = (RealLine(), HalfLine())
+    isconstarg(M) ||
+        return makerule(dom, AnySign, UnknownCurvature, AnyMono), args
+    return makerule(dom, Positive, Convex, increasing_if_positive), args
+end
+hasdcprule(::typeof(huber)) = true
 
 add_dcprule(imag, ℂ, AnySign, Affine, AnyMono)
 
