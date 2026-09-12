@@ -324,3 +324,48 @@ ws = Symbolics.scalarize(w)
 # (second difference at x = 3 is -0.0483 across h = 1e-2, 1e-3, 1e-4).
 @test SymbolicAnalysis.analyze(unwrap(log1p(x)^2)).curvature ==
     SymbolicAnalysis.UnknownCurvature
+
+# `/` had no rule at all, so every division fell through to UnknownCurvature.
+# It is bilinear like `*`: DCP only when one side is constant.
+@variables dn dd dv[1:3]
+# a declared positive domain — `analyze` overwrites Sign metadata during
+# propagation, so a VarDomain declaration is how the precondition is stated
+dpos = setmetadata(
+    dn, SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine{Number, :open}()
+)
+
+# a nonzero constant denominator is an affine rescaling
+@test SymbolicAnalysis.analyze(unwrap(dn / 2)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(exp(dn) / 2)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(log(dn) / 2)).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(exp(dn) / -2)).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(exp(dn) / -2)).sign == SymbolicAnalysis.Negative
+@test SymbolicAnalysis.analyze(unwrap(sum(dv) / 3)).curvature == SymbolicAnalysis.Affine
+
+# Symbolics folds constant division into a rational coefficient, so `getsign`
+# has to cover Rational — it threw a MethodError before.
+@test SymbolicAnalysis.analyze(unwrap(dn / 3 + dn / 3)).curvature ==
+    SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(-dn / 3 - dn / 3)).sign == SymbolicAnalysis.AnySign
+
+# A constant numerator is the `inv` atom, and Symbolics rewrites `inv(x)` and
+# `x^-n` through `/`, so this is also what gives negative powers their curvature.
+# It fires only on an established-positive denominator: `1/x` is defined and
+# concave below zero, so a sign-unknown argument gets no certificate.
+@test SymbolicAnalysis.analyze(unwrap(1 / dpos)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(1 / dpos)).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(-1 / dpos)).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(dpos^(-2))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(dpos^(-3))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(1 / dn)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(dn^(-2))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+# neither side constant
+@test SymbolicAnalysis.analyze(unwrap(dn / dd)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(exp(dn) / dd)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(dn^2 / dd)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
