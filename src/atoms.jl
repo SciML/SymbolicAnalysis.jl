@@ -630,3 +630,14 @@ end
 
 hasdcprule(op::SymbolicUtils.Mapper) = hasdcprule(op.f)
 dcprule(op::SymbolicUtils.Mapper, args...) = dcprule(op.f, args...)
+
+# A matrix or vector assembled from scalar expressions (`[u[1] u[2]; u[2] u[3]]`)
+# traces to a `SymbolicUtils.array_literal` term whose first argument is the size
+# tuple and whose remaining arguments are the elements in column-major order.
+# Assembling an array is a linear map of its elements, so the construction is
+# affine and monotonically increasing in each of them; without this rule the
+# assembled matrix carries no curvature, which in turn blocks every atom taking a
+# matrix argument (`logdet`, `eigmax`, ...) from composing.
+add_dcprule(
+    SymbolicUtils.array_literal, array_domain(RealLine()), AnySign, Affine, Increasing
+)
