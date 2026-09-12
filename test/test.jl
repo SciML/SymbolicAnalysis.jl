@@ -457,3 +457,41 @@ bxs = Symbolics.scalarize(bx)
 # <= max(M[i,i], M[j,j]), so the largest entry is on the diagonal.
 @test SymbolicAnalysis.analyze(unwrap(maximum(inv(LX)))).curvature ==
     SymbolicAnalysis.Convex
+
+
+# `find_curvature`'s `*` branch read `constval(args[1])` and required a `Number`,
+# so a constant *matrix* coefficient was rejected: `A*x - b` did not certify while
+# the broadcast `A*x .- b` did, and `norm(A*x - b)` — the least-squares objective —
+# came back UnknownCurvature. It now delegates to `mul_curvature`, which handles a
+# constant in any position and of any shape.
+@variables lx[1:3] lx2[1:2] lXm[1:3, 1:3] la lb
+lA = [1.0 2.0 3.0; 4.0 5.0 6.0]
+lbv = [1.0, 2.0]
+@test SymbolicAnalysis.analyze(unwrap(lA * lx - lbv)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(norm(lA * lx - lbv))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(lA * lx - lbv))).curvature ==
+    SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(maximum(lA * lx - lbv))).curvature ==
+    SymbolicAnalysis.Convex
+
+# A linear map preserves a *curvature* only when its coefficients share a sign;
+# a mixed-sign constant matrix sums convex and concave terms. An affine argument
+# stays affine whatever the coefficients are.
+lApos = [1.0 2.0; 3.0 4.0]
+lAmix = [1.0 -2.0; 3.0 -4.0]
+@test SymbolicAnalysis.analyze(unwrap(lApos * exp.(lx2))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap((-lApos) * exp.(lx2))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(lAmix * exp.(lx2))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(lAmix * lx2)).curvature == SymbolicAnalysis.Affine
+
+# two non-constant factors are not DCP in any position
+@test SymbolicAnalysis.analyze(unwrap(la * lb)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(lXm * lx)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(sum(lXm * lx))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
