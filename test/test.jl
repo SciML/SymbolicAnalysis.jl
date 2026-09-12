@@ -271,3 +271,22 @@ ws = Symbolics.scalarize(w)
 @test SymbolicAnalysis.analyze(unwrap(tr(Xm * Xm))).curvature ==
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(tr(Xm))).curvature == SymbolicAnalysis.Affine
+
+# The elementwise `x .^ i` traces to `broadcast(^, x, i)` with an array base too,
+# but applies the power pointwise, so the scalar laws do hold there and the
+# matrix-power guard above must not reject it.
+@test SymbolicAnalysis.analyze(unwrap(w .^ 2)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 2))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 0.5))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(sum(Xm .^ 2))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(norm(w .^ 2, 1))).curvature ==
+    SymbolicAnalysis.Convex
+
+# A symbolic exponent has no fixed curvature law; it must degrade rather than throw
+# from the `isinteger` comparisons.
+@variables p
+@test SymbolicAnalysis.analyze(unwrap(q^p)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(sum(w .^ p))).curvature ==
+    SymbolicAnalysis.UnknownCurvature

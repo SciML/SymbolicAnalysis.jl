@@ -515,33 +515,43 @@ add_dcprule(max, (RealLine(), RealLine()), AnySign, Convex, Increasing)
 add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 
 # special cases which depend on arguments:
+# The scalar power laws, shared by `x^i` and the elementwise `x .^ i`.
+function power_rule(i)
+    unknown = makerule(RealLine(), AnySign, UnknownCurvature, AnyMono)
+    # A symbolic exponent has no fixed curvature law, and `isinteger` would throw on
+    # one rather than degrade to an uncertified answer.
+    i isa Number || return unknown
+    if isone(i)
+        return makerule(RealLine(), AnySign, Affine, Increasing)
+    elseif isinteger(i) && iseven(i)
+        return makerule(RealLine(), Positive, Convex, increasing_if_positive)
+    elseif isinteger(i) && isodd(i)
+        return makerule(HalfLine(), Positive, Convex, Increasing)
+    elseif i >= 1
+        return makerule(HalfLine(), Positive, Convex, Increasing)
+    elseif i > 0 && i < 1
+        return makerule(HalfLine(), Positive, Concave, Increasing)
+    elseif i < 0
+        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing)
+    end
+    return unknown
+end
+
 function dcprule(::typeof(^), x::Symbolic, i)
     # A literal exponent is wrapped as a constant `BasicSymbolic`, so
-    # `isinteger`/`isone`/comparisons below would operate on a symbolic and error;
-    # `Symbolics.value` unwraps it to the underlying number (identity for an
-    # already-numeric exponent).
+    # `isinteger`/`isone`/comparisons would operate on a symbolic and error;
+    # `Symbolics.value` unwraps it (identity for an already-numeric exponent).
     i = Symbolics.value(i)
     args = (x, i)
-    # These are the scalar power laws. A matrix power is a different function:
-    # `tr(X^2)` for an unconstrained `X` is indefinite (it contains cross terms
-    # `X[i,j]*X[j,i]`), so applying "even integer power is convex" to a matrix
-    # base would certify a non-convex expression.
+    # `X^2` on a matrix base is `X*X`, a different function from the scalar law:
+    # `tr(X^2)` for an unconstrained `X` is indefinite (cross terms `X[i,j]*X[j,i]`),
+    # so applying "even integer power is convex" there would certify a non-convex
+    # expression. The elementwise `x .^ 2` arrives through `broadcast` instead and
+    # is handled by `power_rule` directly, where the scalar law does hold.
     if SymbolicUtils.symtype(x) <: AbstractArray
         return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
     end
-    if isone(i)
-        return makerule(RealLine(), AnySign, Affine, Increasing), args
-    elseif isinteger(i) && iseven(i)
-        return makerule(RealLine(), Positive, Convex, increasing_if_positive), args
-    elseif isinteger(i) && isodd(i)
-        return makerule(HalfLine(), Positive, Convex, Increasing), args
-    elseif i >= 1
-        return makerule(HalfLine(), Positive, Convex, Increasing), args
-    elseif i > 0 && i < 1
-        return makerule(HalfLine(), Positive, Concave, Increasing), args
-    elseif i < 0
-        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing), args
-    end
+    return power_rule(i), args
 end
 dcprule(::typeof(Base.literal_pow), f, x...) = dcprule(^, x...)
 
@@ -609,7 +619,14 @@ function dcprule(::typeof(broadcast), f, x...)
     # The broadcasted function is wrapped as a constant symbolic (e.g.
     # `broadcast(exp, z)` carries a symbolic `exp`); `Symbolics.value` recovers the
     # underlying function (identity for a plain function).
-    return dcprule(Symbolics.value(f), x...)
+    g = Symbolics.value(f)
+    # A broadcast applies `g` elementwise, so the scalar power laws hold even though
+    # the base is an array; the matrix-power guard in `dcprule(::typeof(^), ...)`
+    # must not fire here (it would reject `x .^ 2`).
+    if g === (^) && length(x) == 2
+        return power_rule(Symbolics.value(x[2])), x
+    end
+    return dcprule(g, x...)
 end
 hasdcprule(::typeof(broadcast)) = true
 
