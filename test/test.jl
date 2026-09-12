@@ -210,3 +210,36 @@ ex = propagate_curvature(propagate_sign(ex))
 ex = eigmin(X) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.Concave
+
+# A matrix assembled from scalar variables traces to a SymbolicUtils.array_literal
+# term. Without a rule for it the assembled matrix has no curvature, so every atom
+# taking a matrix argument fails to compose: logdet/eigmax of such a matrix
+# analyzed as UnknownCurvature even though each entry is affine.
+@variables m[1:3]
+ms = Symbolics.scalarize(m)
+M = [ms[1] ms[2]; ms[2] ms[3]]
+
+ex = SymbolicAnalysis.logdet(M) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Concave
+
+ex = -SymbolicAnalysis.logdet(M) |> unwrap        # the log-det barrier
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Convex
+
+ex = eigmax(M) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Convex
+
+ex = tr(M) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.Affine
+
+# The rule must not launder a non-affine entry into an affine matrix: `logdet` is
+# concave with AnyMono monotonicity, so it composes only over affine arguments.
+# Assembling from x^2 must therefore leave the result uncertified.
+@variables q
+Mq = [q^2 0.0; 0.0 q^2]
+ex = SymbolicAnalysis.logdet(Mq) |> unwrap
+ex = propagate_curvature(propagate_sign(ex))
+@test getcurvature(ex) == SymbolicAnalysis.UnknownCurvature
