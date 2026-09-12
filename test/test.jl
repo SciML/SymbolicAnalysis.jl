@@ -243,3 +243,31 @@ Mq = [q^2 0.0; 0.0 q^2]
 ex = SymbolicAnalysis.logdet(Mq) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.UnknownCurvature
+
+# Unsound certificates (#156): these returned a curvature that was wrong in the
+# permissive direction, which is worse than UnknownCurvature — a false Affine or
+# Convex can route a non-convex problem to a conic solver.
+
+# `find_curvature` fell through to Affine for a wrapped `Num` (a `Num` is not
+# itself a call), so a container of non-affine expressions certified as Affine.
+@variables w[1:3]
+ws = Symbolics.scalarize(w)
+@test SymbolicAnalysis.getcurvature(exp.(ws)) == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.getcurvature(log.(ws)) == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.find_curvature(exp(ws[1])) == SymbolicAnalysis.Convex
+# a container mixing convex and concave entries has no single curvature
+@test SymbolicAnalysis.getcurvature([exp(ws[1]), log(ws[2])]) ==
+    SymbolicAnalysis.UnknownCurvature
+
+# `dot` is bilinear: affine only when one side is constant. dot(x, x) is ‖x‖².
+@test SymbolicAnalysis.analyze(unwrap(dot(w, w))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(dot(ones(3), ws))).curvature ==
+    SymbolicAnalysis.Affine
+
+# The scalar power laws must not be applied to a matrix base: tr(X^2) for an
+# unconstrained X is indefinite (it contains cross terms X[i,j]*X[j,i]).
+@variables Xm[1:3, 1:3]
+@test SymbolicAnalysis.analyze(unwrap(tr(Xm * Xm))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(tr(Xm))).curvature == SymbolicAnalysis.Affine

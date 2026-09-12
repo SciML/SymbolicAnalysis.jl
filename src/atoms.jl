@@ -5,13 +5,25 @@ add_dcprule(-, RealLine(), AnySign, Affine, Decreasing)
 
 add_dcprule(Base.Ref, RealLine(), AnySign, Affine, AnyMono)
 
-add_dcprule(
-    dot,
-    (array_domain(RealLine()), array_domain(RealLine())),
-    AnySign,
-    Affine,
-    Increasing
-)
+"""
+    dcprule(::typeof(dot), x, y)
+
+`dot` is bilinear, so it is affine only when one side is constant: `dot(c, x)` is
+affine in `x`, but `dot(x, x)` is the quadratic `‖x‖²`. Registering it as
+unconditionally affine certified `dot(x, x)` as `Affine`, which is not a valid
+certificate, so the curvature depends on the arguments like `^` and `norm`.
+"""
+function dcprule(::typeof(dot), x, y)
+    args = (x, y)
+    affine = array_domain(RealLine())
+    # `issym`/`iscall` is how the multiplication rules spell "not a constant".
+    xconst = !(issym(x) || iscall(x))
+    yconst = !(issym(y) || iscall(y))
+    (xconst || yconst) &&
+        return makerule((affine, affine), AnySign, Affine, Increasing), args
+    return makerule((affine, affine), AnySign, UnknownCurvature, AnyMono), args
+end
+hasdcprule(::typeof(dot)) = true
 
 """
     dotsort(x, y)
@@ -510,6 +522,13 @@ function dcprule(::typeof(^), x::Symbolic, i)
     # already-numeric exponent).
     i = Symbolics.value(i)
     args = (x, i)
+    # These are the scalar power laws. A matrix power is a different function:
+    # `tr(X^2)` for an unconstrained `X` is indefinite (it contains cross terms
+    # `X[i,j]*X[j,i]`), so applying "even integer power is convex" to a matrix
+    # base would certify a non-convex expression.
+    if SymbolicUtils.symtype(x) <: AbstractArray
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
+    end
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
     elseif isinteger(i) && iseven(i)
