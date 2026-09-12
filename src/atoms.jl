@@ -509,7 +509,11 @@ end
 Symbolics.@register_symbolic lognormcdf(x::Real)
 add_dcprule(lognormcdf, RealLine(), Negative, Concave, Increasing)
 
-add_dcprule(log1p, Interval{:open, :open}(-1, Inf), Negative, Concave, Increasing)
+# `log1p` is negative only on `(-1, 0)`; it is positive on all of `(0, Inf)`, which
+# is inside its own declared domain. A `Negative` sign here made
+# `increasing_if_positive` hand `abs` a `Decreasing` slot, certifying the strictly
+# concave `abs(log1p(a))` (for `a > 0`) as `Convex`.
+add_dcprule(log1p, Interval{:open, :open}(-1, Inf), AnySign, Concave, Increasing)
 
 add_dcprule(max, (RealLine(), RealLine()), AnySign, Convex, Increasing)
 add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)

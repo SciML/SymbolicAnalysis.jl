@@ -154,7 +154,9 @@ true
 function analyze(ex, M::Union{AbstractManifold, Nothing} = nothing)
     ex = unwrap(ex)
     ex = canonize(ex)
-    ex = propagate_sign(ex)
+    # `M` gates the manifold-conditional signs in the GDCP rule table: they are
+    # only valid when the argument is constrained to that manifold.
+    ex = propagate_sign(ex, M)
     ex = propagate_curvature(ex)
     if isnothing(M)
         return AnalysisResult(getcurvature(ex), getsign(ex), nothing)

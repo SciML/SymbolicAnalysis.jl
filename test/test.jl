@@ -72,7 +72,11 @@ ex = propagate_curvature(propagate_sign(cons[1].lhs |> unwrap))
 @test getcurvature(ex) == SymbolicAnalysis.Affine
 
 ex = propagate_curvature(propagate_sign(cons[2].lhs))
-@test getcurvature(ex) == SymbolicAnalysis.Convex
+# `log1p(x)^2` is not convex: d²/dx² log(1+x)² = 2(1 - log(1+x))/(1+x)², which is
+# negative for x > e - 1. This certified Convex only because `log1p` declared a
+# `Negative` sign, which made `increasing_if_positive` hand `^2` a `Decreasing`
+# slot. With the sign corrected to AnySign the constraint is no longer DCP.
+@test getcurvature(ex) == SymbolicAnalysis.UnknownCurvature
 
 @variables x y z
 
@@ -289,4 +293,34 @@ ws = Symbolics.scalarize(w)
 @variables p
 @test SymbolicAnalysis.analyze(unwrap(q^p)).curvature == SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ p))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+# A wrong sign becomes a wrong curvature one level up, because
+# `increasing_if_positive` turns it into a monotonicity `abs` then composes over.
+
+# A geodesic rule's sign holds only on its manifold — `tr` is Positive on the SPD
+# cone — so it must not be consulted when no manifold was passed. It was, and
+# `abs(tr(X) + a^2)` certified Convex while |−2 + t²| is concave near t = 0.
+@test SymbolicAnalysis.getsign(propagate_sign(unwrap(tr(Xm)))) == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.getsign(propagate_sign(unwrap(eigmax(Xm)))) ==
+    SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(abs(tr(Xm) + x^2))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(abs(eigmax(Xm) + x^2))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+# `log1p` is negative only on (-1, 0) and positive on all of (0, Inf), so the
+# Negative it declared made `abs(log1p(a))` — strictly concave for a > 0 — Convex.
+@test SymbolicAnalysis.getsign(propagate_sign(unwrap(log1p(x)))) ==
+    SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(abs(log1p(x)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# `lognormcdf` is the log of a CDF, so its Negative sign is genuine and
+# `abs(lognormcdf(a)) = -lognormcdf(a)` stays Convex.
+@test SymbolicAnalysis.analyze(unwrap(abs(SymbolicAnalysis.lognormcdf(x)))).curvature ==
+    SymbolicAnalysis.Convex
+
+# Directly: the squared concave atom above, numerically concave for x > e - 1
+# (second difference at x = 3 is -0.0483 across h = 1e-2, 1e-3, 1e-4).
+@test SymbolicAnalysis.analyze(unwrap(log1p(x)^2)).curvature ==
     SymbolicAnalysis.UnknownCurvature

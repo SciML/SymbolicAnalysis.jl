@@ -306,20 +306,28 @@ end
 # successive overwrites: `*`/`+` aggregation wins over a GDCP rule, which wins
 # over a DCP rule, which wins over the `AnySign` default (also overwriting any
 # stale metadata from a previous analysis).
-function node_sign(ex)
+#
+# A GDCP rule's sign only holds on its manifold — `eigmax` is registered
+# `Positive` because every eigenvalue of an SPD matrix is — so it is consulted
+# only when manifold analysis was actually requested. Without the gate it leaked
+# into Euclidean analysis, where `eigmax(X)` for an unconstrained symmetric `X`
+# has no sign; that made `abs`'s `increasing_if_positive` resolve to `Increasing`
+# and certified `abs(eigmax(X))` as `Convex`, which is false.
+function node_sign(ex, M = nothing)
+    usegdcp = !isnothing(M)
     if iscall(ex)
         f = operation(ex)
         if Symbol(f) == :*
             return mul_sign(arguments(ex))
         elseif Symbol(f) == :+
             return add_sign(arguments(ex))
-        elseif hasgdcprule(f)
+        elseif usegdcp && hasgdcprule(f)
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign
         end
     elseif issym(ex)
-        if hasgdcprule(ex)
+        if usegdcp && hasgdcprule(ex)
             return gdcprule(ex)[1].sign
         elseif hasdcprule(ex)
             return dcprule(ex)[1].sign
@@ -328,7 +336,7 @@ function node_sign(ex)
     return AnySign
 end
 
-function propagate_sign(ex)
+function propagate_sign(ex, M = nothing)
     # Work on the raw symbolic so the sign metadata survives the walk on
     # Symbolics v7 (a `Num`/`Arr` wrapper round-trips through wrap/unwrap and drops
     # it). `analyze` already unwraps; mirror that for direct callers.
@@ -338,7 +346,7 @@ function propagate_sign(ex)
     # computed exactly once. Only symbols and calls are annotated — wrapped
     # constants can't carry metadata on older SymbolicUtils v4 releases, and
     # every getter already falls back correctly for them.
-    return Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x)) : x)(ex)
+    return Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x, M)) : x)(ex)
 end
 
 ### Curvature ###
