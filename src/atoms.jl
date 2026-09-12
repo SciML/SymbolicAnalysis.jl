@@ -194,6 +194,42 @@ add_dcprule(maximum, array_domain(RealLine()), AnySign, Convex, Increasing)
 
 add_dcprule(minimum, array_domain(RealLine()), AnySign, Concave, Increasing)
 
+# The matrix rules for `sqrt`, `log` and `inv` are stated in the Loewner order.
+# Operator concavity licenses PSD-weighted functionals — `tr(f(X))`, or
+# `sum(f(X)) = e'f(X)e` — but says nothing about a single entry `eᵢ'f(X)eⱼ`.
+const LOEWNER_MATRIX_ATOMS = (sqrt, log, inv)
+
+# Tests the *argument's* symtype, not the term's: `Postwalk` rebuilds each node
+# through `maketerm`, which re-infers the symtype from the operation, so an
+# annotated `sqrt(X)` reports `Real` rather than `Matrix{Real}` by the time the
+# curvature pass reaches it. A leaf argument keeps its own symtype.
+function is_loewner_matrix_term(x)
+    iscall(x) || return false
+    operation(x) in LOEWNER_MATRIX_ATOMS || return false
+    args = arguments(x)
+    return length(args) == 1 && SymbolicUtils.symtype(args[1]) <: AbstractArray{<:Any, 2}
+end
+
+"""
+    dcprule(::typeof(minimum), x)
+
+An entrywise `minimum` must not consume a Loewner-order matrix rule. The
+smallest entry of a positive definite matrix can be an off-diagonal one, so
+`minimum(sqrt(X))` and `minimum(log(X))` are indefinite over the SPD cone
+(second differences of −0.274 and −0.753 at one base point, +0.462 and +1.305
+at another) while both certified as `Concave`.
+
+`maximum` needs no such guard: for a positive definite `M`,
+`M[i,j] ≤ √(M[i,i]·M[j,j]) ≤ max(M[i,i], M[j,j])`, so the largest entry is
+always on the diagonal and `maximum(inv(X))` is a max of convex functions.
+"""
+function dcprule(::typeof(minimum), x)
+    dom = array_domain(RealLine())
+    is_loewner_matrix_term(x) &&
+        return makerule(dom, AnySign, UnknownCurvature, AnyMono), (x,)
+    return makerule(dom, AnySign, Concave, Increasing), (x,)
+end
+
 # `norm(x, p)` is only a norm (hence convex) for p >= 1. For 0 < p < 1 the
 # generalized "norm" (sum |x_i|^p)^(1/p) is concave on the nonnegative orthant
 # and has no DCP curvature for sign-unknown arguments; for p <= 0 it is not
@@ -734,7 +770,9 @@ end
 
 hasdcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(min)}) = true
 function dcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(min)}, args...)
-    return dcprules_dict[minimum], args
+    # Through `dcprule` rather than the rule table, so the Loewner-order guard
+    # applies — `minimum(sqrt(X))` reaches the reducer, never `minimum` itself.
+    return dcprule(minimum, args...)
 end
 
 hasdcprule(op::SymbolicUtils.Mapper) = hasdcprule(op.f)
