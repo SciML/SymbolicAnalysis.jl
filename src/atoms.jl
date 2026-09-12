@@ -634,43 +634,52 @@ add_dcprule(max, (RealLine(), RealLine()), AnySign, Convex, Increasing)
 add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 
 # special cases which depend on arguments:
-# The scalar power laws, shared by `x^i` and the elementwise `x .^ i`.
-function power_rule(i)
-    unknown = makerule(RealLine(), AnySign, UnknownCurvature, AnyMono)
-    # A symbolic exponent has no fixed curvature law, and `isinteger` would throw on
-    # one rather than degrade to an uncertified answer.
-    i isa Number || return unknown
-    if isone(i)
-        return makerule(RealLine(), AnySign, Affine, Increasing)
-    elseif isinteger(i) && iseven(i)
-        return makerule(RealLine(), Positive, Convex, increasing_if_positive)
-    elseif isinteger(i) && isodd(i)
-        return makerule(HalfLine(), Positive, Convex, Increasing)
-    elseif i >= 1
-        return makerule(HalfLine(), Positive, Convex, Increasing)
-    elseif i > 0 && i < 1
-        return makerule(HalfLine(), Positive, Concave, Increasing)
-    elseif i < 0
-        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing)
+
+# The scalar power laws, applied to a scalar base or elementwise to an array one.
+function power_rule(x, i)
+    args = (x, i)
+    if !(i isa Real)
+        # The power laws below all need a numeric exponent. The remaining case
+        # with a DCP curvature is a constant base: `c^g == exp(g*log(c))` is
+        # convex for `c > 0`, monotone in the direction of `log(c)`.
+        base = constval(x)
+        if base isa Real && base > 0
+            mono = base > 1 ? Increasing : base < 1 ? Decreasing : AnyMono
+            return makerule(RealLine(), Positive, Convex, (AnyMono, mono)), args
+        end
+        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
     end
-    return unknown
+    if isone(i)
+        return makerule(RealLine(), AnySign, Affine, Increasing), args
+    elseif isinteger(i) && iseven(i)
+        return makerule(RealLine(), Positive, Convex, increasing_if_positive), args
+    elseif isinteger(i) && isodd(i)
+        return makerule(HalfLine(), Positive, Convex, Increasing), args
+    elseif i >= 1
+        return makerule(HalfLine(), Positive, Convex, Increasing), args
+    elseif i > 0 && i < 1
+        return makerule(HalfLine(), Positive, Concave, Increasing), args
+    elseif i < 0
+        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing), args
+    end
+    return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
 end
 
 function dcprule(::typeof(^), x::Symbolic, i)
     # A literal exponent is wrapped as a constant `BasicSymbolic`, so
-    # `isinteger`/`isone`/comparisons would operate on a symbolic and error;
-    # `Symbolics.value` unwraps it (identity for an already-numeric exponent).
-    i = Symbolics.value(i)
-    args = (x, i)
-    # `X^2` on a matrix base is `X*X`, a different function from the scalar law:
-    # `tr(X^2)` for an unconstrained `X` is indefinite (cross terms `X[i,j]*X[j,i]`),
-    # so applying "even integer power is convex" there would certify a non-convex
-    # expression. The elementwise `x .^ 2` arrives through `broadcast` instead and
-    # is handled by `power_rule` directly, where the scalar law does hold.
+    # `isinteger`/`isone`/comparisons in `power_rule` would operate on a symbolic
+    # and error; `constval` unwraps it to the underlying number (identity for an
+    # already-numeric exponent).
+    i = constval(i)
+    # A matrix power is a different function from the scalar power laws:
+    # `tr(X^2)` for an unconstrained `X` is indefinite (it contains cross terms
+    # `X[i,j]*X[j,i]`), so "even integer power is convex" would certify a
+    # non-convex expression. An elementwise power is not this case; it reaches
+    # `power_rule` through the `broadcast` rule instead.
     if SymbolicUtils.symtype(x) <: AbstractArray
-        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), (x, i)
     end
-    return power_rule(i), args
+    return power_rule(x, i)
 end
 dcprule(::typeof(Base.literal_pow), f, x...) = dcprule(^, x...)
 
@@ -799,14 +808,34 @@ matrix power, `exp` is the matrix exponential — guard against the matrix meani
 in `dcprule` and restore the scalar law here.
 """
 elementwise_dcprule(f, args...) = dcprule(f, args...)
-elementwise_dcprule(::typeof(^), x, i) = power_rule(Symbolics.value(i)), (x, i)
+elementwise_dcprule(::typeof(^), x, i) = power_rule(x, constval(i))
 elementwise_dcprule(::typeof(exp), x) = @invoke dcprule(exp::Any, x)
 
+"""
+    dcprule(::typeof(broadcast), f, x...)
+
+A broadcast carries its function as the first argument, so the rule is the one
+`f` has when applied elementwise. Two cases are not a rule lookup: `*` has no
+table entry (it is special-cased by the multiplication helpers, which pick out
+the constant factor and flip the curvature on a negative one), and a broadcasted
+function with no rule at all must degrade to `UnknownCurvature` rather than fail
+the lookup.
+"""
 function dcprule(::typeof(broadcast), f, x...)
     # The broadcasted function is wrapped as a constant symbolic (e.g.
-    # `broadcast(exp, z)` carries a symbolic `exp`); `Symbolics.value` recovers the
+    # `broadcast(exp, z)` carries a symbolic `exp`); `constval` recovers the
     # underlying function (identity for a plain function).
-    return elementwise_dcprule(Symbolics.value(f), x...)
+    g = constval(f)
+    if Symbol(g) == :*
+        # Monotonicity in the non-constant factor is the direction of the
+        # constant one, so that the composition check downstream reproduces the
+        # flip `mul_curvature` has already applied.
+        s = const_factor_sign(x)
+        mono = s == Negative ? Decreasing : s == Positive ? Increasing : AnyMono
+        return makerule(array_domain(RealLine()), mul_sign(x), mul_curvature(x), mono), x
+    end
+    hasdcprule(g) || return no_rule(array_domain(RealLine()), x)
+    return elementwise_dcprule(g, x...)
 end
 hasdcprule(::typeof(broadcast)) = true
 
