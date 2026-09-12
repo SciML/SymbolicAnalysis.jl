@@ -22,6 +22,97 @@ dcprule(::typeof(dot), x, y)
 </details>
 
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.dotsort, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.dotsort, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(dotsort), x, y)
+```
+
+
+`dotsort` is a pointwise maximum of bilinear forms, so — like `dot` — it is a convex atom only when one side is constant. With both sides symbolic it is indefinite: for length-1 vectors it is literally `x[1]*y[1]`.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.huber, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.huber, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(huber), x, M)
+```
+
+
+Huber is convex in `x`, but for `abs(x) > M` it equals `2M*abs(x) - M^2`, which is **concave** in `M` (`d²/dM² = -2`). The threshold must therefore be a constant for the `Convex` certificate to hold.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.quad_form, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.quad_form, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(quad_form), x, P)
+```
+
+
+`x'Px` is quadratic in `x` but **linear** in `P`, so it is convex only for a constant positive definite `P`. Registering it as unconditionally `Convex` certified both the both-symbolic form (indefinite: `quad_form([a], [b;;])` is `a^2*b`, whose second difference along `(1, -1)` is `-2`) and a constant indefinite `P` (`quad_form(x, [1 0; 0 -1])` is `x[1]^2 - x[2]^2`).
+
+`P` is checked with `isposdef`, matching the `semidefinite_domain()` the rule declares; a singular positive semidefinite `P` therefore gets no certificate.
+
+Slot 1 is only `increasing_if_positive` when `P` is **entrywise** nonnegative. `x'Px = Σ P[i,j]·x[i]·x[j]` is nondecreasing in each `x[i]` over the nonnegative orthant only then; positive definiteness alone does not give it. With `P = [1 -0.9; -0.9 1]` (which is positive definite) the composition certified `quad_form(exp.(v), P)` as `Convex` while it is not — the midpoint exceeds the chord by 1.92 between `v = [0.64, 2.0]` and `[1.64, 2.3]`.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofexp, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofexp, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(exp), x)
+```
+
+
+`exp(X)` on a matrix is the matrix exponential, not the scalar law applied pointwise: `expm` is neither operator convex nor operator monotone, so `sum(exp(X))` and `tr(exp(X))` are indefinite even on the SPD cone. The elementwise `exp.(X)` arrives through `broadcast` and keeps the scalar law via `elementwise_dcprule`.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofminimum, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofminimum, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(minimum), x)
+```
+
+
+An entrywise `minimum` must not consume a Loewner-order matrix rule. The smallest entry of a positive definite matrix can be an off-diagonal one, so `minimum(sqrt(X))` and `minimum(log(X))` are indefinite over the SPD cone (second differences of −0.274 and −0.753 at one base point, +0.462 and +1.305 at another) while both certified as `Concave`.
+
+`maximum` needs no such guard: for a positive definite `M`, `M[i,j] ≤ √(M[i,i]·M[j,j]) ≤ max(M[i,i], M[j,j])`, so the largest entry is always on the diagonal and `maximum(inv(X))` is a max of convex functions.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.dotsort-Tuple{AbstractVector, AbstractVector}' href='#SymbolicAnalysis.dotsort-Tuple{AbstractVector, AbstractVector}'><span class="jlbinding">SymbolicAnalysis.dotsort</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
 
 
@@ -90,6 +181,23 @@ Returns the sum of the `k` smallest eigenvalues of `m`.
 - `k::Int`: The number of smallest eigenvalues to sum.
 ```
 
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.elementwise_dcprule-Tuple{Any, Vararg{Any}}' href='#SymbolicAnalysis.elementwise_dcprule-Tuple{Any, Vararg{Any}}'><span class="jlbinding">SymbolicAnalysis.elementwise_dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+elementwise_dcprule(f, args...)
+```
+
+
+The rule for `f` applied elementwise, as under a broadcast. Defaults to `f`'s own rule. Atoms that mean something different on a matrix than pointwise — `^` is a matrix power, `exp` is the matrix exponential — guard against the matrix meaning in `dcprule` and restore the scalar law here.
 
 
 <Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
