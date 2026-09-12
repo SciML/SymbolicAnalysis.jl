@@ -432,3 +432,28 @@ bxs = Symbolics.scalarize(bx)
 @test SymbolicAnalysis.analyze(unwrap(sum(exp.(ev)))).curvature ==
     SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(exp(ea))).curvature == SymbolicAnalysis.Convex
+
+
+# The matrix rules for `sqrt`, `log` and `inv` are Loewner-order statements.
+# Operator concavity licenses PSD-weighted functionals — `tr(f(X))` and
+# `sum(f(X)) = e'f(X)e` — but not a single entry, and the smallest entry of a
+# positive definite matrix can be off-diagonal. `minimum(sqrt(X))` certified
+# Concave while its second difference over the SPD cone takes both signs
+# (-1.63 and +1.03 over a 400-sample probe with symmetric directions).
+@variables LX[1:2, 1:2] Lv[1:2]
+@test SymbolicAnalysis.analyze(unwrap(minimum(sqrt(LX)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(minimum(log(LX)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# PSD-weighted consumers keep their certificates
+@test SymbolicAnalysis.analyze(unwrap(tr(sqrt(LX)))).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(sum(sqrt(LX)))).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(tr(inv(LX)))).curvature == SymbolicAnalysis.Convex
+# the elementwise and vector reductions are untouched
+@test SymbolicAnalysis.analyze(unwrap(minimum(log.(LX)))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(minimum(Lv))).curvature == SymbolicAnalysis.Concave
+# `maximum` needs no guard: for positive definite M, M[i,j] <= sqrt(M[i,i]*M[j,j])
+# <= max(M[i,i], M[j,j]), so the largest entry is on the diagonal.
+@test SymbolicAnalysis.analyze(unwrap(maximum(inv(LX)))).curvature ==
+    SymbolicAnalysis.Convex
