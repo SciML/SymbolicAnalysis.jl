@@ -416,3 +416,19 @@ bxs = Symbolics.scalarize(bx)
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.huber(bh, 1.0))).curvature ==
     SymbolicAnalysis.Convex
+
+
+# `exp(X)` on a matrix is the matrix exponential, not the scalar law applied
+# pointwise. `expm` is neither operator convex nor operator monotone, so
+# `sum(exp(X))` is indefinite — it fails even on SPD X with symmetric directions.
+@variables ex2[1:2, 1:2] ev[1:2] ea
+@test SymbolicAnalysis.analyze(unwrap(sum(exp(ex2)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(tr(exp(ex2)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# the elementwise form arrives through `broadcast` and keeps the scalar law
+@test SymbolicAnalysis.analyze(unwrap(tr(exp.(ex2)))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(exp.(ev)))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp(ea))).curvature == SymbolicAnalysis.Convex
