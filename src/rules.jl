@@ -347,6 +347,31 @@ setcurvature(ex::Union{Num, Symbolic}, curv) = setmetadata(ex, Curvature, curv)
 setcurvature(ex, curv) = ex
 getcurvature(ex::Union{Num, Symbolic}) = getmetadata(ex, Curvature)
 getcurvature(ex) = Affine
+
+# A container is as curved as its elements, so aggregate rather than falling
+# through to the `Affine` default for non-symbolic values: a plain
+# `Vector{Num}`/`Matrix{Num}` of non-affine entries is not affine. Mirrors
+# `getsign(::AbstractArray)`; elementwise curvatures combine as in a sum, since
+# every element must hold the claimed curvature for the container to.
+function getcurvature(ex::AbstractArray)
+    has_convex = false
+    has_concave = false
+    for e in ex
+        curv = find_curvature(e)
+        if curv == Affine
+            continue
+        elseif curv == Convex
+            has_concave && return UnknownCurvature
+            has_convex = true
+        elseif curv == Concave
+            has_convex && return UnknownCurvature
+            has_concave = true
+        else
+            return UnknownCurvature
+        end
+    end
+    return has_convex ? Convex : has_concave ? Concave : Affine
+end
 hascurvature(ex::Union{Num, Symbolic}) = hasmetadata(ex, Curvature)
 hascurvature(ex) = ex isa Real
 
@@ -472,6 +497,12 @@ end
 function find_curvature(ex)
     if hascurvature(ex)
         return getcurvature(ex)
+    end
+
+    # A `Num` is not itself a call, so without unwrapping it would fall through to
+    # the `Affine` default below and certify e.g. `exp(x)` as affine.
+    if ex isa Num
+        return find_curvature(Symbolics.unwrap(ex))
     end
 
     if iscall(ex)
