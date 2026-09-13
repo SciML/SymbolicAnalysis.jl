@@ -617,3 +617,38 @@ Al = rand(3, 3)
 @test SymbolicAnalysis.analyze(unwrap(logdet(Xl + Xl'))).curvature ==
     SymbolicAnalysis.Concave
 @test SymbolicAnalysis.analyze(unwrap(-logdet(2 * Xl))).curvature == SymbolicAnalysis.Convex
+
+# `dot`, `conv` and `kron` are linear in each argument separately but not
+# jointly, so each is affine only when all but one argument is constant.
+# `conv` and `kron` were registered unconditionally Affine; `dot`'s guard from
+# #157 tested `issym`/`iscall`, which a *Vector* of symbolics fails, so a
+# scalarized argument was read as constant.
+#
+# Asserted on the rules rather than through `analyze`: Symbolics expands all
+# three elementwise before analysis, so the registrations are unreachable today
+# and these would be false certificates only if that changed. The end-to-end
+# answers are UnknownCurvature either way, via `mul_curvature`.
+@variables mlx[1:3] mlX[1:2, 1:2]
+mlxs = Symbolics.scalarize(mlx)
+mlXu = unwrap(mlX)
+mlc = [1.0, 2.0, 3.0]
+mlA = [1.0 2.0; 3.0 4.0]
+
+@test SymbolicAnalysis.dcprule(SymbolicAnalysis.conv, mlc, mlxs)[1].curvature ==
+    SymbolicAnalysis.Affine
+@test SymbolicAnalysis.dcprule(SymbolicAnalysis.conv, mlxs, mlxs)[1].curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.dcprule(kron, mlA, mlXu)[1].curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.dcprule(kron, mlXu, mlXu)[1].curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.dcprule(dot, mlc, mlxs)[1].curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.dcprule(dot, mlxs, mlxs)[1].curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+# the end-to-end answers, unchanged by this PR, recorded so the gap is visible
+@test SymbolicAnalysis.analyze(unwrap(dot(mlc, mlxs))).curvature ==
+    SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.conv(mlc, mlxs))).curvature ==
+    SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.conv(mlxs, mlxs))).curvature ==
+    SymbolicAnalysis.UnknownCurvature

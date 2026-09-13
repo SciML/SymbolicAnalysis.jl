@@ -29,16 +29,28 @@ unconditionally affine certified `dot(x, x)` as `Affine`, which is not a valid
 certificate, so the curvature depends on the arguments like `^` and `norm`.
 """
 function dcprule(::typeof(dot), x, y)
-    args = (x, y)
-    affine = array_domain(RealLine())
-    # `issym`/`iscall` is how the multiplication rules spell "not a constant".
-    xconst = !(issym(x) || iscall(x))
-    yconst = !(issym(y) || iscall(y))
-    (xconst || yconst) &&
-        return makerule((affine, affine), AnySign, Affine, Increasing), args
-    return makerule((affine, affine), AnySign, UnknownCurvature, AnyMono), args
+    return multilinear_rule(array_domain(RealLine()), (x, y))
 end
 hasdcprule(::typeof(dot)) = true
+
+"""
+    multilinear_rule(domain, args)
+
+Shared by `dot`, `conv` and `kron`: each is linear in every argument separately
+but not jointly, so each is affine only when all but one argument is constant.
+`conv(x, x)` and `kron(X, X)` are quadratic in the same way `dot(x, x)` is.
+
+The affine case declares `AnyMono` rather than `Increasing` because the constant
+side holds the coefficients of the linear map and they may have either sign.
+That only refuses a *curved* argument such as `kron(C, exp.(X))`; an affine one
+composes without consulting monotonicity at all.
+"""
+function multilinear_rule(domain, args)
+    domains = ntuple(_ -> domain, length(args))
+    count(!isconstarg, args) > 1 &&
+        return makerule(domains, AnySign, UnknownCurvature, AnyMono), args
+    return makerule(domains, AnySign, Affine, AnyMono), args
+end
 
 """
     dotsort(x, y)
@@ -765,13 +777,8 @@ add_dcprule(sqrt, HalfLine(), Positive, Concave, Increasing)
 
 add_dcprule(xexpx, HalfLine, Positive, Convex, Increasing)
 
-add_dcprule(
-    conv,
-    (array_domain(RealLine(), 1), array_domain(RealLine(), 1)),
-    AnySign,
-    Affine,
-    AnyMono
-)
+dcprule(::typeof(conv), args...) = multilinear_rule(array_domain(RealLine(), 1), args)
+hasdcprule(::typeof(conv)) = true
 
 add_dcprule(cumsum, array_domain(RealLine()), AnySign, Affine, Increasing)
 
@@ -783,13 +790,8 @@ add_dcprule(diff, array_domain(RealLine()), AnySign, Affine, Increasing)
 
 add_dcprule(hcat, array_domain(array_domain(RealLine(), 1), 1), AnySign, Affine, Increasing)
 
-add_dcprule(
-    kron,
-    (array_domain(RealLine(), 2), array_domain(RealLine(), 2)),
-    AnySign,
-    Affine,
-    Increasing
-)
+dcprule(::typeof(kron), args...) = multilinear_rule(array_domain(RealLine(), 2), args)
+hasdcprule(::typeof(kron)) = true
 
 add_dcprule(reshape, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 
