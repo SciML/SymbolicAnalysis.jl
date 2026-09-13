@@ -252,3 +252,27 @@ anres = analyze(ex, M)
 @test analyze(tr(X), M).sign == SymbolicAnalysis.Positive
 @test analyze(eigmax(X), M).sign == SymbolicAnalysis.Positive
 @test analyze(tr(X)).sign == SymbolicAnalysis.AnySign
+
+# A Euclidean rule does not imply a geodesic one. `find_gcurvature` used to fall
+# back to the Euclidean rule table for any atom without a geodesic rule and treat
+# that curvature as geodesic, which certified `eigmin(X)` GConcave on the SPD cone
+# from its Euclidean Concave. Refuted: between A and B below, both SPD, the
+# geodesic midpoint gives eigmin 2.3890 against a chord of 3.8712 — below the
+# chord, so concavity fails.
+@test analyze(unwrap(eigmin(X)), M).gcurvature == SymbolicAnalysis.GUnknownCurvature
+@test analyze(unwrap(sqrt(X)), M).gcurvature == SymbolicAnalysis.GUnknownCurvature
+@test analyze(unwrap(norm(X)), M).gcurvature == SymbolicAnalysis.GUnknownCurvature
+
+# the numeric witness, so the assertion above is not just a recorded opinion
+let A = [7.7517 1.132; 1.132 8.8903], B = [2.8936 0.3831; 0.3831 0.7551]
+    M2 = Manifolds.SymmetricPositiveDefinite(2)
+    γ = Manifolds.shortest_geodesic(M2, A, B, 0.5)
+    @test eigmin(Symmetric(γ)) < (eigmin(Symmetric(A)) + eigmin(Symmetric(B))) / 2
+end
+
+# Atoms with a real geodesic rule keep it, and a Euclidean rule may still supply a
+# composition over an argument that already carries one.
+@test analyze(unwrap(tr(X)), M).gcurvature == SymbolicAnalysis.GConvex
+@test analyze(unwrap(eigmax(X)), M).gcurvature == SymbolicAnalysis.GConvex
+@test analyze(unwrap(logdet(X)), M).gcurvature == SymbolicAnalysis.GLinear
+@test analyze(unwrap(log(tr(X))), M).gcurvature == SymbolicAnalysis.GConvex
