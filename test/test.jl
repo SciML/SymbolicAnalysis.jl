@@ -538,8 +538,10 @@ lAmix = [1.0 -2.0; 3.0 -4.0]
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(sin.(bx))).curvature ==
     SymbolicAnalysis.UnknownCurvature
-@test SymbolicAnalysis.analyze(unwrap(abs2.(bx))).curvature ==
-    SymbolicAnalysis.UnknownCurvature
+# `abs2` now has a rule, so the broadcast forwards to it and this is the
+# elementwise square — Convex. The assertion covers the forwarding path; the
+# genuine degradation controls above it are `bx .* bx` and `sin.(bx)`.
+@test SymbolicAnalysis.analyze(unwrap(abs2.(bx))).curvature == SymbolicAnalysis.Convex
 # `./` by a constant forwards to the `/` rule and is an affine rescaling — this
 # assertion exists to cover that forwarding path, not to claim a degradation.
 @test SymbolicAnalysis.analyze(unwrap(bx ./ 2.0)).curvature == SymbolicAnalysis.Affine
@@ -652,3 +654,42 @@ mlA = [1.0 2.0; 3.0 4.0]
     SymbolicAnalysis.Affine
 @test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.conv(mlxs, mlxs))).curvature ==
     SymbolicAnalysis.UnknownCurvature
+
+# Scalar atoms that had no rule and so analyzed as UnknownCurvature (#156 G10,
+# G22, G9, G11). The monotonicities are the load-bearing part: `abs2` and `cosh`
+# are even, so they increase only on the nonnegative half line, and `hypot` is
+# increasing in each argument only where that argument is.
+@variables na nb nXm[1:3, 1:3] nv[1:3]
+
+@test SymbolicAnalysis.analyze(unwrap(abs2(na))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(abs2(na))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(cosh(na))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp2(na))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp10(na))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(expm1(na))).curvature == SymbolicAnalysis.Convex
+# expm1 is negative below zero, unlike exp
+@test SymbolicAnalysis.analyze(unwrap(expm1(na))).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(log2(na))).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(log10(na))).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(hypot(na, nb))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(hypot(na, nb))).sign == SymbolicAnalysis.Positive
+
+# composition: an increasing-where-positive slot accepts a positive convex
+# argument and refuses a concave one
+@test SymbolicAnalysis.analyze(unwrap(cosh(exp(na)))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(hypot(na, exp(nb)))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(hypot(log(na), nb))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(abs2(log(na)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(exp2(log(na)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+# tril and transpose are linear, like the triu and adjoint already registered
+@test SymbolicAnalysis.analyze(unwrap(tril(nXm))).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(tr(tril(exp.(nXm))))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(transpose(nv))).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(sum(transpose(exp.(nv))))).curvature ==
+    SymbolicAnalysis.Convex
