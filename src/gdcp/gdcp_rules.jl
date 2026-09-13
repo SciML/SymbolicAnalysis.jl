@@ -239,6 +239,16 @@ function find_gcurvature(ex)
                         f_curvature = rule.gcurvature
                         f_monotonicity = rule.gmonotonicity
                         knowngcurv = true
+                    elseif Symbol(operation(args[i])) == :+ &&
+                            count(!isconstarg, arguments(args[i])) <= 1
+                        # A constant shift moves the atom by a constant, which leaves
+                        # its geodesic curvature alone: `tr(X + C) = tr(X) + tr(C)`.
+                        # Without this the rule is skipped and the Euclidean fallback
+                        # below was what rescued `tr(X + γI)`.
+                        rule, args = gdcprule(f, args...)
+                        f_curvature = rule.gcurvature
+                        f_monotonicity = rule.gmonotonicity
+                        knowngcurv = true
                     end
                 end
             end
@@ -261,7 +271,18 @@ function find_gcurvature(ex)
             end
         end
 
-        if !(knowngcurv) && hasdcprule(f)
+        # A Euclidean rule may supply the *composition* over an argument that already
+        # carries a geodesic curvature — `distance(M, A, X)^2` gets its shape from
+        # `^`'s Euclidean convex-increasing rule over a GConvex inner, soundly. It may
+        # NOT classify an atom on the manifold: where every argument is GLinear the
+        # Euclidean curvature is the only input and it implies nothing geodesically.
+        # That path certified `eigmin(X)` as GConcave on the SPD cone from its
+        # Euclidean `Concave`, but between A = [7.7517 1.132; 1.132 8.8903] and
+        # B = [2.8936 0.3831; 0.3831 0.7551] the geodesic midpoint gives 2.3890
+        # against a chord of 3.8712 — below it, so concavity is refuted.
+        if !knowngcurv
+            (hasdcprule(f) && any(a -> find_gcurvature(a) in (GConvex, GConcave), args)) ||
+                return GUnknownCurvature
             rule, args = dcprule(f, args...)
             f_curvature = rule.curvature
             f_monotonicity = rule.monotonicity
