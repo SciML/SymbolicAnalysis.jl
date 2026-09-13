@@ -115,6 +115,23 @@ Slot 1 is only `increasing_if_positive` when `P` is **entrywise** nonnegative. `
 </details>
 
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofbroadcast, Any, Vararg{Any}}' href='#SymbolicAnalysis.dcprule-Tuple{typeofbroadcast, Any, Vararg{Any}}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(broadcast), f, x...)
+```
+
+
+A broadcast carries its function as the first argument, so the rule is the one `f` has when applied elementwise. Two cases are not a rule lookup: `*` has no table entry (it is special-cased by the multiplication helpers, which pick out the constant factor and flip the curvature on a negative one), and a broadcasted function with no rule at all must degrade to `UnknownCurvature` rather than fail the lookup.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofexp, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofexp, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
 
 
@@ -334,6 +351,25 @@ Returns the quadratic form `x' * P^{-1} * x`.
 - `P::AbstractMatrix`: A matrix.
 ```
 
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.multilinear_rule-Tuple{Any, Any}' href='#SymbolicAnalysis.multilinear_rule-Tuple{Any, Any}'><span class="jlbinding">SymbolicAnalysis.multilinear_rule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+multilinear_rule(domain, args)
+```
+
+
+Shared by `dot`, `conv` and `kron`: each is linear in every argument separately but not jointly, so each is affine only when all but one argument is constant. `conv(x, x)` and `kron(X, X)` are quadratic in the same way `dot(x, x)` is.
+
+The affine case declares `AnyMono` rather than `Increasing` because the constant side holds the coefficients of the linear map and they may have either sign. That only refuses a _curved_ argument such as `kron(C, exp.(X))`; an affine one composes without consulting monotonicity at all.
 
 
 <Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
