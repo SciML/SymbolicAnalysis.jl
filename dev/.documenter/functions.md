@@ -5,6 +5,44 @@
 
 Since some atoms are not available in the base language or other packages we have implemented them here.
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeof-, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeof-, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(-), x[, y])
+```
+
+
+Unary `-x` is decreasing, but binary `x - y` is _increasing_ in `x` and decreasing only in `y`. A single declared monotonicity is broadcast to every argument by `get_arg_property`, so registering `Decreasing` flipped the first slot too: `exp.(v) .- w`, whose Hessian is `diag(exp(vᵢ)) ⪰ 0`, certified as `Concave`. Scalar `a - b` never reaches here — Symbolics rewrites it to `a + (-1)*b` — but the broadcast form does.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeof/, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeof/, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(/), num, den)
+```
+
+
+`/` is bilinear in the same sense as `*`, so it is DCP only when one side is constant. A nonzero constant denominator is an affine rescaling, flipping curvature and sign when it is negative.
+
+A constant numerator is the `inv` atom: `c/x` is convex-decreasing for `c > 0` and concave-increasing for `c < 0` — but **only on `x > 0`**, and the denominator must be _known_ positive for the rule to fire. That is deliberately stricter than the unchecked-precondition convention `log`, `sqrt` and `geomean` use, and the asymmetry is the point: those are only wrong where the function does not exist, whereas `1/x` exists for every nonzero `x` and is _concave_ below zero. Certifying it `Convex` for a sign-unknown argument would be a false certificate over the function's own real domain — `f(-1) = -1`, `f(2) = 0.5`, and the midpoint `f(0.5) = 2` is far above the chord `-0.25`.
+
+Symbolics rewrites `inv(x)` to `/(1, x)` and `x^-n` to `/(1, x)^n`, so this rule is also what gives those their curvature.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofLinearAlgebra.dot, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofLinearAlgebra.dot, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
 
 
