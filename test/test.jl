@@ -495,3 +495,23 @@ lAmix = [1.0 -2.0; 3.0 -4.0]
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(sum(lXm * lx))).curvature ==
     SymbolicAnalysis.UnknownCurvature
+
+# Binary `-` is increasing in its first argument; only the second is decreasing.
+# A single declared monotonicity is broadcast to every slot, so `Decreasing`
+# flipped the first one too and `exp.(v) .- w` — Hessian diag(exp(vᵢ)) ⪰ 0 —
+# certified as Concave. Scalar `a - b` never reaches the rule (Symbolics rewrites
+# it to `a + (-1)*b`); the broadcast form does.
+@variables mv[1:2] mw[1:2] ma
+@test SymbolicAnalysis.analyze(unwrap(mv .- mw)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(exp.(mv) .- mw)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(exp.(mv) .- mw))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(log.(mv) .- mw))).curvature ==
+    SymbolicAnalysis.Concave
+# convex - convex is indefinite, and unary `-` stays decreasing
+@test SymbolicAnalysis.analyze(unwrap(sum(exp.(mv) .- exp.(mw)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(sum(.-(exp.(mv))))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(-exp(ma))).curvature == SymbolicAnalysis.Concave
