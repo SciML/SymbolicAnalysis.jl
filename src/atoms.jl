@@ -495,9 +495,22 @@ add_dcprule(tv, array_domain(array_domain(RealLine(), 2), 1), Positive, Convex, 
 
 add_dcprule(abs, ℂ, Positive, Convex, increasing_if_positive)
 
+# `abs2(x) = |x|²` is a squared norm, so it shares `abs`'s shape: convex,
+# nonnegative, and increasing only where its argument is.
+add_dcprule(abs2, ℂ, Positive, Convex, increasing_if_positive)
+
 add_dcprule(conj, ℂ, AnySign, Affine, AnyMono)
 
 add_dcprule(exp, RealLine(), Positive, Convex, Increasing)
+add_dcprule(exp2, RealLine(), Positive, Convex, Increasing)
+add_dcprule(exp10, RealLine(), Positive, Convex, Increasing)
+# `expm1` shares `exp`'s curvature but is negative below zero.
+add_dcprule(expm1, RealLine(), AnySign, Convex, Increasing)
+# `cosh` is even, so it increases only on the nonnegative half line.
+add_dcprule(cosh, RealLine(), Positive, Convex, increasing_if_positive)
+# `hypot(x, y)` is the Euclidean norm of `(x, y)`: convex and nonnegative, and
+# increasing in each argument only where that argument is nonnegative.
+add_dcprule(hypot, (RealLine(), RealLine()), Positive, Convex, increasing_if_positive)
 
 """
     dcprule(::typeof(exp), x)
@@ -560,6 +573,9 @@ add_dcprule(imag, ℂ, AnySign, Affine, AnyMono)
 
 add_dcprule(inv, HalfLine{Real, :open}(), Positive, Convex, Decreasing)
 add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
+# `log2`/`log10` are `log` rescaled by a positive constant.
+add_dcprule(log2, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
+add_dcprule(log10, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 
 # Matrix-valued atoms (`log`, `inv`, `sqrt` of a symbolic matrix). On Symbolics
 # v7 / SymbolicUtils v4 a symbolic matrix unwraps to `BasicSymbolic{SymReal}` —
@@ -795,6 +811,8 @@ hasdcprule(::typeof(kron)) = true
 
 add_dcprule(reshape, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 
+add_dcprule(tril, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
+
 add_dcprule(triu, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 
 add_dcprule(vec, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
@@ -844,6 +862,10 @@ hasdcprule(::typeof(broadcast)) = true
 # add_dcprule(broadcast, (function_domain, array_domain(RealLine())), AnySign, Affine, (AnyMono, AnyMono))
 
 add_dcprule(Base.adjoint, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
+# `Base.transpose`, not `LinearAlgebra.transpose`: on Julia 1.13 the owner is
+# `Base` and the name is no longer public in `LinearAlgebra`, exactly as for
+# `adjoint` just above. They are the same function on every supported version.
+add_dcprule(Base.transpose, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
 add_dcprule(Base.getindex, array_domain(RealLine(), 1), AnySign, Affine, AnyMono)
 
 # On Symbolics v7 / SymbolicUtils v4, reductions and maps over symbolic arrays
