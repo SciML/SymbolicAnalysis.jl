@@ -37,13 +37,21 @@ This page is intended to be a reference for the atoms that are currently impleme
 | tv                        | array_domain(ℝ, 1)                                                             | Positive  | Convex    | AnyMono                              |
 | tv                        | array_domain(array_domain(ℝ, 2), 1)                                            | Positive  | Convex    | AnyMono                              |
 | abs                       | ℂ                                                                              | Positive  | Convex    | increasing_if_positive               |
+| abs2                      | ℂ                                                                              | Positive  | Convex    | increasing_if_positive               |
 | conj                      | ℂ                                                                              | AnySign   | Affine    | AnyMono                              |
 | exp                       | ℝ                                                                              | Positive  | Convex    | Increasing                           |
+| exp2                      | ℝ                                                                              | Positive  | Convex    | Increasing                           |
+| exp10                     | ℝ                                                                              | Positive  | Convex    | Increasing                           |
+| expm1                     | ℝ                                                                              | AnySign   | Convex    | Increasing                           |
+| cosh                      | ℝ                                                                              | Positive  | Convex    | increasing_if_positive               |
+| hypot                     | (ℝ, ℝ)                                                                         | Positive  | Convex    | increasing_if_positive               |
 | xlogx                     | ℝ                                                                              | AnySign   | Convex    | AnyMono                              |
 | huber                     | (ℝ, HalfLine())                                                                | See below | See below | See below                            |
 | imag                      | ℂ                                                                              | AnySign   | Affine    | AnyMono                              |
 | inv                       | HalfLine{Real,:open}()                                                         | Positive  | Convex    | Decreasing                           |
 | log                       | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                           |
+| log2                      | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                           |
+| log10                     | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                           |
 | log                       | array_domain(ℝ, 2)                                                             | Positive  | Concave   | Increasing                           |
 | inv                       | semidefinite_domain()                                                          | AnySign   | Convex    | Decreasing                           |
 | sqrt                      | semidefinite_domain()                                                          | Positive  | Concave   | Increasing                           |
@@ -63,6 +71,8 @@ This page is intended to be a reference for the atoms that are currently impleme
 | diag                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                           |
 | diff                      | array_domain(ℝ)                                                                | AnySign   | Affine    | Increasing                           |
 | kron                      | (array_domain(ℝ, 2), array_domain(ℝ, 2))                                       | AnySign   | Affine    | Increasing                           |
+| tril                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                           |
+| transpose                 | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                           |
 
 
 ### Bilinear atoms {#Bilinear-atoms}
