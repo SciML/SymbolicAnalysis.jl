@@ -256,6 +256,13 @@ setsign(ex::Union{Num, Symbolic}, sign) = setmetadata(ex, Sign, sign)
 setsign(ex, sign) = ex
 
 function symbolic_sign(ex)
+    # An assembled array aggregates its elements' signs, as `getsign(::AbstractArray)`
+    # does for a plain container, but it cannot be read back from metadata: the
+    # curvature pass rebuilds each node through `maketerm`, which drops what the sign
+    # pass wrote on an `array_literal`. Argument 1 is the size tuple.
+    if iscall(ex) && operation(ex) === SymbolicUtils.array_literal
+        return add_sign(@view arguments(ex)[2:end])
+    end
     if hasmetadata(ex, Sign)
         return getmetadata(ex, Sign)
     end
