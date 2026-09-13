@@ -1,7 +1,22 @@
 ### DCP atom rules
 
 add_dcprule(+, RealLine(), AnySign, Affine, Increasing)
-add_dcprule(-, RealLine(), AnySign, Affine, Decreasing)
+
+"""
+    dcprule(::typeof(-), x[, y])
+
+Unary `-x` is decreasing, but binary `x - y` is *increasing* in `x` and
+decreasing only in `y`. A single declared monotonicity is broadcast to every
+argument by `get_arg_property`, so registering `Decreasing` flipped the first
+slot too: `exp.(v) .- w`, whose Hessian is `diag(exp(vᵢ)) ⪰ 0`, certified as
+`Concave`. Scalar `a - b` never reaches here — Symbolics rewrites it to
+`a + (-1)*b` — but the broadcast form does.
+"""
+dcprule(::typeof(-), x) = makerule(RealLine(), AnySign, Affine, Decreasing), (x,)
+function dcprule(::typeof(-), x, y)
+    return makerule(RealLine(), AnySign, Affine, (Increasing, Decreasing)), (x, y)
+end
+hasdcprule(::typeof(-)) = true
 
 add_dcprule(Base.Ref, RealLine(), AnySign, Affine, AnyMono)
 
