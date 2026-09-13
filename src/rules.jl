@@ -245,7 +245,10 @@ function getsign(ex::Union{Num, Symbolic})
     return AnySign
 end
 
-getsign(ex::Union{AbstractFloat, Integer}) = ex < 0 ? Negative : Positive
+# `Rational` is in the union because Symbolics folds constant division into a
+# rational coefficient: `a/3 + a/3` becomes `(2//3)*a`, and `hassign` already
+# claims every `Real` has a sign.
+getsign(ex::Union{AbstractFloat, Integer, Rational}) = ex < 0 ? Negative : Positive
 
 function getsign(ex::AbstractArray)
     if all(x -> getsign(x) == Negative, ex)
