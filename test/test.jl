@@ -693,3 +693,113 @@ mlA = [1.0 2.0; 3.0 4.0]
 @test SymbolicAnalysis.analyze(unwrap(transpose(nv))).curvature == SymbolicAnalysis.Affine
 @test SymbolicAnalysis.analyze(unwrap(sum(transpose(exp.(nv))))).curvature ==
     SymbolicAnalysis.Convex
+
+# Atoms destroyed by tracing (#156 G7, G8, G19, G20, G21): a generic method expanded
+# the registered atom before the analysis pass saw it, leaving its rule unreachable.
+curv_of(ex) = SymbolicAnalysis.analyze(unwrap(ex)).curvature
+
+@variables zv[1:4]
+zvs = Symbolics.scalarize(zv)
+
+# Only the `Arr` spelling stopped at an atom; `scalarize`/`diff` produce a `Vector`.
+@test Symbolics.operation(unwrap(norm(zvs))) === norm
+@test Symbolics.operation(unwrap(LogExpFunctions.logsumexp(zvs))) ===
+    LogExpFunctions.logsumexp
+for p in (1, 2, 3, Inf)
+    @test curv_of(norm(zvs, p)) == SymbolicAnalysis.Convex
+end
+@test curv_of(norm(zvs)) == SymbolicAnalysis.Convex
+@test curv_of(norm(diff(zv))) == SymbolicAnalysis.Convex
+@test curv_of(LogExpFunctions.logsumexp(zvs)) == SymbolicAnalysis.Convex
+@test curv_of(LogExpFunctions.logsumexp(exp.(zvs))) == SymbolicAnalysis.Convex
+@test curv_of(norm(log.(zvs))) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(LogExpFunctions.logsumexp(log.(zvs))) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(norm(zvs, 0.5)) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(norm(zvs, -1)) == SymbolicAnalysis.UnknownCurvature
+
+# The vector reaches the atom as an `array_literal`, whose rule declares a static
+# `AnySign`. Reading that back instead of the elements' signs yields `AnyMono` and
+# costs the three below a certificate they had while `norm` expanded to `sum(abs.(v))`.
+let arg = Symbolics.arguments(propagate_sign(unwrap(norm(exp.(zvs), 1))))[1]
+    @test Symbolics.operation(arg) === SymbolicAnalysis.SymbolicUtils.array_literal
+    @test getsign(arg) == SymbolicAnalysis.Positive
+end
+let arg = Symbolics.arguments(propagate_sign(unwrap(norm(zvs, 1))))[1]
+    @test getsign(arg) == SymbolicAnalysis.AnySign
+end
+@test curv_of(norm(exp.(zvs), 1)) == SymbolicAnalysis.Convex
+@test curv_of(norm(abs.(zvs), 1)) == SymbolicAnalysis.Convex
+@test curv_of(norm(exp.(zvs))) == SymbolicAnalysis.Convex
+
+# Curvatures verified by second differences before registering: `log1pexp'' > 0` on ℝ,
+# `logexpm1'' < 0` on `(0, ∞)`, a PSD Hessian for `logaddexp`, and `xexpx'' > 0` on
+# `[0, ∞)` but `-0.0498` at `x = -3` — which is why that domain is a half line.
+@variables s t
+s_pos = Symbolics.wrap(
+    setmetadata(
+        unwrap(s), SymbolicAnalysis.VarDomain,
+        Symbolics.DomainSets.HalfLine{Real, :open}()
+    )
+)
+
+for (f, expected) in (
+        (LogExpFunctions.log1pexp, SymbolicAnalysis.Convex),
+        (LogExpFunctions.logexpm1, SymbolicAnalysis.Concave),
+    )
+    @test Symbolics.operation(unwrap(f(s))) === f
+    @test curv_of(f(s)) == expected
+    @test curv_of(f(s_pos)) == expected
+end
+
+# `xexpx` is the one of the three that EXISTS outside its declared domain and is
+# concave there — second differences -0.0366 at x = -4 and -0.0498 at x = -3,
+# inflecting exactly at -2. So it establishes the precondition instead of assuming
+# it, as `/` does, and an unconstrained argument gets no certificate.
+@test Symbolics.operation(unwrap(LogExpFunctions.xexpx(s))) === LogExpFunctions.xexpx
+@test curv_of(LogExpFunctions.xexpx(s)) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(LogExpFunctions.xexpx(s_pos)) == SymbolicAnalysis.Convex
+@test curv_of(LogExpFunctions.xexpx(exp(s))) == SymbolicAnalysis.Convex
+
+@test Symbolics.operation(unwrap(LogExpFunctions.logaddexp(s, t))) ===
+    LogExpFunctions.logaddexp
+@test curv_of(LogExpFunctions.logaddexp(s, t)) == SymbolicAnalysis.Convex
+@test curv_of(LogExpFunctions.logaddexp(s, exp(t))) == SymbolicAnalysis.Convex
+@test curv_of(LogExpFunctions.logaddexp(s, log(t))) == SymbolicAnalysis.UnknownCurvature
+
+@test curv_of(-LogExpFunctions.log1pexp(s)) == SymbolicAnalysis.Concave
+@test curv_of(LogExpFunctions.log1pexp(s^2)) == SymbolicAnalysis.Convex
+@test curv_of(LogExpFunctions.log1pexp(log(s))) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(sum(LogExpFunctions.log1pexp.(zv))) == SymbolicAnalysis.Convex
+@test curv_of(LogExpFunctions.logexpm1(exp(s))) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(LogExpFunctions.xexpx(log(s))) == SymbolicAnalysis.UnknownCurvature
+
+@test LogExpFunctions.log1pexp(1.0) ≈ log(1 + exp(1.0))
+@test LogExpFunctions.logaddexp(1.0, 2.0) ≈ log(exp(1.0) + exp(2.0))
+@test LogExpFunctions.logexpm1(1.0) ≈ log(exp(1.0) - 1)
+@test LogExpFunctions.xexpx(2.0) ≈ 2.0 * exp(2.0)
+
+# `matrix_frac` registered a stub for the nonexistent name `AbstractMatrix_frac`, so
+# the atom expanded to `x' * inv(P) * x` and `canonize` handed it to `quad_form`.
+@test !isdefined(SymbolicAnalysis, :AbstractMatrix_frac)
+@variables mv[1:3] mP[1:3, 1:3]
+@test Symbolics.operation(unwrap(SymbolicAnalysis.matrix_frac(mv, mP))) ===
+    SymbolicAnalysis.matrix_frac
+@test curv_of(SymbolicAnalysis.matrix_frac(mv, mP)) == SymbolicAnalysis.Convex
+@test curv_of(SymbolicAnalysis.matrix_frac(exp.(mv), mP)) ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.matrix_frac([1.0, 2.0], [2.0 0.0; 0.0 4.0]) ≈ 1.5
+# the expansion this replaces summed `x[i]^2/P[i,i]` and so reported `Positive`
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.matrix_frac(Symbolics.scalarize(mv), Matrix(1.0I, 3, 3)))
+).sign == SymbolicAnalysis.AnySign
+
+# `xexpx` and `kldivergence` declared their domains as a *type*, so the `in` predicate
+# threw instead of answering. Asserted directly, off the rule-lookup path.
+let kldom = SymbolicAnalysis.dcprules_dict[SymbolicAnalysis.kldivergence].domain[1]
+    @test [0.5, 0.25] in kldom
+    @test !([0.5, -0.25] in kldom)
+end
+let xdom = SymbolicAnalysis.dcprule(LogExpFunctions.xexpx, unwrap(s_pos))[1].domain
+    @test 0.5 in xdom
+    @test !(-0.5 in xdom)
+end
