@@ -674,6 +674,62 @@ function dcprule(::typeof(^), x::Symbolic, i)
 end
 dcprule(::typeof(Base.literal_pow), f, x...) = dcprule(^, x...)
 
+"""
+    dcprule(::typeof(/), num, den)
+
+`/` is bilinear in the same sense as `*`, so it is DCP only when one side is
+constant. A nonzero constant denominator is an affine rescaling, flipping
+curvature and sign when it is negative.
+
+A constant numerator is the `inv` atom: `c/x` is convex-decreasing for `c > 0`
+and concave-increasing for `c < 0` — but **only on `x > 0`**, and the
+denominator must be *known* positive for the rule to fire. That is deliberately
+stricter than the unchecked-precondition convention `log`, `sqrt` and `geomean`
+use, and the asymmetry is the point: those are only wrong where the function
+does not exist, whereas `1/x` exists for every nonzero `x` and is *concave*
+below zero. Certifying it `Convex` for a sign-unknown argument would be a false
+certificate over the function's own real domain — `f(-1) = -1`, `f(2) = 0.5`,
+and the midpoint `f(0.5) = 2` is far above the chord `-0.25`.
+
+Symbolics rewrites `inv(x)` to `/(1, x)` and `x^-n` to `/(1, x)^n`, so this rule
+is also what gives those their curvature.
+"""
+function dcprule(::typeof(/), num, den)
+    args = (num, den)
+    nv = constval(num)
+    dv = constval(den)
+    unknown = makerule((RealLine(), RealLine()), AnySign, UnknownCurvature, AnyMono)
+    if dv isa Number
+        iszero(dv) && return unknown, args
+        mono = dv > 0 ? Increasing : Decreasing
+        return makerule((RealLine(), RealLine()), mul_sign(args), Affine, (mono, AnyMono)),
+            args
+    elseif nv isa Number && !iszero(nv) && known_positive(den)
+        domain = (RealLine(), HalfLine{Real, :open}())
+        return if nv > 0
+            makerule(domain, Positive, Convex, (AnyMono, Decreasing)), args
+        else
+            makerule(domain, Negative, Concave, (AnyMono, Increasing)), args
+        end
+    end
+    return unknown, args
+end
+hasdcprule(::typeof(/)) = true
+
+# Positivity established rather than assumed: either a propagated sign says so, or
+# the argument was declared on a domain inside the positive half line. `analyze`
+# overwrites `Sign` metadata during propagation, so a `VarDomain` declaration is
+# how a caller states the precondition durably.
+function known_positive(x)
+    getsign(x) == Positive && return true
+    _has_vardomain(x) || return false
+    return try
+        issubset(getmetadata(x, VarDomain), HalfLine{Real, :open}())
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
 hasdcprule(::typeof(^)) = true
 
 add_dcprule(real, ℂ, AnySign, Affine, Increasing)
