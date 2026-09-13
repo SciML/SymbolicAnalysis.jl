@@ -197,6 +197,27 @@ hasdcprule(f) = false
 # pirate and is strictly more robust (false for any non-symbolic argument).
 _has_vardomain(x) = (x isa Union{Num, Symbolic}) && hasmetadata(x, VarDomain)
 
+# Domain matching for rule selection. `ℂ` is how an atom that is unrestricted on
+# the reals is spelled (`abs`, `conj`, `real`, `imag`), but DomainSets cannot
+# decide `issubset(::HalfLine, ::ComplexNumbers)` — it answers `false` for some
+# element types and throws a `MethodError` for others — so a real argument domain
+# always matches it. Any other incomparable pair degrades to "no match".
+function subdomain(argdomain, ruledomain)
+    ruledomain === ℂ && return true
+    return try
+        issubset(argdomain, ruledomain)
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
+# Selected when no registered domain covers the declared argument domains. A
+# missing rule is not an error: `analyze` must return a curvature for every
+# well-formed expression, and `UnknownCurvature` is the conservative answer.
+function no_rule(argsdomain, args)
+    return makerule(argsdomain, AnySign, UnknownCurvature, AnyMono), args
+end
+
 function dcprule(f, args...)
     if all(_has_vardomain, args)
         argsdomain = getmetadata.(args, Ref(VarDomain))
@@ -211,26 +232,22 @@ function dcprule(f, args...)
     if dcprules_dict[f] isa Vector
         for rule in dcprules_dict[f]
             if (rule.domain isa Domain) &&
-                    all(issubset.(argsdomain, Ref(rule.domain)))
+                    all(subdomain.(argsdomain, Ref(rule.domain)))
                 return rule, args
             elseif !(rule.domain isa Domain) &&
-                    all(issubset.(argsdomain, rule.domain))
+                    all(subdomain.(argsdomain, rule.domain))
                 return rule, args
             end
         end
-        throw(
-            ArgumentError(
-                "No DCP rule found for $f with arguments $args with domain $argsdomain",
-            ),
-        )
+        return no_rule(argsdomain, args)
     elseif (dcprules_dict[f].domain isa Domain) &&
-            all(issubset.(argsdomain, Ref(dcprules_dict[f].domain)))
+            all(subdomain.(argsdomain, Ref(dcprules_dict[f].domain)))
         return dcprules_dict[f], args
     elseif dcprules_dict[f].domain isa Tuple &&
-            all(issubset.(argsdomain, dcprules_dict[f].domain))
+            all(subdomain.(argsdomain, dcprules_dict[f].domain))
         return dcprules_dict[f], args
     else
-        throw(ArgumentError("No DCP rule found for $f with arguments $args"))
+        return no_rule(argsdomain, args)
     end
 end
 
@@ -238,17 +255,22 @@ end
 setsign(ex::Union{Num, Symbolic}, sign) = setmetadata(ex, Sign, sign)
 setsign(ex, sign) = ex
 
-function getsign(ex::Union{Num, Symbolic})
+function symbolic_sign(ex)
     if hasmetadata(ex, Sign)
         return getmetadata(ex, Sign)
     end
     return AnySign
 end
 
-# `Rational` is in the union because Symbolics folds constant division into a
-# rational coefficient: `a/3 + a/3` becomes `(2//3)*a`, and `hassign` already
-# claims every `Real` has a sign.
-getsign(ex::Union{AbstractFloat, Integer, Rational}) = ex < 0 ? Negative : Positive
+# Split over `Num` and `Symbolic` instead of their union: `Num <: Real` while
+# `BasicSymbolic` is not, so a union method would be ambiguous with the `Real`
+# method below rather than more specific than it.
+getsign(ex::Num) = symbolic_sign(ex)
+getsign(ex::Symbolic) = symbolic_sign(ex)
+
+# `Real`, not `Union{AbstractFloat, Integer}`: Symbolics folds `-a/2` into
+# `(-1//2)*a`, so a coefficient reaching here can be any real subtype.
+getsign(ex::Real) = ex < 0 ? Negative : Positive
 
 function getsign(ex::AbstractArray)
     if all(x -> getsign(x) == Negative, ex)
@@ -369,7 +391,15 @@ end
 
 setcurvature(ex::Union{Num, Symbolic}, curv) = setmetadata(ex, Curvature, curv)
 setcurvature(ex, curv) = ex
-getcurvature(ex::Union{Num, Symbolic}) = getmetadata(ex, Curvature)
+function getcurvature(ex::Union{Num, Symbolic})
+    hasmetadata(ex, Curvature) && return getmetadata(ex, Curvature)
+    # A constant-folded expression (`a - a`, `0*a`, `Num(3.0)`) is a
+    # `BasicSymbolic` that is neither `issym` nor `iscall`, so the propagation
+    # walk never annotates it; it is a constant, hence affine. Anything else
+    # arriving here was never analyzed, and carries no certificate.
+    v = unwrap(ex)
+    return (issym(v) || iscall(v)) ? UnknownCurvature : Affine
+end
 getcurvature(ex) = Affine
 
 # A container is as curved as its elements, so aggregate rather than falling
@@ -398,6 +428,19 @@ function getcurvature(ex::AbstractArray)
 end
 hascurvature(ex::Union{Num, Symbolic}) = hasmetadata(ex, Curvature)
 hascurvature(ex) = ex isa Real
+
+# Sign of the product of the constant factors of a multiplication, i.e. the
+# direction in which the product is monotone in its one non-constant factor.
+# `mul_sign` cannot answer this: it reads sign *metadata*, which a wrapped
+# constant array never carries.
+function const_factor_sign(args)
+    constant_prod = one(Float64)
+    for arg in args
+        (issym(arg) || iscall(arg)) && continue
+        constant_prod = constant_prod .* constval(arg)
+    end
+    return getsign(constant_prod)
+end
 
 function mul_curvature(args)
     # Avoid allocations by not using findall

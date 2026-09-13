@@ -515,3 +515,105 @@ lAmix = [1.0 -2.0; 3.0 -4.0]
 @test SymbolicAnalysis.analyze(unwrap(sum(.-(exp.(mv))))).curvature ==
     SymbolicAnalysis.Concave
 @test SymbolicAnalysis.analyze(unwrap(-exp(ma))).curvature == SymbolicAnalysis.Concave
+
+# `analyze` must return a curvature for every well-formed symbolic expression
+# (#156, "crash instead of degrade"): each block below threw before.
+
+# `hasdcprule(broadcast)` is unconditional while the rule forwarded to the rule
+# table, so any broadcasted function without a table entry was a KeyError.
+@variables bx[1:3]
+@test SymbolicAnalysis.analyze(unwrap(2.0 .* bx)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(bx .* 2.0)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(sum(2.0 .* bx))).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap([1.0, 2.0, 3.0] .* bx)).curvature ==
+    SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(2.0 .* exp.(bx))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(-2.0 .* exp.(bx))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(2.0 .* log.(bx))).curvature ==
+    SymbolicAnalysis.Concave
+# elementwise `*` of two non-constant factors is bilinear, and a broadcast of a
+# function with no rule has no curvature: both must degrade, not crash.
+@test SymbolicAnalysis.analyze(unwrap(bx .* bx)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(sin.(bx))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(abs2.(bx))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# `./` by a constant forwards to the `/` rule and is an affine rescaling — this
+# assertion exists to cover that forwarding path, not to claim a degradation.
+@test SymbolicAnalysis.analyze(unwrap(bx ./ 2.0)).curvature == SymbolicAnalysis.Affine
+# A mixed-sign constant factor flips the curvature of some elements and not
+# others, so only an affine argument survives it.
+@test SymbolicAnalysis.analyze(unwrap([1.0, -2.0, 3.0] .* bx)).curvature ==
+    SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap([1.0, -2.0, 3.0] .* exp.(bx))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# A broadcast power is elementwise, so the scalar power laws apply to it even
+# though the base is an array.
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 2)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(bx .^ 2))).curvature == SymbolicAnalysis.Convex
+
+# Symbolics folds `-c/2` into `(-1//2)*c`, so a coefficient can be a `Rational`.
+@variables c d
+@test SymbolicAnalysis.analyze(unwrap(-c / 2)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap((1 // 2) * exp(c))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(-exp(c) / 2)).curvature == SymbolicAnalysis.Concave
+
+# A constant-folded expression is a `BasicSymbolic` that is neither `issym` nor
+# `iscall`, so the propagation walk never annotates it.
+@test SymbolicAnalysis.analyze(unwrap(c - c)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(0 * c)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(c^0)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(Num(3.0))).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(exp(c) - exp(c))).curvature ==
+    SymbolicAnalysis.Affine
+
+# A symbolic exponent is not a number, so the power laws cannot branch on it.
+# `c^g` with a constant base is `exp(g*log(c))`: convex, monotone with `log(c)`.
+@test SymbolicAnalysis.analyze(unwrap(2^c)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(2^c)).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(2.0^(c + 1))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(2.0^exp(c))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(0.5^(-exp(c)))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(c^d)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(exp(c)^d)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# `2^g` composes only with an increasing slot and `0.5^g` only with a decreasing
+# one; a negative base is not real-valued for every exponent.
+@test SymbolicAnalysis.analyze(unwrap(2.0^(-exp(c)))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(0.5^exp(c))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap((-2.0)^c)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+# `abs`/`conj`/`real`/`imag` are registered on ℂ, which DomainSets cannot compare
+# against a `HalfLine`, so the package's own positivity annotation broke `abs`.
+cpos = setmetadata(
+    c, SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine{Number, :open}()
+)
+creal = setmetadata(c, SymbolicAnalysis.VarDomain, Symbolics.DomainSets.RealLine())
+@test SymbolicAnalysis.analyze(unwrap(abs(cpos))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(abs(cpos))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(abs(creal))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp(abs(cpos)))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(log(cpos))).curvature == SymbolicAnalysis.Concave
+# A genuine domain mismatch still selects no rule — `log` is not concave (or
+# defined) on all of the reals — but it degrades instead of throwing.
+@test SymbolicAnalysis.analyze(unwrap(log(creal))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+# The `logdet` registration asserted `symtype(X) <: Matrix{Num}`, which no
+# derived matrix expression satisfies, so `logdet` of one threw at build time.
+@variables Xl[1:3, 1:3]
+Al = rand(3, 3)
+@test SymbolicAnalysis.analyze(unwrap(logdet(2 * Xl))).curvature == SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(logdet(Al * Xl))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(logdet(Al * Xl * Al'))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(logdet(Xl + Xl'))).curvature ==
+    SymbolicAnalysis.Concave
+@test SymbolicAnalysis.analyze(unwrap(-logdet(2 * Xl))).curvature == SymbolicAnalysis.Convex
