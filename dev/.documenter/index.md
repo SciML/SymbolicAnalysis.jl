@@ -36,11 +36,11 @@ Result returned by [`analyze`](/index#SymbolicAnalysis.analyze). It contains the
 
 **Fields**
 - `curvature::Curvature`: Euclidean curvature of the expression.
-  
+    
 - `sign::Sign`: inferred sign of the expression.
-  
+    
 - `gcurvature::Union{GCurvature, Nothing}`: geodesic curvature when manifold analysis was requested, otherwise `nothing`.
-  
+    
 
 The result is immutable. Read its fields directly rather than relying on the internal metadata propagation functions.
 
@@ -112,23 +112,23 @@ Analyze the symbolic expression `ex` and return its Euclidean curvature and sign
 
 **Arguments**
 - `ex`: Symbolics expression to analyze.
-  
+    
 - `M::Union{AbstractManifold, Nothing} = nothing`: optional manifold for geodesic curvature analysis. `SymmetricPositiveDefinite` and `Lorentz` manifolds are supported.
-  
+    
 
 **Returns**
 
 An `AnalysisResult` with the fields:
 - `curvature::SymbolicAnalysis.Curvature`: Euclidean curvature of `ex`.
-  
+    
 - `sign::SymbolicAnalysis.Sign`: inferred sign of `ex`.
-  
+    
 - `gcurvature::Union{SymbolicAnalysis.GCurvature, Nothing}`: geodesic curvature when `M` is supplied, or `nothing` otherwise.
-  
+    
 
 **Throws**
 - `AssertionError`: if `M` is not a supported manifold.
-  
+    
 
 **Examples**
 
@@ -170,15 +170,15 @@ Evaluate the log-barrier `-log(-1 - <a, p>_L)` for the Lorentz model, where `a =
 
 **Arguments**
 - `p::AbstractVector`: point on the Lorentz manifold. Its last coordinate must be greater than one for the barrier to be finite and real.
-  
+    
 
 **Returns**
 - A real scalar containing the barrier value.
-  
+    
 
 **Throws**
 - `DomainError`: if the last coordinate of `p` is outside the real logarithm's domain.
-  
+    
 
 **Examples**
 
@@ -209,17 +209,17 @@ Evaluate the homogeneous quadratic `transpose(p) * A * p` on the Lorentz model. 
 
 **Arguments**
 - `A::AbstractMatrix`: symmetric `(d + 1)` by `(d + 1)` coefficient matrix.
-  
+    
 - `p::AbstractVector`: point on the Lorentz manifold.
-  
+    
 
 **Returns**
 - A scalar containing the quadratic value.
-  
+    
 
 **Throws**
 - `ArgumentError`: if `A` does not satisfy the geodesic-convexity conditions.
-  
+    
 
 **Examples**
 
@@ -252,19 +252,19 @@ Evaluate the diagonal quadratic `sum(a[i] * p[i]^2)` on the Lorentz model. Geode
 
 **Arguments**
 - `a::AbstractVector`: `(d + 1)` diagonal coefficients.
-  
+    
 - `p::AbstractVector`: point on the Lorentz manifold.
-  
+    
 
 **Returns**
 - A scalar containing the diagonal quadratic value.
-  
+    
 
 **Throws**
 - `DimensionMismatch`: if `a` and `p` have different lengths.
-  
+    
 - `ArgumentError`: if `a` does not satisfy the geodesic-convexity condition.
-  
+    
 
 **Examples**
 
@@ -295,21 +295,21 @@ Evaluate the squared residual norm `sum(abs2, y - X * p)` on the Lorentz model. 
 
 **Arguments**
 - `X::AbstractMatrix`: design matrix with `d + 1` columns.
-  
+    
 - `y::AbstractVector`: response vector with one entry per row of `X`.
-  
+    
 - `p::AbstractVector`: point on the Lorentz manifold.
-  
+    
 
 **Returns**
 - A scalar containing the squared residual norm.
-  
+    
 
 **Throws**
 - `ArgumentError`: if the derived homogeneous or linear term does not satisfy the geodesic-convexity conditions.
-  
+    
 - `DimensionMismatch`: if the dimensions of `X`, `y`, and `p` are incompatible.
-  
+    
 
 **Examples**
 
@@ -342,17 +342,17 @@ Apply the orthochronous Lorentz transformation `O` to the point `p`.
 
 **Arguments**
 - `O::AbstractMatrix`: element of the orthochronous Lorentz group.
-  
+    
 - `p::AbstractVector`: point on the Lorentz manifold.
-  
+    
 
 **Returns**
 - The transformed point `O * p`.
-  
+    
 
 **Throws**
 - `ArgumentError`: if `O` does not preserve the Lorentz metric or the positive time direction.
-  
+    
 
 **Examples**
 

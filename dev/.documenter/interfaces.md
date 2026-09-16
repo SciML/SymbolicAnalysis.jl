@@ -22,11 +22,11 @@ Sign classification propagated by the DCP analyzer.
 
 **Values**
 - `Positive`: the expression is known to be positive.
-  
+    
 - `Negative`: the expression is known to be negative.
-  
+    
 - `AnySign`: no sign restriction is known.
-  
+    
 
 These values are accepted by [`add_dcprule`](/interfaces#SymbolicAnalysis.add_dcprule) and are returned by `AnalysisResult.sign`.
 
@@ -49,13 +49,13 @@ Euclidean curvature classification propagated by the DCP analyzer.
 
 **Values**
 - `Convex`: the expression is convex.
-  
+    
 - `Concave`: the expression is concave.
-  
+    
 - `Affine`: the expression is both convex and concave.
-  
+    
 - `UnknownCurvature`: no supported curvature rule applies.
-  
+    
 
 These values are accepted by [`add_dcprule`](/interfaces#SymbolicAnalysis.add_dcprule) and are returned by `AnalysisResult.curvature`.
 
@@ -78,11 +78,11 @@ Monotonicity classification for an argument of a DCP atom.
 
 **Values**
 - `Increasing`: the atom is nondecreasing in the argument.
-  
+    
 - `Decreasing`: the atom is nonincreasing in the argument.
-  
+    
 - `AnyMono`: the atom's monotonicity is unrestricted for the rule.
-  
+    
 
 These values are accepted by [`add_dcprule`](/interfaces#SymbolicAnalysis.add_dcprule).
 
@@ -105,13 +105,13 @@ Geodesic-curvature classification propagated by the gDCP analyzer.
 
 **Values**
 - `GConvex`: geodesically convex.
-  
+    
 - `GConcave`: geodesically concave.
-  
+    
 - `GLinear`: geodesically affine.
-  
+    
 - `GUnknownCurvature`: no supported geodesic-curvature rule applies.
-  
+    
 
 These values are accepted by [`add_gdcprule`](/interfaces#SymbolicAnalysis.add_gdcprule) and are returned in `AnalysisResult.gcurvature` when manifold analysis is requested.
 
@@ -134,11 +134,11 @@ Monotonicity classification for an argument of a geodesic DCP atom.
 
 **Values**
 - `GIncreasing`: the atom is nondecreasing along the manifold argument.
-  
+    
 - `GDecreasing`: the atom is nonincreasing along the manifold argument.
-  
+    
 - `GAnyMono`: the atom's monotonicity is unrestricted for the rule.
-  
+    
 
 These values are accepted by [`add_gdcprule`](/interfaces#SymbolicAnalysis.add_gdcprule).
 
@@ -167,15 +167,15 @@ Register the symbolic operation with `Symbolics.@register_symbolic` before regis
 
 **Arguments**
 - `f`: function used as the operation of the symbolic atom.
-  
+    
 - `domain`: a `DomainSets.Domain` for a single argument, or a tuple of domains for a multi-argument atom. Domain checks use `VarDomain` metadata when it is attached to the symbolic arguments.
-  
+    
 - `sign::Sign`: sign guaranteed by the atom on its declared domain.
-  
+    
 - `curvature::Curvature`: Euclidean curvature of the atom.
-  
+    
 - `monotonicity`: one [`Monotonicity`](/interfaces#SymbolicAnalysis.Monotonicity) value, a tuple with one value per argument, or a function that computes the value from an argument. A single value applies to every argument.
-  
+    
 
 **Returns**
 
@@ -229,15 +229,15 @@ Register the symbolic operation with `Symbolics.@register_symbolic` before regis
 
 **Arguments**
 - `f`: function used as the operation of the symbolic atom.
-  
+    
 - `manifold`: manifold type on which the rule applies, such as `Manifolds.SymmetricPositiveDefinite` or `Manifolds.Lorentz`.
-  
+    
 - `sign::Sign`: sign guaranteed by the atom.
-  
+    
 - `curvature::GCurvature`: geodesic curvature of the atom.
-  
+    
 - `monotonicity::GMonotonicity`: geodesic monotonicity of the atom. A tuple may be supplied for a multi-argument atom.
-  
+    
 
 **Returns**
 
@@ -277,13 +277,13 @@ This registration hook is public for packages extending SymbolicAnalysis. The ru
 ## Extension rules {#Extension-rules}
 
 An extension package should:
-2. define the ordinary numerical operation;
-  
-3. register its symbolic operation with `Symbolics.@register_symbolic`;
-  
-4. register its DCP or gDCP rule with the corresponding function above; and
-  
-5. verify the generic path by constructing a symbolic expression and calling `analyze`.
-  
+1. define the ordinary numerical operation;
+    
+2. register its symbolic operation with `Symbolics.@register_symbolic`;
+    
+3. register its DCP or gDCP rule with the corresponding function above; and
+    
+4. verify the generic path by constructing a symbolic expression and calling `analyze`.
+    
 
 The operation supplied to the rule registration function must be identical to the operation stored in the symbolic term. Rule registration is global to the loaded Julia process, so extension packages should register each atom once at module load time and use distinct function objects for distinct atoms.
