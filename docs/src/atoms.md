@@ -52,16 +52,19 @@ This page is intended to be a reference for the atoms that are currently impleme
 | log                       | array_domain(ℝ, 2)                                                             | Positive  | Concave   | Increasing                                  |
 | inv                       | semidefinite_domain()                                                          | AnySign   | Convex    | Decreasing                                  |
 | sqrt                      | semidefinite_domain()                                                          | Positive  | Concave   | Increasing                                  |
-| kldivergence              | (array_domain(HalfLine{Real,:open}, 1), array_domain(HalfLine{Real,:open}, 1)) | Positive  | Convex    | AnyMono                                     |
+| kldivergence              | (array_domain(HalfLine{Real,:open}(), 1), array_domain(HalfLine{Real,:open}(), 1)) | Positive  | Convex    | AnyMono                                     |
 | lognormcdf                | ℝ                                                                              | Negative  | Concave   | Increasing                                  |
 | log1p                     | Interval{:open,:open}(-1, Inf)                                                 | AnySign   | Concave   | Increasing                                  |
+| LogExpFunctions.log1pexp  | ℝ                                                                              | Positive  | Convex    | Increasing                                  |
+| LogExpFunctions.logaddexp | (ℝ, ℝ)                                                                         | AnySign   | Convex    | Increasing                                  |
+| LogExpFunctions.logexpm1  | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
 | max                       | (ℝ, ℝ)                                                                         | AnySign   | Convex    | Increasing                                  |
 | min                       | (ℝ, ℝ)                                                                         | AnySign   | Concave   | Increasing                                  |
 | ^(x, i)                   | See below                                                                      | See below | See below | See below                                   |
 | real                      | ℂ                                                                              | AnySign   | Affine    | Increasing                                  |
 | rel_entr                  | (HalfLine{Real,:open}(), HalfLine{Real,:open}())                               | AnySign   | Convex    | (AnyMono, Decreasing)                       |
 | sqrt                      | HalfLine()                                                                     | Positive  | Concave   | Increasing                                  |
-| xexpx                     | HalfLine                                                                       | Positive  | Convex    | Increasing                                  |
+| xexpx                     | HalfLine()                                                                     | Positive  | Convex    | Increasing                                  |
 | conv                      | (array_domain(ℝ, 1), array_domain(ℝ, 1))                                       | AnySign   | Affine    | AnyMono                                     |
 | cumsum                    | array_domain(ℝ)                                                                | AnySign   | Affine    | Increasing                                  |
 | diagm                     | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                                  |
