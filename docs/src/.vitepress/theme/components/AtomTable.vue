@@ -36,6 +36,7 @@ const columnConfigs: Record<string, ColumnDef[]> = {
     { key: 'atom',         label: 'Atom',         sortable: true,  filterable: false },
     { key: 'meaning',      label: 'Meaning',      sortable: false, filterable: false, math: true },
     { key: 'domain',       label: 'Domain',       sortable: false, filterable: false, math: true },
+    { key: 'sign',         label: 'Sign',         sortable: true,  filterable: true },
     { key: 'curvature',    label: 'Curvature',    sortable: true,  filterable: true, icon: true },
     { key: 'monotonicity', label: 'Monotonicity', sortable: true,  filterable: true, monoIcon: true },
   ],
@@ -43,18 +44,21 @@ const columnConfigs: Record<string, ColumnDef[]> = {
     { key: 'condition',    label: 'Condition',    sortable: false, filterable: false, math: true },
     { key: 'meaning',      label: 'Meaning',      sortable: false, filterable: false, math: true },
     { key: 'domain',       label: 'Domain',       sortable: false, filterable: false, math: true },
+    { key: 'sign',         label: 'Sign',         sortable: true,  filterable: true },
     { key: 'curvature',    label: 'Curvature',    sortable: true,  filterable: true, icon: true },
     { key: 'monotonicity', label: 'Monotonicity', sortable: true,  filterable: true, monoIcon: true },
   ],
   'dgcp-spd': [
     { key: 'atom',         label: 'Atom',         sortable: true,  filterable: false },
     { key: 'meaning',      label: 'Meaning',      sortable: false, filterable: false, math: true },
+    { key: 'sign',         label: 'Sign',         sortable: true,  filterable: true },
     { key: 'curvature',    label: 'G-Curvature',  sortable: true,  filterable: true, icon: true },
     { key: 'monotonicity', label: 'Monotonicity', sortable: true,  filterable: true, monoIcon: true },
   ],
   'dgcp-lorentz': [
     { key: 'atom',         label: 'Atom',         sortable: true,  filterable: false },
     { key: 'meaning',      label: 'Meaning',      sortable: false, filterable: false, math: true },
+    { key: 'sign',         label: 'Sign',         sortable: true,  filterable: true },
     { key: 'curvature',    label: 'G-Curvature',  sortable: true,  filterable: true, icon: true },
     { key: 'monotonicity', label: 'Monotonicity', sortable: true,  filterable: true, monoIcon: true },
   ],
@@ -138,10 +142,8 @@ function isExternalLink(row?: Record<string, string>): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Search & filter state                                              */
+/*  Filter state                                                       */
 /* ------------------------------------------------------------------ */
-
-const searchQuery = ref('')
 
 // Multi-select: each filterable column has a Set of selected values
 // Empty set = show all (no filter active)
@@ -227,11 +229,6 @@ function toggleSort(key: string) {
   }
 }
 
-function sortIndicator(key: string) {
-  if (sortKey.value !== key) return '⇅'
-  return sortDir.value === 'asc' ? '↑' : '↓'
-}
-
 /* ------------------------------------------------------------------ */
 /*  Filtered + sorted rows                                             */
 /* ------------------------------------------------------------------ */
@@ -243,12 +240,6 @@ const nameKey = computed(() => {
 
 const filteredRows = computed(() => {
   let rows = data.value
-
-  // Text search
-  if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase()
-    rows = rows.filter(r => (r[nameKey.value] ?? '').toLowerCase().includes(q))
-  }
 
   // Multi-select filters
   for (const [key, selected] of Object.entries(selectedFilters.value)) {
@@ -275,13 +266,13 @@ const filteredRows = computed(() => {
 /*  Curvature → icon mapping                                           */
 /* ------------------------------------------------------------------ */
 
-const curvatureIcons: Record<string, { color: string; darkColor: string; path: string; label: string }> = {
-  convex:   { color: '#4063D8', darkColor: '#6B8BFF', path: 'M 4 2 Q 12 22 20 2',  label: 'Convex'   },
-  concave:  { color: '#389826', darkColor: '#5BC848', path: 'M 4 20 Q 12 0 20 20', label: 'Concave'  },
-  affine:   { color: '#CB3C33', darkColor: '#FF6B61', path: 'M 4 20 L 20 4',       label: 'Affine'   },
-  gconvex:  { color: '#9558B2', darkColor: '#B87FD4', path: 'M 4 2 Q 12 22 20 2',  label: 'GConvex'  },
-  glinear:  { color: '#9558B2', darkColor: '#B87FD4', path: 'M 4 20 L 20 4',       label: 'GLinear'  },
-  gconcave: { color: '#9558B2', darkColor: '#B87FD4', path: 'M 4 20 Q 12 0 20 20', label: 'GConcave' },
+const curvatureIcons: Record<string, { color: string; path: string; label: string }> = {
+  convex:   { color: '#4063D8', path: 'M 4 2 Q 12 22 20 2',  label: 'Convex'   },
+  concave:  { color: '#389826', path: 'M 4 20 Q 12 0 20 20', label: 'Concave'  },
+  affine:   { color: '#CB3C33', path: 'M 4 20 L 20 4',       label: 'Affine'   },
+  gconvex:  { color: '#9558B2', path: 'M 4 2 Q 12 22 20 2',  label: 'GConvex'  },
+  glinear:  { color: '#9558B2', path: 'M 4 20 L 20 4',       label: 'GLinear'  },
+  gconcave: { color: '#9558B2', path: 'M 4 20 Q 12 0 20 20', label: 'GConcave' },
 }
 
 function curvatureKey(raw: string): string | null {
@@ -300,14 +291,14 @@ function curvatureKey(raw: string): string | null {
 /*  Monotonicity → icon mapping                                        */
 /* ------------------------------------------------------------------ */
 
-const monotonicityIcons: Record<string, { color: string; darkColor: string; path: string; arrowPath?: string; label: string; dashed: boolean }> = {
-  increasing:             { color: '#389826', darkColor: '#5BC848', path: 'M 5 19 L 19 5',  arrowPath: 'M 13 5 L 19 5 L 19 11',    label: 'Increasing',     dashed: false },
-  decreasing:             { color: '#CB3C33', darkColor: '#FF6B61', path: 'M 5 5 L 19 19',  arrowPath: 'M 13 19 L 19 19 L 19 13',  label: 'Decreasing',     dashed: false },
-  anymono:                { color: '#888888', darkColor: '#AAAAAA', path: 'M 4 12 L 20 12',                                          label: 'Non-monotonic',  dashed: false },
-  increasing_if_positive: { color: '#389826', darkColor: '#5BC848', path: 'M 5 19 L 19 5',  arrowPath: 'M 13 5 L 19 5 L 19 11',    label: 'Incr. if pos.',  dashed: true  },
-  gincreasing:            { color: '#9558B2', darkColor: '#B87FD4', path: 'M 5 19 L 19 5',  arrowPath: 'M 13 5 L 19 5 L 19 11',    label: 'GIncreasing',    dashed: true  },
-  gdecreasing:            { color: '#9558B2', darkColor: '#B87FD4', path: 'M 5 5 L 19 19',  arrowPath: 'M 13 19 L 19 19 L 19 13',  label: 'GDecreasing',    dashed: true  },
-  ganymono:               { color: '#9558B2', darkColor: '#B87FD4', path: 'M 4 12 L 20 12',                                          label: 'GAnyMono',       dashed: true  },
+const monotonicityIcons: Record<string, { color: string; path: string; arrowPath?: string; label: string; dashed: boolean }> = {
+  increasing:             { color: '#389826', path: 'M 5 19 L 19 5',  arrowPath: 'M 13 5 L 19 5 L 19 11',    label: 'Increasing',     dashed: false },
+  decreasing:             { color: '#CB3C33', path: 'M 5 5 L 19 19',  arrowPath: 'M 13 19 L 19 19 L 19 13',  label: 'Decreasing',     dashed: false },
+  anymono:                { color: '#888888', path: 'M 4 12 L 20 12',                                          label: 'Non-monotonic',  dashed: false },
+  increasing_if_positive: { color: '#389826', path: 'M 5 19 L 19 5',  arrowPath: 'M 13 5 L 19 5 L 19 11',    label: 'Incr. if pos.',  dashed: true  },
+  gincreasing:            { color: '#9558B2', path: 'M 5 19 L 19 5',  arrowPath: 'M 13 5 L 19 5 L 19 11',    label: 'GIncreasing',    dashed: true  },
+  gdecreasing:            { color: '#9558B2', path: 'M 5 5 L 19 19',  arrowPath: 'M 13 19 L 19 19 L 19 13',  label: 'GDecreasing',    dashed: true  },
+  ganymono:               { color: '#9558B2', path: 'M 4 12 L 20 12',                                          label: 'GAnyMono',       dashed: true  },
 }
 
 function monoKey(raw: string): string | null {
@@ -491,7 +482,7 @@ function parseMonotonicity(raw: string): MonoPart[] {
                   </template>
                 </span>
               </template>
-              <!-- Math cell (domain / condition rendered with KaTeX) -->
+              <!-- Math cell (domain / condition rendered with MathJax) -->
               <template v-else-if="col.math">
                 <span class="math-cell" v-html="renderLatex(row[col.key])"></span>
               </template>
@@ -536,41 +527,6 @@ function parseMonotonicity(raw: string): MonoPart[] {
 .atom-table-wrapper {
   max-width: 100%;
   overflow: hidden;
-}
-
-/* ---- Filter bar (search only) ---- */
-.atom-table-filters {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.atom-search {
-  flex: 0 1 220px;
-  min-width: 120px;
-  max-width: 220px;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 6px;
-  background: var(--vp-c-bg);
-  color: var(--vp-c-text-1);
-  font-size: 0.8125rem;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.atom-search:focus {
-  border-color: var(--vp-c-brand-1);
-}
-.atom-search::placeholder {
-  color: var(--vp-c-text-3);
-}
-
-/* ---- Count (inline) ---- */
-.atom-table-count {
-  font-size: 0.75rem;
-  color: var(--vp-c-text-3);
-  white-space: nowrap;
 }
 
 /* ---- Table ---- */
@@ -894,14 +850,6 @@ function parseMonotonicity(raw: string): MonoPart[] {
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
-  .atom-table-filters {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .atom-search {
-    max-width: 100%;
-    flex: 1 1 auto;
-  }
   .atom-table {
     font-size: 0.75rem;
   }

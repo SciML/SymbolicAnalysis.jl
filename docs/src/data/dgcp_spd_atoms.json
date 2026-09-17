@@ -99,14 +99,6 @@
     "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.inv-Tuple{AbstractMatrix}"
   },
   {
-    "atom": "diag",
-    "meaning": "[X_{11}, \\ldots, X_{nn}]",
-    "sign": "Positive",
-    "curvature": "GConvex",
-    "monotonicity": "GIncreasing",
-    "docUrl": "https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.diag"
-  },
-  {
     "atom": "eigsummax",
     "meaning": "\\sum_{i=1}^{k} \\lambda_i^{\\downarrow}(X)",
     "sign": "Positive",

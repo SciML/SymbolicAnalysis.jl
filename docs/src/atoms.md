@@ -29,5 +29,5 @@ Use the **dropdown menus** to filter by curvature, sign, or monotonicity. Click 
 ```
 
 !!! note
-    `lorentz_transform` does not have specific geodesic curvature properties by itself, 
+    `lorentz_transform` does not have specific geodesic curvature properties by itself,
     but it preserves geodesic convexity when applied to geodesically convex functions.
