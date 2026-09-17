@@ -1,0 +1,50 @@
+[
+  {
+    "condition": "i = 1",
+    "meaning": "x",
+    "domain": "\\mathbb{R}",
+    "sign": "AnySign",
+    "curvature": "Affine",
+    "monotonicity": "Increasing"
+  },
+  {
+    "condition": "i \\text{ even integer}",
+    "meaning": "x^i",
+    "domain": "\\mathbb{R}",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Incr. if pos."
+  },
+  {
+    "condition": "i \\text{ odd integer}",
+    "meaning": "x^i",
+    "domain": "\\mathbb{R}_+",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Increasing"
+  },
+  {
+    "condition": "i \\geq 1",
+    "meaning": "x^i",
+    "domain": "\\mathbb{R}_+",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Increasing"
+  },
+  {
+    "condition": "0 < i < 1",
+    "meaning": "x^i",
+    "domain": "\\mathbb{R}_+",
+    "sign": "Positive",
+    "curvature": "Concave",
+    "monotonicity": "Increasing"
+  },
+  {
+    "condition": "i < 0",
+    "meaning": "x^i",
+    "domain": "\\mathbb{R}_+",
+    "sign": "Positive",
+    "curvature": "Convex",
+    "monotonicity": "Increasing"
+  }
+]
