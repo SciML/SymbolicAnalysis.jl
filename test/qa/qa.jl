@@ -11,7 +11,6 @@ const SA = SymbolicAnalysis
 # package needs; ambiguities, stale-deps, etc. all pass cleanly.
 const SYMBOLIC_OWN = Any[
     Base.:*, Base.log, Base.sqrt,
-    SA.LinearAlgebra.logdet, SA.LinearAlgebra.norm,
     SA.Symbolics.promote_symtype,
     SA.SymbolicUtils.promote_shape,
     SA.Manifolds.distance, SA.LogExpFunctions.xlogx, SA.LogExpFunctions.logsumexp,
