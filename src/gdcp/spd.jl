@@ -1,10 +1,5 @@
 ### DGCP Atoms
 
-# `Matrix{Num}` would make the generated method assert `symtype(X) <: Matrix{Num}`,
-# which no derived matrix expression satisfies on Symbolics v7 (`2X`, `A*X`,
-# `A*X*A'` all have symtype `Matrix{Real}`), turning every such `logdet` into an
-# AssertionError. `AbstractMatrix` is also how Symbolics registers `tr`/`eigmax`.
-@register_symbolic LinearAlgebra.logdet(X::AbstractMatrix)
 add_gdcprule(
     LinearAlgebra.logdet,
     SymmetricPositiveDefinite,

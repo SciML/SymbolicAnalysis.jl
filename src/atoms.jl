@@ -289,14 +289,6 @@ function dcprule(::typeof(norm), x)
 end
 hasdcprule(::typeof(norm)) = true
 
-# A scalarized vector falls into the generic `LinearAlgebra` implementation, which
-# expands to `sqrt(sum(abs2, v))` — a `sqrt` of a convex argument, which DCP
-# correctly refuses to certify — erasing the atom the rules above are keyed on.
-function LinearAlgebra.norm(v::AbstractVector{<:Num}, p::Real = 2)
-    return Symbolics.wrap(
-        SymbolicUtils.term(norm, map(SymbolicUtils.unwrap, v), p; type = Real)
-    )
-end
 
 """
     perspective(f::Function, x, s::Real)
