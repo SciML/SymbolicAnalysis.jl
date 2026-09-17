@@ -627,6 +627,16 @@ hasdcprule(::typeof(^)) = true
 
 add_dcprule(real, ℂ, AnySign, Affine, Increasing; cone = MOI.Reals)
 
+"""
+    rel_entr(x::Real, y::Real)
+
+Returns the relative entropy term `x * log(x / y)`.
+
+# Arguments
+
+    - `x`: A nonnegative Real.
+    - `y`: A positive Real.
+"""
 function rel_entr(x::Real, y::Real)
     if x < 0 || y < 0
         throw(DomainError((x, y), "x and y must be positive"))
