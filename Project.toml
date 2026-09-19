@@ -20,13 +20,6 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
 
-# TEMPORARY, drop before merge: `logdet` and the scalarized `norm` moved upstream
-# in JuliaSymbolics/Symbolics.jl#1992, which is merged but not yet released — the
-# latest tag, 7.39.2, predates it. Without this the suite does not load at all.
-# Replace with a `Symbolics` compat floor on the release that carries #1992.
-[sources]
-Symbolics = {url = "https://github.com/JuliaSymbolics/Symbolics.jl", rev = "302c561bad619f9d81636ed7eaf063a7a5890cde"}
-
 [compat]
 DSP = "0.7, 0.8"
 Distributions = "0.25"
@@ -41,7 +34,7 @@ PrecompileTools = "1.2.1"
 SciMLPublic = "1"
 StatsBase = "0.34"
 SymbolicUtils = "4.46.6"
-Symbolics = "7.39.2"
+Symbolics = "7.40"
 TermInterface = "2"
 SciMLTesting = "2.10"
 julia = "1.10"
