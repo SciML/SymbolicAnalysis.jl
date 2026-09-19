@@ -172,13 +172,21 @@ add_dcprule(logdet, semidefinite_domain(), AnySign, Concave, AnyMono)
 # `LogExpFunctions.logsumexp` on a symbolic vector must stay an unevaluated
 # `logsumexp` term so the curvature pass can dispatch on it; Symbolics' own
 # vector method expands it to `log(sum(exp, x))`, which erases the atom and
-# leaves the expression UnknownCurvature. Dispatching on the concrete
-# `Symbolics.Arr` is strictly more specific, so this extends rather than
-# overwrites, and — unlike a `@register_symbolic ::Vector{Num}` form — emits no
-# scalar `BasicSymbolic{SymReal}` method that could clobber the scalar `logsumexp`.
+# leaves the expression UnknownCurvature. Each half of its
+# `Union{AbstractVector{<:Num}, Arr}` signature is strictly more specific, so these
+# extend rather than overwrite, and — unlike a `@register_symbolic ::Vector{Num}`
+# form — emit no scalar `BasicSymbolic{SymReal}` method that could clobber the
+# scalar `logsumexp`.
 function LogExpFunctions.logsumexp(x::Symbolics.Arr)
     return Symbolics.wrap(
         SymbolicUtils.term(LogExpFunctions.logsumexp, SymbolicUtils.unwrap(x); type = Real)
+    )
+end
+function LogExpFunctions.logsumexp(x::AbstractVector{<:Num})
+    return Symbolics.wrap(
+        SymbolicUtils.term(
+            LogExpFunctions.logsumexp, map(SymbolicUtils.unwrap, x); type = Real
+        )
     )
 end
 
@@ -208,7 +216,7 @@ function matrix_frac(x::AbstractVector, P::AbstractMatrix)
     end
     return x' * inv(P) * x
 end
-Symbolics.@register_symbolic AbstractMatrix_frac(x::AbstractVector, P::AbstractMatrix)
+Symbolics.@register_symbolic matrix_frac(x::AbstractVector, P::AbstractMatrix)
 add_dcprule(
     matrix_frac,
     (array_domain(RealLine(), 1), definite_domain()),
@@ -280,6 +288,7 @@ function dcprule(::typeof(norm), x)
     return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), (x,)
 end
 hasdcprule(::typeof(norm)) = true
+
 
 """
     perspective(f::Function, x, s::Real)
@@ -631,7 +640,7 @@ add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
 
 add_dcprule(
     kldivergence,
-    (array_domain(HalfLine{Real, :open}, 1), array_domain(HalfLine{Real, :open}, 1)),
+    (array_domain(HalfLine{Real, :open}(), 1), array_domain(HalfLine{Real, :open}(), 1)),
     Positive,
     Convex,
     AnyMono
@@ -657,6 +666,20 @@ add_dcprule(lognormcdf, RealLine(), Negative, Concave, Increasing)
 # `increasing_if_positive` hand `abs` a `Decreasing` slot, certifying the strictly
 # concave `abs(log1p(a))` (for `a > 0`) as `Convex`.
 add_dcprule(log1p, Interval{:open, :open}(-1, Inf), AnySign, Concave, Increasing)
+
+# Symbolics rewrites these three into `log(1 + exp(x))`, `log(exp(x) + exp(y))` and
+# `log(exp(x) - 1)`, each `concave of convex` and so uncertifiable as written.
+Symbolics.@register_symbolic LogExpFunctions.log1pexp(x::Real)
+add_dcprule(LogExpFunctions.log1pexp, RealLine(), Positive, Convex, Increasing)
+
+Symbolics.@register_symbolic LogExpFunctions.logaddexp(x::Real, y::Real)
+add_dcprule(
+    LogExpFunctions.logaddexp, (RealLine(), RealLine()), AnySign, Convex, Increasing
+)
+
+# `logexpm1` inverts `log1pexp`, so it is real only for `x > 0`.
+Symbolics.@register_symbolic LogExpFunctions.logexpm1(x::Real)
+add_dcprule(LogExpFunctions.logexpm1, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 
 add_dcprule(max, (RealLine(), RealLine()), AnySign, Convex, Increasing)
 add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
@@ -791,7 +814,29 @@ add_dcprule(
 
 add_dcprule(sqrt, HalfLine(), Positive, Concave, Increasing)
 
-add_dcprule(xexpx, HalfLine, Positive, Convex, Increasing)
+Symbolics.@register_symbolic LogExpFunctions.xexpx(x::Real)
+
+"""
+    dcprule(::typeof(xexpx), x)
+
+`x*exp(x)` is convex only on `[-2, Inf)`: at `x = -4` the second difference is
+`-0.0366`, at `x = -3` it is `-0.0498`, and the inflection sits exactly at `-2`.
+So unlike `log` or `sqrt`, this atom **exists** outside its declared domain and is
+concave there — the same shape that made `/` establish its precondition rather
+than assume it, rather than the `log`/`sqrt` case where the declared domain is
+only where the function is defined at all.
+
+Registering it unguarded would have been a false certificate the moment the atom
+became reachable: until this rule existed `xexpx(s)` traced to `*` and degraded,
+which is the only reason the unenforced domain never bit.
+"""
+function dcprule(::typeof(xexpx), x)
+    args = (x,)
+    known_positive(x) ||
+        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return makerule(HalfLine(), Positive, Convex, Increasing), args
+end
+hasdcprule(::typeof(xexpx)) = true
 
 dcprule(::typeof(conv), args...) = multilinear_rule(array_domain(RealLine(), 1), args)
 hasdcprule(::typeof(conv)) = true
