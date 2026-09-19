@@ -60,6 +60,25 @@ dcprule(::typeof(dot), x, y)
 </details>
 
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofLogExpFunctions.xexpx, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofLogExpFunctions.xexpx, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(xexpx), x)
+```
+
+
+`x*exp(x)` is convex only on `[-2, Inf)`: at `x = -4` the second difference is `-0.0366`, at `x = -3` it is `-0.0498`, and the inflection sits exactly at `-2`. So unlike `log` or `sqrt`, this atom **exists** outside its declared domain and is concave there — the same shape that made `/` establish its precondition rather than assume it, rather than the `log`/`sqrt` case where the declared domain is only where the function is defined at all.
+
+Registering it unguarded would have been a false certificate the moment the atom became reachable: until this rule existed `xexpx(s)` traced to `*` and degraded, which is the only reason the unenforced domain never bit.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.dotsort, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.dotsort, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
 
 
