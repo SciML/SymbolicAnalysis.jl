@@ -21,7 +21,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
 
 [compat]
-DSP = "0.7, 0.8"
+DSP = "0.8"
 Distributions = "0.25"
 DomainSets = "0.7, 0.8"
 IntervalSets = "0.7"
