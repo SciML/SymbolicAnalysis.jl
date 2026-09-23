@@ -215,6 +215,19 @@ ex = eigmin(X) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.Concave
 
+# #156 G23: the default (p = 2) `opnorm` of a symbolic matrix reached `svdvals!` and threw.
+# The spectral norm is not monotone, so only affine arguments may compose.
+let A = [1.0 2 0; 0 1 3; 1 0 1], Xs = Symbolics.scalarize(X)
+    for ex in (opnorm(X), opnorm(Xs), opnorm(A * X - A), opnorm(X + X'), exp(opnorm(X)))
+        @test analyze(unwrap(ex)).curvature == SymbolicAnalysis.Convex
+    end
+    @test analyze(unwrap(opnorm(X))).sign == SymbolicAnalysis.Positive
+    @test analyze(unwrap(-opnorm(X))).curvature == SymbolicAnalysis.Concave
+    for ex in (opnorm(exp.(X)), opnorm(Xs .^ 2), sqrt(opnorm(X)))
+        @test analyze(unwrap(ex)).curvature == SymbolicAnalysis.UnknownCurvature
+    end
+end
+
 # A matrix assembled from scalar variables traces to a SymbolicUtils.array_literal
 # term. Without a rule for it the assembled matrix has no curvature, so every atom
 # taking a matrix argument fails to compose: logdet/eigmax of such a matrix

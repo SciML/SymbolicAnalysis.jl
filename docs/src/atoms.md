@@ -13,6 +13,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | invprod                   | array_domain(HalfLine{Real,:open}())                                           | Positive  | Convex    | Decreasing                                  |
 | eigmax                    | symmetric_domain()                                                             | AnySign   | Convex    | AnyMono                                     |
 | eigmin                    | symmetric_domain()                                                             | AnySign   | Concave   | AnyMono                                     |
+| LinearAlgebra.opnorm      | array_domain(ℝ, 2)                                                             | Positive  | Convex    | AnyMono                                     |
 | eigsummax                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Convex    | AnyMono                                     |
 | eigsummin                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Concave   | AnyMono                                     |
 | logdet                    | semidefinite_domain()                                                          | AnySign   | Concave   | AnyMono                                     |
