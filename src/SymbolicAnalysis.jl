@@ -7,7 +7,7 @@ using DomainSets: HalfLine, RealLine, ℂ, ℤ
 using IntervalSets: Domain, Interval
 import LinearAlgebra
 using LinearAlgebra: Diagonal, I, Symmetric, diag, diagm, dot, eigmax, eigmin, eigvals,
-    isposdef, issymmetric, logdet, norm, tr, tril, triu
+    isposdef, issymmetric, logdet, norm, opnorm, tr, tril, triu
 import LogExpFunctions
 using LogExpFunctions: xexpx, xlogx
 import Manifolds

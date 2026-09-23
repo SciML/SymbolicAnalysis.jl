@@ -128,6 +128,10 @@ add_dcprule(eigmax, symmetric_domain(), AnySign, Convex, AnyMono)
 
 add_dcprule(eigmin, symmetric_domain(), AnySign, Concave, AnyMono)
 
+# The spectral norm is convex on every real matrix but not monotone in the
+# Loewner order, so it composes only over affine arguments.
+add_dcprule(opnorm, array_domain(RealLine(), 2), Positive, Convex, AnyMono)
+
 """
     eigsummax(m::Symmetric, k)
 
