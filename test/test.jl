@@ -808,7 +808,7 @@ end
 
 # `xexpx` and `kldivergence` declared their domains as a *type*, so the `in` predicate
 # threw instead of answering. Asserted directly, off the rule-lookup path.
-let kldom = SymbolicAnalysis.dcprules_dict[SymbolicAnalysis.kldivergence].domain[1]
+let kldom = SymbolicAnalysis.dcprules_dict[SymbolicAnalysis.kldivergence][1].domain[1]
     @test [0.5, 0.25] in kldom
     @test !([0.5, -0.25] in kldom)
 end
