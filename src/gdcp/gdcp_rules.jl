@@ -118,13 +118,26 @@ gdcprule(f, args...) = gdcprules_dict[f], args
 setgcurvature(ex::Union{Symbolic, Num}, curv) = setmetadata(ex, GCurvature, curv)
 setgcurvature(ex, curv) = ex
 function getgcurvature(ex::Union{Symbolic, Num})
+    v = unwrap(ex)
+    hit = fold_lookup(v)
+    if hit !== nothing
+        g = hit.gcurvature
+        return g === nothing ? GUnknownCurvature : g
+    end
     if hasmetadata(ex, GCurvature)
         return getmetadata(ex, GCurvature)
     end
     return GUnknownCurvature
 end
 getgcurvature(ex) = GLinear
-hasgcurvature(ex::Union{Symbolic, Num}) = hasmetadata(ex, GCurvature)
+function hasgcurvature(ex::Union{Symbolic, Num})
+    v = unwrap(ex)
+    hit = fold_lookup(v)
+    if hit !== nothing
+        return hit.gcurvature !== nothing
+    end
+    return hasmetadata(ex, GCurvature)
+end
 hasgcurvature(ex) = ex isa Real
 
 function mul_gcurvature(args)

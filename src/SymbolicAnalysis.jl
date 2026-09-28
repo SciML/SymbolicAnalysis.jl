@@ -68,6 +68,7 @@ include("gdcp/gdcp_rules.jl")
 include("gdcp/spd.jl")
 include("gdcp/lorentz.jl")
 include("canon.jl")
+include("fold.jl")
 
 """
     AnalysisResult
@@ -154,17 +155,18 @@ true
 function analyze(ex, M::Union{AbstractManifold, Nothing} = nothing)
     ex = unwrap(ex)
     ex = canonize(ex)
-    # `M` gates the manifold-conditional signs in the GDCP rule table: they are
-    # only valid when the argument is constrained to that manifold.
-    ex = propagate_sign(ex, M)
-    ex = propagate_curvature(ex)
-    if isnothing(M)
-        return AnalysisResult(getcurvature(ex), getsign(ex), nothing)
-    else
+    if !isnothing(M)
         @assert M isa SymmetricPositiveDefinite || M isa Lorentz "Only SymmetricPositiveDefinite and Lorentz manifolds are currently supported"
-        ex = propagate_gcurvature(ex, M)
-        return AnalysisResult(getcurvature(ex), getsign(ex), getgcurvature(ex))
     end
+    # One read-only memoized fold replaces the Postwalk rebuild passes. The
+    # public `propagate_*` functions still annotate trees for callers that
+    # read metadata; `analyze` only needs the root properties.
+    props = analyze_fold(ex, M)
+    # `props.sign` is ordinarily a `Sign`. Atoms that store callable
+    # placeholders in the rule table (e.g. `perspective`) leave a `Function`
+    # here; the `::Sign` assertion then fails exactly as `getsign` did on the
+    # metadata-annotated tree under typed-rule-tables.
+    return AnalysisResult(props.curvature, props.sign::Sign, props.gcurvature)
 end
 
 export analyze
