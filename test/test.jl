@@ -816,3 +816,8 @@ let xdom = SymbolicAnalysis.dcprule(LogExpFunctions.xexpx, unwrap(s_pos))[1].dom
     @test 0.5 in xdom
     @test !(-0.5 in xdom)
 end
+
+# Matrix `log` declared Positive, but log(0.01I) = -log(100)·I is negative definite.
+# Default `analyze(log(X))` already took the scalar AnySign rule; assert the
+# array-domain table entry itself is no longer Positive.
+@test all(r -> r.sign != SymbolicAnalysis.Positive, SymbolicAnalysis.dcprules_dict[log])
