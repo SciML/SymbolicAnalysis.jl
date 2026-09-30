@@ -9,6 +9,11 @@
 # fold is running, the getters consult the memo so rule logic that historically
 # read child metadata (`getsign`, `find_curvature`, `increasing_if_positive`,
 # …) sees the same values without a rebuild.
+#
+# The active fold context is stored in task-local storage (not a process-global
+# `Ref`) so concurrent `analyze` calls on different tasks/threads cannot read
+# each other's memos, and a `try`/`finally` clears the binding so nothing
+# survives a throw.
 
 """
     NodeAnalysis
@@ -29,24 +34,34 @@ mutable struct FoldCtx
     M::Union{AbstractManifold, Nothing}
 end
 
-# Process-local fold context. `analyze` is not re-entrant with itself on the
-# same task in normal use; the `Ref` is swapped under `try`/`finally` so a
-# throw cannot leave a stale context for later getter calls.
-const CURRENT_FOLD = Ref{Union{Nothing, FoldCtx}}(nothing)
+# Task-local key for the active fold. Must not be a process-global `Ref`: with
+# several threads one Euclidean `analyze` was observed reading another thread's
+# SPD memo and returning a false certificate.
+const FOLD_TLS_KEY = :SymbolicAnalysis_fold_ctx
+
+@inline function current_fold_ctx()
+    return get(task_local_storage(), FOLD_TLS_KEY, nothing)
+end
 
 @inline function fold_lookup(ex)
-    ctx = CURRENT_FOLD[]
+    ctx = current_fold_ctx()
     ctx === nothing && return nothing
     return get(ctx.memo, ex, nothing)
 end
 
 function with_fold_ctx(f, ctx::FoldCtx)
-    old = CURRENT_FOLD[]
-    CURRENT_FOLD[] = ctx
+    tls = task_local_storage()
+    had_old = haskey(tls, FOLD_TLS_KEY)
+    old = had_old ? tls[FOLD_TLS_KEY] : nothing
+    tls[FOLD_TLS_KEY] = ctx
     try
         return f()
     finally
-        CURRENT_FOLD[] = old
+        if had_old
+            tls[FOLD_TLS_KEY] = old
+        else
+            delete!(tls, FOLD_TLS_KEY)
+        end
     end
 end
 

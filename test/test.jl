@@ -816,3 +816,57 @@ let xdom = SymbolicAnalysis.dcprule(LogExpFunctions.xexpx, unwrap(s_pos))[1].dom
     @test 0.5 in xdom
     @test !(-0.5 in xdom)
 end
+
+# Fold context must be task-local: a process-global `Ref` let concurrent SPD
+# `analyze` calls poison a Euclidean one with a false Convex certificate on
+# `abs(eigmax(X))`. Also nothing may remain installed after a throw.
+using Manifolds: SymmetricPositiveDefinite
+@testset "fold context isolation" begin
+    @variables TX[1:2, 1:2]
+    Mspd = SymmetricPositiveDefinite(2)
+    e_abs = abs(eigmax(TX))
+    @test analyze(e_abs).curvature == SymbolicAnalysis.UnknownCurvature
+    @test analyze(e_abs, Mspd).curvature != SymbolicAnalysis.UnknownCurvature
+
+    bad = Threads.Atomic{Int}(0)
+    tot = Threads.Atomic{Int}(0)
+    @sync begin
+        Threads.@spawn for _ in 1:3000
+            r = analyze(e_abs)
+            Threads.atomic_add!(tot, 1)
+            if r.curvature != SymbolicAnalysis.UnknownCurvature
+                Threads.atomic_add!(bad, 1)
+            end
+        end
+        for _ in 1:3
+            Threads.@spawn for _ in 1:3000
+                analyze(e_abs, Mspd)
+            end
+        end
+    end
+    @test bad[] == 0
+    @test tot[] == 3000
+    @test SymbolicAnalysis.current_fold_ctx() === nothing
+    @test analyze(e_abs).curvature == SymbolicAnalysis.UnknownCurvature
+
+    # A throw inside `with_fold_ctx` must not leave a stale memo installed.
+    poison = SymbolicAnalysis.FoldCtx(IdDict{Any, SymbolicAnalysis.NodeAnalysis}(), Mspd)
+    eu = unwrap(e_abs)
+    poison.memo[eu] = SymbolicAnalysis.NodeAnalysis(
+        SymbolicAnalysis.Positive, SymbolicAnalysis.Convex, nothing
+    )
+    threw = false
+    try
+        SymbolicAnalysis.with_fold_ctx(poison) do
+            @test SymbolicAnalysis.fold_lookup(eu) !== nothing
+            error("fold-ctx-test-throw")
+        end
+    catch err
+        threw = err isa ErrorException && occursin("fold-ctx-test-throw", err.msg)
+        threw || rethrow()
+    end
+    @test threw
+    @test SymbolicAnalysis.current_fold_ctx() === nothing
+    @test SymbolicAnalysis.fold_lookup(eu) === nothing
+    @test analyze(e_abs).curvature == SymbolicAnalysis.UnknownCurvature
+end
