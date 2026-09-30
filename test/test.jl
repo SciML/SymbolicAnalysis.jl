@@ -819,7 +819,8 @@ end
 
 # Fold context must be task-local: a process-global `Ref` let concurrent SPD
 # `analyze` calls poison a Euclidean one with a false Convex certificate on
-# `abs(eigmax(X))`. Also nothing may remain installed after a throw.
+# `abs(eigmax(X))`. CI runners default to one thread, so the concurrency check
+# runs in a multi-threaded subprocess. Also nothing may remain after a throw.
 using Manifolds: SymmetricPositiveDefinite
 @testset "fold context isolation" begin
     @variables TX[1:2, 1:2]
@@ -828,11 +829,23 @@ using Manifolds: SymmetricPositiveDefinite
     @test analyze(e_abs).curvature == SymbolicAnalysis.UnknownCurvature
     @test analyze(e_abs, Mspd).curvature != SymbolicAnalysis.UnknownCurvature
 
+    # Spawn a real multi-threaded Julia so Threads.@spawn can run concurrently
+    # even when this parent process has Threads.nthreads() == 1.
+    fold_iso_script = """
+    using SymbolicAnalysis, Symbolics, Manifolds, LinearAlgebra
+    n = Threads.nthreads()
+    n > 1 || error("expected Threads.nthreads() > 1, got \$n")
+    @variables X[1:2, 1:2]
+    M = SymmetricPositiveDefinite(2)
+    e = abs(eigmax(X))
+    # Warm the analyze paths so the race is not masked by single-threaded compile.
+    analyze(e)
+    analyze(e, M)
     bad = Threads.Atomic{Int}(0)
     tot = Threads.Atomic{Int}(0)
     @sync begin
         Threads.@spawn for _ in 1:3000
-            r = analyze(e_abs)
+            r = analyze(e)
             Threads.atomic_add!(tot, 1)
             if r.curvature != SymbolicAnalysis.UnknownCurvature
                 Threads.atomic_add!(bad, 1)
@@ -840,12 +853,21 @@ using Manifolds: SymmetricPositiveDefinite
         end
         for _ in 1:3
             Threads.@spawn for _ in 1:3000
-                analyze(e_abs, Mspd)
+                analyze(e, M)
             end
         end
     end
-    @test bad[] == 0
-    @test tot[] == 3000
+    println("FOLD_CTX_ISOLATION nthreads=\$n tot=\$(tot[]) bad=\$(bad[])")
+    """
+    fold_iso_cmd = `$(Base.julia_cmd()) -t 8 --project=$(Base.active_project()) -e $(fold_iso_script)`
+    fold_iso_out = read(fold_iso_cmd, String)
+    fold_iso_m = match(
+        r"FOLD_CTX_ISOLATION nthreads=(\d+) tot=(\d+) bad=(\d+)", fold_iso_out
+    )
+    @test fold_iso_m !== nothing
+    @test parse(Int, fold_iso_m.captures[1]) > 1
+    @test parse(Int, fold_iso_m.captures[2]) == 3000
+    @test parse(Int, fold_iso_m.captures[3]) == 0
     @test SymbolicAnalysis.current_fold_ctx() === nothing
     @test analyze(e_abs).curvature == SymbolicAnalysis.UnknownCurvature
 
