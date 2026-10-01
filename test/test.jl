@@ -816,3 +816,29 @@ let xdom = SymbolicAnalysis.dcprule(LogExpFunctions.xexpx, unwrap(s_pos))[1].dom
     @test 0.5 in xdom
     @test !(-0.5 in xdom)
 end
+
+# `perspective` stored `getsign`/`getcurvature` function placeholders in its static
+# rule slots; nothing resolved them, so bare `analyze(perspective(...))` threw
+# `MethodError` on `convert(Sign, getsign)` and `2*perspective(...)` leaked
+# UnknownCurvature with a Positive sign from the broken metadata.
+@variables px
+let r = SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.perspective(exp, px, 2.0)))
+    @test r.curvature == SymbolicAnalysis.Convex
+    @test r.sign == SymbolicAnalysis.Positive
+end
+let r = SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.perspective(log, px, 2.0)))
+    @test r.curvature == SymbolicAnalysis.Concave
+    @test r.sign == SymbolicAnalysis.AnySign
+end
+let r = SymbolicAnalysis.analyze(unwrap(2 * SymbolicAnalysis.perspective(exp, px, 2.0)))
+    @test r.curvature == SymbolicAnalysis.Convex
+    @test r.sign == SymbolicAnalysis.Positive
+end
+# negativity / unknown sign of the perspective parameter is not certified
+@test curv_of(SymbolicAnalysis.perspective(exp, px, -1.0)) ==
+    SymbolicAnalysis.UnknownCurvature
+@test curv_of(SymbolicAnalysis.perspective(exp, px, s)) ==
+    SymbolicAnalysis.UnknownCurvature
+# a positive VarDomain on the parameter restores the certificate
+@test curv_of(SymbolicAnalysis.perspective(exp, px, s_pos)) == SymbolicAnalysis.Convex
+@test curv_of(SymbolicAnalysis.perspective(log, px, s_pos)) == SymbolicAnalysis.Concave

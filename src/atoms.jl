@@ -315,13 +315,47 @@ function perspective(f::Function, x, s::Real)
     return s * f(x / s)
 end
 Symbolics.@register_symbolic perspective(f::Function, x, s::Real)
-add_dcprule(
-    perspective,
-    (function_domain(), RealLine(), Positive),
-    getsign,
-    getcurvature,
-    AnyMono
-)
+
+"""
+    dcprule(::typeof(perspective), f, x, s)
+
+The perspective `s·f(x/s)` (for `s > 0`) inherits the sign and curvature of `f`
+when that positivity is established — a positive constant, or a variable whose
+`VarDomain` / propagated sign proves it — and `f` itself has a DCP rule. The
+placeholders previously stored in the static table (`getsign` / `getcurvature`
+function objects) were never resolved, so `analyze` either threw on
+`convert(Sign, getsign)` or leaked the function into sign metadata.
+
+Monotonicity in `x` matches `f`'s (scaling by positive `s` preserves direction);
+the `s` slot stays `AnyMono`, so a non-affine positive `s` is not certified.
+Without a rule for `f`, or without a proof that `s > 0`, the result is
+`UnknownCurvature` / `AnySign`.
+"""
+function dcprule(::typeof(perspective), f, x, s)
+    args = (f, x, s)
+    dom = (function_domain(), RealLine(), HalfLine{Real, :open}())
+    unknown = makerule(dom, AnySign, UnknownCurvature, AnyMono)
+    g = constval(f)
+    g isa Function && hasdcprule(g) || return unknown, args
+    sv = constval(s)
+    if sv isa Number
+        sv > 0 || return unknown, args
+    else
+        known_positive(s) || return unknown, args
+    end
+    local frule
+    try
+        frule, _ = dcprule(g, x)
+    catch e
+        (e isa MethodError || e isa KeyError) || rethrow()
+        return unknown, args
+    end
+    (frule.sign isa Sign && frule.curvature isa Curvature) || return unknown, args
+    frule.curvature == UnknownCurvature && return unknown, args
+    mono_x = get_arg_property(frule.monotonicity, 1, (x,))
+    return makerule(dom, frule.sign, frule.curvature, (AnyMono, mono_x, AnyMono)), args
+end
+hasdcprule(::typeof(perspective)) = true
 
 """
     quad_form(x::AbstractVector, P::AbstractMatrix)

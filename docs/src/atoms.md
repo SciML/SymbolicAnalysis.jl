@@ -23,7 +23,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | minimum                   | array_domain(ℝ)                                                                | AnySign   | Concave   | Increasing                                  |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(1, Inf))                            | Positive  | Convex    | increasing_if_positive                      |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(0, 1))                              | Positive  | Convex    | increasing_if_positive                      |
-| perspective(f, x, s)      | (function_domain(), ℝ, Positive)                                               | Same as f | Same as f | AnyMono                                     |
+| perspective(f, x, s)      | See below                                                                      | See below | See below | See below                                   |
 | quad_form                 | (array_domain(ℝ, 1), semidefinite_domain())                                    | See below | See below | See below                                   |
 | quad_over_lin             | (array_domain(ℝ), HalfLine{Real,:open}())                                      | Positive  | Convex    | (increasing_if_positive, Decreasing)        |
 | quad_over_lin             | (ℝ, HalfLine{Real,:open}())                                                    | Positive  | Convex    | (increasing_if_positive, Decreasing)        |
@@ -74,6 +74,19 @@ This page is intended to be a reference for the atoms that are currently impleme
 | kron                      | (array_domain(ℝ, 2), array_domain(ℝ, 2))                                       | AnySign   | Affine    | Increasing                                  |
 | tril                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
 | transpose                 | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                                  |
+
+### Perspective
+
+`perspective(f, x, s) = s*f(x/s)` for `s > 0` inherits the sign and curvature of
+`f` when that positivity is established (a positive constant, or a variable with
+a positive `VarDomain` / propagated sign) and `f` has a DCP rule. Monotonicity in
+`x` matches `f`'s; the `s` slot is `AnyMono`. If `f` has no rule or `s > 0`
+cannot be proved, the certificate is `UnknownCurvature` / `AnySign`.
+
+| Atom                 | Condition                         | Sign     | Curvature | Monotonicity                    |
+|:-------------------- |:--------------------------------- |:-------- |:--------- |:------------------------------- |
+| perspective(f, x, s) | `s` known positive, `f` has rule  | Same as f | Same as f | (AnyMono, f's mono, AnyMono)   |
+| perspective(f, x, s) | otherwise                         | AnySign  | UnknownCurvature | AnyMono                  |
 
 ### Bilinear atoms
 
