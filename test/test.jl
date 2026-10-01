@@ -817,10 +817,7 @@ let xdom = SymbolicAnalysis.dcprule(LogExpFunctions.xexpx, unwrap(s_pos))[1].dom
     @test !(-0.5 in xdom)
 end
 
-# `perspective` stored `getsign`/`getcurvature` function placeholders in its static
-# rule slots; nothing resolved them, so bare `analyze(perspective(...))` threw
-# `MethodError` on `convert(Sign, getsign)` and `2*perspective(...)` leaked
-# UnknownCurvature with a Positive sign from the broken metadata.
+# `perspective(f, x, s)` inherits sign/curvature from `f` when `s > 0` is proved.
 @variables px
 let r = SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.perspective(exp, px, 2.0)))
     @test r.curvature == SymbolicAnalysis.Convex
@@ -842,3 +839,29 @@ end
 # a positive VarDomain on the parameter restores the certificate
 @test curv_of(SymbolicAnalysis.perspective(exp, px, s_pos)) == SymbolicAnalysis.Convex
 @test curv_of(SymbolicAnalysis.perspective(log, px, s_pos)) == SymbolicAnalysis.Concave
+
+# `inv` exists and is concave on (-∞, 0), so certify Convex/Positive only when
+# the argument is known positive (same house rule as `/` and `xexpx`).
+@test curv_of(Symbolics.term(inv, unwrap(s))) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(Symbolics.term(inv, unwrap(s_pos))) == SymbolicAnalysis.Convex
+@test curv_of(SymbolicAnalysis.perspective(inv, s, 2.0)) ==
+    SymbolicAnalysis.UnknownCurvature
+@test curv_of(SymbolicAnalysis.perspective(inv, s, s_pos)) ==
+    SymbolicAnalysis.UnknownCurvature
+@test curv_of(SymbolicAnalysis.perspective(inv, s_pos, 2.0)) == SymbolicAnalysis.Convex
+@test curv_of(SymbolicAnalysis.perspective(inv, s_pos, s_pos)) == SymbolicAnalysis.Convex
+let r = SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.perspective(inv, s_pos, 2.0)))
+    @test r.curvature == SymbolicAnalysis.Convex
+    @test r.sign == SymbolicAnalysis.Positive
+end
+
+# `invprod` likewise exists for mixed-sign vectors (where `1/∏xᵢ` is concave).
+@variables ipv[1:2]
+@test curv_of(SymbolicAnalysis.invprod(ipv)) == SymbolicAnalysis.UnknownCurvature
+ipv_pos = Symbolics.wrap(
+    setmetadata(
+        unwrap(ipv), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1)
+    )
+)
+@test curv_of(SymbolicAnalysis.invprod(ipv_pos)) == SymbolicAnalysis.Convex
