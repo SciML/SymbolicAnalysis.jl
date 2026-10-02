@@ -776,6 +776,19 @@ add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 # special cases which depend on arguments:
 
 # The scalar power laws, applied to a scalar base or elementwise to an array one.
+# Julia's `^(::Float64, ::Integer)` clamps the exponent to `Int64`. A
+# mathematically even `BigInt` / `UInt64` outside that range can therefore
+# evaluate as an odd Float64 power (negative at a negative base). Refuse any
+# integer exponent that is not exactly representable as `Int64`.
+function _integer_power_runtime_exact(i)
+    return try
+        convert(Int64, i)
+        true
+    catch
+        false
+    end
+end
+
 function power_rule(x, i)
     args = (x, i)
     unknown = makerule(RealLine(), AnySign, UnknownCurvature, AnyMono)
@@ -792,6 +805,11 @@ function power_rule(x, i)
     end
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
+    elseif iszero(i)
+        # `x^0 == 1` for every real `x` in Julia, including `0^0`.
+        return makerule(RealLine(), Positive, Affine, AnyMono), args
+    elseif isinteger(i) && !_integer_power_runtime_exact(i)
+        return unknown, args
     elseif isinteger(i) && iseven(i) && i > 0
         # Even positive powers are convex on all of R.
         return makerule(RealLine(), Positive, Convex, increasing_if_positive), args

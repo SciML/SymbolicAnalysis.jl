@@ -607,6 +607,25 @@ bpos = setmetadata(
 @test SymbolicAnalysis.analyze(unwrap(u^2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(u^1.5)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(u^0.5)).curvature == SymbolicAnalysis.Concave
+# Huge integer exponents are outside the range Julia's `Float64^Integer`
+# evaluates exactly (clamped to `Int64`), so even BigInt/UInt64 powers must not
+# certify: at runtime `(-1.0)^n` is negative when the clamp turns an even `n`
+# into an odd Int64.
+n_huge = big(2)^64
+n_uint = UInt64(1) << 63
+@test SymbolicAnalysis.analyze(unwrap(u^n_huge)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^n_huge)).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(bx .^ n_huge)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^n_uint)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ n_uint)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Zeroth power is the constant 1 (Affine/Positive), including broadcast.
+# Scalar `u^0` constant-folds; `bx.^0` reaches `power_rule` via the elementwise path.
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).sign == SymbolicAnalysis.Positive
 
 # Symbolics folds `-c/2` into `(-1//2)*c`, so a coefficient can be a `Rational`.
 @variables c d
