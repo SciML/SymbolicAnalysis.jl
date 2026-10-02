@@ -35,7 +35,20 @@ These values are accepted by [`add_gdcprule`](@ref).
 """
 @enum GMonotonicity GIncreasing GDecreasing GAnyMono
 
-const gdcprules_dict = Dict()
+"""
+    GDCPRule
+
+Immutable descriptor for a registered geodesic DCP atom rule. Fields are
+concretely typed so geodesic rule-table lookups do not box through `Any`.
+"""
+struct GDCPRule
+    manifold::Any
+    sign::Sign
+    gcurvature::GCurvature
+    gmonotonicity::Any
+end
+
+const gdcprules_dict = IdDict{Any, GDCPRule}()
 
 """
     add_gdcprule(f, manifold, sign, curvature, monotonicity)
@@ -95,7 +108,7 @@ function add_gdcprule(f, manifold, sign, curvature, monotonicity)
     return gdcprules_dict[f] = makegrule(manifold, sign, curvature, monotonicity)
 end
 function makegrule(manifold, sign, curvature, monotonicity)
-    return (manifold = manifold, sign = sign, gcurvature = curvature, gmonotonicity = monotonicity)
+    return GDCPRule(manifold, sign, curvature, monotonicity)
 end
 
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
@@ -192,7 +205,7 @@ function find_gcurvature(ex)
         elseif f == LinearAlgebra.logdet
             if operation(args[1]) == conjugation ||
                     operation(args[1]) == LinearAlgebra.diag ||
-                    Symbol(operation(args[1])) == :+ ||
+                    operation(args[1]) === (+) ||
                     operation(args[1]) == affine_map ||
                     operation(args[1]) == hadamard_product
                 return GConvex
@@ -239,7 +252,7 @@ function find_gcurvature(ex)
                         f_curvature = rule.gcurvature
                         f_monotonicity = rule.gmonotonicity
                         knowngcurv = true
-                    elseif Symbol(operation(args[i])) == :+ &&
+                    elseif operation(args[i]) === (+) &&
                             count(!isconstarg, arguments(args[i])) <= 1
                         # A constant shift moves the atom by a constant, which leaves
                         # its geodesic curvature alone: `tr(X + C) = tr(X) + tr(C)`.
@@ -252,7 +265,7 @@ function find_gcurvature(ex)
                     end
                 end
             end
-        elseif Symbol(f) == :*
+        elseif f === (*)
             a1 = constval(args[1])
             if a1 isa Number && a1 > 0
                 return find_gcurvature(args[2])
@@ -326,7 +339,7 @@ function find_gcurvature(ex)
         else
             return GUnknownCurvature
         end
-    elseif hasfield(typeof(ex), :val) && operation(ex.val) in keys(gdcprules_dict)
+    elseif hasfield(typeof(ex), :val) && haskey(gdcprules_dict, operation(ex.val))
         f, args = operation(ex.val), arguments(ex.val)
         rule, args = gdcprule(f, args...)
         return rule.gcurvature
@@ -341,9 +354,9 @@ end
 function node_gcurvature(ex)
     if iscall(ex)
         f = operation(ex)
-        if Symbol(f) == :*
+        if f === (*)
             return mul_gcurvature(arguments(ex))
-        elseif Symbol(f) == :+
+        elseif f === (+)
             return add_gcurvature(arguments(ex))
         end
     end
