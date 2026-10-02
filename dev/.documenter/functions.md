@@ -113,6 +113,42 @@ Huber is convex in `x`, but for `abs(x) > M` it equals `2M*abs(x) - M^2`, which 
 </details>
 
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.invprod, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.invprod, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(invprod), x)
+```
+
+
+`inv(prod(x))` is convex-decreasing on the positive orthant, but the product of a mixed-sign vector can be negative, and `1/t` is concave there — e.g. `g(-1,2) = -1/2`, `g(-3,4) = -1/12`, midpoint `g(-2,3) = -1/6` above the chord `-7/24`. Require a known-positive argument (propagated `Positive` sign, or an array `VarDomain` whose element domain lies in `(0, ∞)`).
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.perspective, Any, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.perspective, Any, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(perspective), f, x, s)
+```
+
+
+The perspective `s·f(x/s)` (for `s > 0`) inherits the sign and curvature of `f` when that positivity is established — a positive constant, or a variable whose `VarDomain` / propagated sign proves it — and `f` itself has a DCP rule.
+
+Monotonicity in `x` matches `f`'s (scaling by positive `s` preserves direction); the `s` slot stays `AnyMono`. Certifying joint convexity also requires `s` to be affine; a non-affine positive `s` is not certified. Without a rule for `f`, or without a proof that `s > 0`, the result is `UnknownCurvature` / `AnySign`.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.quad_form, Any, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofSymbolicAnalysis.quad_form, Any, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
 
 
@@ -161,6 +197,25 @@ dcprule(::typeof(exp), x)
 
 
 `exp(X)` on a matrix is the matrix exponential, not the scalar law applied pointwise: `expm` is neither operator convex nor operator monotone, so `sum(exp(X))` and `tr(exp(X))` are indefinite even on the SPD cone. The elementwise `exp.(X)` arrives through `broadcast` and keeps the scalar law via `elementwise_dcprule`.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofinv, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofinv, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(inv), x)
+```
+
+
+`1/x` is convex-decreasing and positive on `(0, ∞)`, but it **exists** for every nonzero `x` and is concave (and negative) on `(-∞, 0)` — e.g. `f(-1) = -1`, `f(-3) = -1/3`, and the midpoint `f(-2) = -1/2` lies above the chord `-2/3`. Certifying `Convex`/`Positive` for a sign-unknown argument is therefore a false certificate over the function's own real domain. The same house rule that guards `/` and `xexpx` applies; `log`/`sqrt` escape it only because they are undefined outside their declared domain.
+
+Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually covers rewritten forms; this method covers the bare `inv` term (as built by `perspective` and `Symbolics.term`). Matrix `inv` keeps the Loewner-order table entry via the fallback.
 
 
 <Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
