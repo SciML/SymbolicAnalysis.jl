@@ -105,3 +105,19 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
     ex = propagate_gcurvature(ex, M)
     @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
 end
+
+# Sign audits: several Lorentz atoms were registered Positive while taking
+# negative values on their stated geodesic-convexity domains.
+@testset "Lorentz atom signs are not falsely Positive" begin
+    @variables p[1:3]
+    M = Manifolds.Lorentz(3)
+    # -log(t-1) < 0 for t > 2 (t = p[end])
+    @test analyze(SymbolicAnalysis.lorentz_log_barrier(p), M).sign !=
+        SymbolicAnalysis.Positive
+    A = Diagonal([1.0, 1.0, -0.5]) |> Matrix
+    @test analyze(SymbolicAnalysis.lorentz_homogeneous_quadratic(A, p), M).sign !=
+        SymbolicAnalysis.Positive
+    a = [1.0, 1.0, -0.5]
+    @test analyze(SymbolicAnalysis.lorentz_homogeneous_diagonal(a, p), M).sign !=
+        SymbolicAnalysis.Positive
+end

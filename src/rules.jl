@@ -119,7 +119,27 @@ function increasing_if_positive(x)
     return sign == AnySign ? AnyMono : sign == Positive ? Increasing : Decreasing
 end
 
-const dcprules_dict = Dict()
+"""
+    DCPRule
+
+Immutable descriptor for a registered Euclidean DCP atom rule. Fields are
+concretely typed so rule-table lookups do not box through `Any`.
+
+`sign` / `curvature` are ordinarily [`Sign`](@ref) / [`Curvature`](@ref); a
+small number of atoms (e.g. `perspective`) store callable placeholders instead,
+matching the historical NamedTuple storage.
+"""
+struct DCPRule
+    domain::Any
+    sign::Union{Sign, Function}
+    curvature::Union{Curvature, Function}
+    monotonicity::Any
+end
+
+# Identity-keyed so function objects used as atom keys resolve without hashing
+# through `Any`. Every entry is a `Vector{DCPRule}` — one rule for most atoms,
+# several when distinct domains are registered for the same operation.
+const dcprules_dict = IdDict{Any, Vector{DCPRule}}()
 
 """
     add_dcprule(f, domain, sign, curvature, monotonicity)
@@ -177,15 +197,17 @@ function add_dcprule(f, domain, sign, curvature, monotonicity)
     if !(monotonicity isa Tuple)
         monotonicity = (monotonicity,)
     end
-    return if f in keys(dcprules_dict)
-        dcprules_dict[f] = vcat(dcprules_dict[f], makerule(domain, sign, curvature, monotonicity))
+    rule = makerule(domain, sign, curvature, monotonicity)
+    if haskey(dcprules_dict, f)
+        push!(dcprules_dict[f], rule)
+        return dcprules_dict[f]
     else
-        dcprules_dict[f] = makerule(domain, sign, curvature, monotonicity)
+        return dcprules_dict[f] = DCPRule[rule]
     end
 end
 
 function makerule(domain, sign, curvature, monotonicity)
-    return (; domain = domain, sign = sign, curvature = curvature, monotonicity = monotonicity)
+    return DCPRule(domain, sign, curvature, monotonicity)
 end
 
 hasdcprule(f::Function) = haskey(dcprules_dict, f)
@@ -219,18 +241,10 @@ function no_rule(argsdomain, args)
 end
 
 function dcprule(f, args...)
+    rules = dcprules_dict[f]
     if all(_has_vardomain, args)
         argsdomain = getmetadata.(args, Ref(VarDomain))
-    else
-        if dcprules_dict[f] isa Vector
-            return dcprules_dict[f][1], args
-        else
-            return dcprules_dict[f], args
-        end
-    end
-
-    if dcprules_dict[f] isa Vector
-        for rule in dcprules_dict[f]
+        for rule in rules
             if (rule.domain isa Domain) &&
                     all(subdomain.(argsdomain, Ref(rule.domain)))
                 return rule, args
@@ -240,14 +254,8 @@ function dcprule(f, args...)
             end
         end
         return no_rule(argsdomain, args)
-    elseif (dcprules_dict[f].domain isa Domain) &&
-            all(subdomain.(argsdomain, Ref(dcprules_dict[f].domain)))
-        return dcprules_dict[f], args
-    elseif dcprules_dict[f].domain isa Tuple &&
-            all(subdomain.(argsdomain, dcprules_dict[f].domain))
-        return dcprules_dict[f], args
     else
-        return no_rule(argsdomain, args)
+        return rules[1], args
     end
 end
 
@@ -255,16 +263,22 @@ end
 setsign(ex::Union{Num, Symbolic}, sign) = setmetadata(ex, Sign, sign)
 setsign(ex, sign) = ex
 
-function symbolic_sign(ex)
+function symbolic_sign(ex)::Sign
     # An assembled array aggregates its elements' signs, as `getsign(::AbstractArray)`
-    # does for a plain container, but it cannot be read back from metadata: the
-    # curvature pass rebuilds each node through `maketerm`, which drops what the sign
-    # pass wrote on an `array_literal`. Argument 1 is the size tuple.
+    # does for a plain container. This must win over both the fold memo and any
+    # Sign metadata: `node_sign` writes the rule-table `AnySign` onto an
+    # `array_literal`, but callers (e.g. `norm`'s `increasing_if_positive`) need
+    # the elementwise aggregation. Argument 1 is the size tuple.
     if iscall(ex) && operation(ex) === SymbolicUtils.array_literal
         return add_sign(@view arguments(ex)[2:end])
     end
+    # During the read-only fold, child results live in the memo rather than in
+    # Sign metadata. Prefer the memo so rule logic that calls `getsign` on an
+    # already-folded child sees the same value the Postwalk engine wrote.
+    hit = fold_lookup(ex)
+    hit !== nothing && return hit.sign::Sign
     if hasmetadata(ex, Sign)
-        return getmetadata(ex, Sign)
+        return getmetadata(ex, Sign)::Sign
     end
     return AnySign
 end
@@ -272,28 +286,32 @@ end
 # Split over `Num` and `Symbolic` instead of their union: `Num <: Real` while
 # `BasicSymbolic` is not, so a union method would be ambiguous with the `Real`
 # method below rather than more specific than it.
-getsign(ex::Num) = symbolic_sign(ex)
-getsign(ex::Symbolic) = symbolic_sign(ex)
+getsign(ex::Num)::Sign = symbolic_sign(unwrap(ex))
+getsign(ex::Symbolic)::Sign = symbolic_sign(ex)
 
 # `Real`, not `Union{AbstractFloat, Integer}`: Symbolics folds `-a/2` into
 # `(-1//2)*a`, so a coefficient reaching here can be any real subtype.
-getsign(ex::Real) = ex < 0 ? Negative : Positive
+getsign(ex::Real)::Sign = ex < 0 ? Negative : Positive
 
-function getsign(ex::AbstractArray)
+function getsign(ex::AbstractArray)::Sign
     if all(x -> getsign(x) == Negative, ex)
         return Negative
     elseif all(x -> getsign(x) == Positive, ex)
         return Positive
     else
-        AnySign
+        return AnySign
     end
 end
 
-hassign(ex::Union{Num, Symbolic}) = hasmetadata(ex, Sign)
+function hassign(ex::Union{Num, Symbolic})
+    hit = fold_lookup(ex isa Num ? unwrap(ex) : ex)
+    hit !== nothing && return true
+    return hasmetadata(ex, Sign)
+end
 hassign(ex) = ex isa Real
 
 hassign(ex::typeof(Base.broadcast)) = true
-getsign(ex::typeof(Base.broadcast)) = Positive
+getsign(ex::typeof(Base.broadcast))::Sign = Positive
 
 function add_sign(args)
     if hassign(args)
@@ -362,9 +380,9 @@ function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
         f = operation(ex)
-        if Symbol(f) == :*
+        if f === (*)
             return mul_sign(arguments(ex))
-        elseif Symbol(f) == :+
+        elseif f === (+)
             return add_sign(arguments(ex))
         elseif usegdcp && hasgdcprule(f)
             return gdcprule(f, arguments(ex)...)[1].sign
@@ -401,23 +419,25 @@ end
 
 setcurvature(ex::Union{Num, Symbolic}, curv) = setmetadata(ex, Curvature, curv)
 setcurvature(ex, curv) = ex
-function getcurvature(ex::Union{Num, Symbolic})
-    hasmetadata(ex, Curvature) && return getmetadata(ex, Curvature)
+function getcurvature(ex::Union{Num, Symbolic})::Curvature
+    v = unwrap(ex)
+    hit = fold_lookup(v)
+    hit !== nothing && return hit.curvature
+    hasmetadata(ex, Curvature) && return getmetadata(ex, Curvature)::Curvature
     # A constant-folded expression (`a - a`, `0*a`, `Num(3.0)`) is a
     # `BasicSymbolic` that is neither `issym` nor `iscall`, so the propagation
     # walk never annotates it; it is a constant, hence affine. Anything else
     # arriving here was never analyzed, and carries no certificate.
-    v = unwrap(ex)
     return (issym(v) || iscall(v)) ? UnknownCurvature : Affine
 end
-getcurvature(ex) = Affine
+getcurvature(ex)::Curvature = Affine
 
 # A container is as curved as its elements, so aggregate rather than falling
 # through to the `Affine` default for non-symbolic values: a plain
 # `Vector{Num}`/`Matrix{Num}` of non-affine entries is not affine. Mirrors
 # `getsign(::AbstractArray)`; elementwise curvatures combine as in a sum, since
 # every element must hold the claimed curvature for the container to.
-function getcurvature(ex::AbstractArray)
+function getcurvature(ex::AbstractArray)::Curvature
     has_convex = false
     has_concave = false
     for e in ex
@@ -436,7 +456,12 @@ function getcurvature(ex::AbstractArray)
     end
     return has_convex ? Convex : has_concave ? Concave : Affine
 end
-hascurvature(ex::Union{Num, Symbolic}) = hasmetadata(ex, Curvature)
+function hascurvature(ex::Union{Num, Symbolic})
+    v = unwrap(ex)
+    hit = fold_lookup(v)
+    hit !== nothing && return true
+    return hasmetadata(ex, Curvature)
+end
 hascurvature(ex) = ex isa Real
 
 # Sign of the product of the constant factors of a multiplication, i.e. the
@@ -527,9 +552,9 @@ end
 function node_curvature(ex)
     if iscall(ex)
         f = operation(ex)
-        if Symbol(f) == :*
+        if f === (*)
             return mul_curvature(arguments(ex))
-        elseif Symbol(f) == :+
+        elseif f === (+)
             return add_curvature(arguments(ex))
         end
     end
@@ -578,7 +603,7 @@ function composes_as(target::Curvature, f_monotonicity, args)
     end
 end
 
-function find_curvature(ex)
+function find_curvature(ex)::Curvature
     if hascurvature(ex)
         return getcurvature(ex)
     end
@@ -594,7 +619,7 @@ function find_curvature(ex)
         # @show f
         if hasdcprule(f)
             rule, args = dcprule(f, args...)
-        elseif Symbol(f) == :*
+        elseif f === (*)
             # `mul_curvature` handles a constant in any position and of any shape;
             # the scalar-only version this replaced read `constval(args[1])` and
             # required it to be a `Number`, so a constant *matrix* coefficient was

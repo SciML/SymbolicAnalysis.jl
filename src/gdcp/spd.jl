@@ -1,9 +1,12 @@
 ### DGCP Atoms
 
+# `logdet` on SPD is geodesically linear, but not nonnegative: logdet(εI) → -∞
+# as ε → 0 (e.g. logdet(0.01I₂) ≈ -9.21). Declaring `Positive` made
+# `abs(logdet(X) + tr(X))` compose as GConvex while a geodesic midpoint refutes it.
 add_gdcprule(
     LinearAlgebra.logdet,
     SymmetricPositiveDefinite,
-    Positive,
+    AnySign,
     GLinear,
     GIncreasing
 )
@@ -185,7 +188,8 @@ end
 log_quad_form(y::AbstractVector, X::Symbolics.Arr) = _log_quad_form_term(y, X)
 log_quad_form(y::Symbolics.Arr, X::AbstractMatrix) = _log_quad_form_term(y, X)
 log_quad_form(y::Symbolics.Arr, X::Symbolics.Arr) = _log_quad_form_term(y, X)
-add_gdcprule(log_quad_form, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+# `log(y'Xy)` is negative whenever `y'Xy < 1` (e.g. y = e₁, X = 0.01I ⇒ ≈ -4.61).
+add_gdcprule(log_quad_form, SymmetricPositiveDefinite, AnySign, GConvex, GIncreasing)
 
 add_gdcprule(inv, SymmetricPositiveDefinite, Positive, GConvex, GDecreasing)
 
@@ -240,7 +244,9 @@ function sum_log_eigmax(X::AbstractMatrix, k::Int)
 end
 
 @register_symbolic sum_log_eigmax(X::Matrix{Num}, k::Int) false
-add_gdcprule(sum_log_eigmax, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+# Without an outer `f`, this is `sum(log(λᵢ))` over the `k` largest eigenvalues,
+# which is negative for λᵢ < 1 (e.g. X = 0.01I₂, k = 2 ⇒ ≈ -9.21).
+add_gdcprule(sum_log_eigmax, SymmetricPositiveDefinite, AnySign, GConvex, GIncreasing)
 
 """
     affine_map(f, X, B, Y)

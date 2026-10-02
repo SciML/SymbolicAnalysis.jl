@@ -710,7 +710,9 @@ end
 
 Base.log(A::Symbolics.Arr) = matrix_atom(log, A)
 Base.log(A::Matrix{Num}) = matrix_atom(log, A)
-add_dcprule(log, array_domain(RealLine(), 2), Positive, Concave, Increasing)
+# Matrix logarithm of a PD matrix with eigenvalues in (0, 1) is negative
+# definite (e.g. log(0.01I₂) = −log(100)·I), so the result is not Positive.
+add_dcprule(log, array_domain(RealLine(), 2), AnySign, Concave, Increasing)
 
 add_dcprule(inv, semidefinite_domain(), AnySign, Convex, Decreasing)
 
@@ -1078,7 +1080,7 @@ hasdcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(Base.add_sum)}) =
 function dcprule(
         ::SymbolicUtils.Mapreducer{typeof(identity), typeof(Base.add_sum)}, args...
     )
-    return dcprules_dict[sum], args
+    return dcprules_dict[sum][1], args
 end
 
 # `maximum`/`minimum` over a symbolic array reduce with `max`/`min`, so they
@@ -1088,7 +1090,7 @@ end
 # delegate to the registered rule regardless of `dims`/`init`.
 hasdcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(max)}) = true
 function dcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(max)}, args...)
-    return dcprules_dict[maximum], args
+    return dcprules_dict[maximum][1], args
 end
 
 hasdcprule(::SymbolicUtils.Mapreducer{typeof(identity), typeof(min)}) = true
