@@ -53,7 +53,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | log                       | HalfLine{Real,:open}()                                                             | AnySign   | Concave   | Increasing                           |
 | log2                      | HalfLine{Real,:open}()                                                             | AnySign   | Concave   | Increasing                           |
 | log10                     | HalfLine{Real,:open}()                                                             | AnySign   | Concave   | Increasing                           |
-| log                       | array_domain(ℝ, 2)                                                                 | Positive  | Concave   | Increasing                           |
+| log                       | array_domain(ℝ, 2)                                                                 | AnySign   | Concave   | Increasing                           |
 | inv                       | semidefinite_domain()                                                              | AnySign   | Convex    | Decreasing                           |
 | sqrt                      | semidefinite_domain()                                                              | Positive  | Concave   | Increasing                           |
 | kldivergence              | (array_domain(HalfLine{Real,:open}(), 1), array_domain(HalfLine{Real,:open}(), 1)) | Positive  | Convex    | AnyMono                              |
@@ -141,7 +141,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 
 | Atom                       | Sign     | Geodesic Curvature | Monotonicity |
 |:-------------------------- |:-------- |:------------------ |:------------ |
-| LinearAlgebra.logdet       | Positive | GLinear            | GIncreasing  |
+| LinearAlgebra.logdet       | AnySign  | GLinear            | GIncreasing  |
 | conjugation                | Positive | GConvex            | GIncreasing  |
 | LinearAlgebra.tr           | Positive | GConvex            | GIncreasing  |
 | sum                        | Positive | GConvex            | GIncreasing  |
@@ -152,12 +152,12 @@ This page is intended to be a reference for the atoms that are currently impleme
 | Manifolds.distance         | Positive | GConvex            | GAnyMono     |
 | SymbolicAnalysis.quad_form | Positive | GConvex            | GIncreasing  |
 | LinearAlgebra.eigmax       | Positive | GConvex            | GIncreasing  |
-| log_quad_form              | Positive | GConvex            | GIncreasing  |
+| log_quad_form              | AnySign  | GConvex            | GIncreasing  |
 | inv                        | Positive | GConvex            | GDecreasing  |
 | diag                       | Positive | GConvex            | GIncreasing  |
 | eigsummax                  | Positive | GConvex            | GIncreasing  |
 | schatten_norm              | Positive | GConvex            | GIncreasing  |
-| sum_log_eigmax             | Positive | GConvex            | GIncreasing  |
+| sum_log_eigmax             | AnySign  | GConvex            | GIncreasing  |
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |
 
@@ -167,9 +167,9 @@ This page is intended to be a reference for the atoms that are currently impleme
 | Atom                          | Sign     | Geodesic Curvature | Monotonicity |
 |:----------------------------- |:-------- |:------------------ |:------------ |
 | lorentz_distance              | Positive | GConvex            | GAnyMono     |
-| lorentz_log_barrier           | Positive | GConvex            | GIncreasing  |
-| lorentz_homogeneous_quadratic | Positive | GConvex            | GAnyMono     |
-| lorentz_homogeneous_diagonal  | Positive | GConvex            | GAnyMono     |
+| lorentz_log_barrier           | AnySign  | GConvex            | GIncreasing  |
+| lorentz_homogeneous_quadratic | AnySign  | GConvex            | GAnyMono     |
+| lorentz_homogeneous_diagonal  | AnySign  | GConvex            | GAnyMono     |
 | lorentz_least_squares         | Positive | GConvex            | GAnyMono     |
 | lorentz_transform             | -        | -                  | -            |
 
