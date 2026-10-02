@@ -291,10 +291,14 @@ ws = Symbolics.scalarize(w)
 
 # The elementwise `x .^ i` traces to `broadcast(^, x, i)` with an array base too,
 # but applies the power pointwise, so the scalar laws do hold there and the
-# matrix-power guard above must not reject it.
+# matrix-power guard above must not reject it. Odd integer powers still need a
+# nonnegative base (they exist and are nonconvex on R); even powers do not.
 @test SymbolicAnalysis.analyze(unwrap(w .^ 2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 2))).curvature == SymbolicAnalysis.Convex
-@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(sum(exp.(w) .^ 3))).curvature ==
+    SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 0.5))).curvature ==
     SymbolicAnalysis.Concave
 @test SymbolicAnalysis.analyze(unwrap(sum(Xm .^ 2))).curvature == SymbolicAnalysis.Convex
@@ -568,6 +572,41 @@ lAmix = [1.0 -2.0; 3.0 -4.0]
 # though the base is an array.
 @test SymbolicAnalysis.analyze(unwrap(bx .^ 2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(bx .^ 2))).curvature == SymbolicAnalysis.Convex
+
+# Odd positive powers and integer negative powers exist outside their DCP
+# domain with the wrong curvature, so an undeclared real base must not certify.
+# (At u=-1, u^3=-1 lies above the chord -4 between -2 and 0; u.^-1 is concave
+# on (-∞, 0).) Even powers and DomainError-guarded non-integer powers are unchanged.
+@variables u
+@test SymbolicAnalysis.analyze(unwrap(u^3)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^3)).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(u^5)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u .^ 3)).curvature == SymbolicAnalysis.UnknownCurvature
+# Array broadcast keeps `broadcast(^, …)` (scalar `u^-n` rewrites through `/`),
+# so this is the path that hits `power_rule` for negative integer exponents.
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 3)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ (-1))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ (-2))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Declared-positive / established-nonnegative bases still certify, as does the
+# even-power law on R and a base that already carries a Positive sign.
+@test SymbolicAnalysis.analyze(unwrap(exp(u)^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp(u)^3)).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(abs(u)^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(dpos^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(dpos^(-1))).curvature == SymbolicAnalysis.Convex
+bpos = setmetadata(
+    unwrap(bx), SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine{Number, :open}()
+)
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bpos) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bpos) .^ (-1))).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp.(bx) .^ 3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^2)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^1.5)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^0.5)).curvature == SymbolicAnalysis.Concave
 
 # Symbolics folds `-c/2` into `(-1//2)*c`, so a coefficient can be a `Rational`.
 @variables c d

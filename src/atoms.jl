@@ -693,6 +693,7 @@ add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 # The scalar power laws, applied to a scalar base or elementwise to an array one.
 function power_rule(x, i)
     args = (x, i)
+    unknown = makerule(RealLine(), AnySign, UnknownCurvature, AnyMono)
     if !(i isa Real)
         # The power laws below all need a numeric exponent. The remaining case
         # with a DCP curvature is a constant base: `c^g == exp(g*log(c))` is
@@ -702,22 +703,40 @@ function power_rule(x, i)
             mono = base > 1 ? Increasing : base < 1 ? Decreasing : AnyMono
             return makerule(RealLine(), Positive, Convex, (AnyMono, mono)), args
         end
-        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+        return unknown, args
     end
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
-    elseif isinteger(i) && iseven(i)
+    elseif isinteger(i) && iseven(i) && i > 0
+        # Even positive powers are convex on all of R.
         return makerule(RealLine(), Positive, Convex, increasing_if_positive), args
-    elseif isinteger(i) && isodd(i)
+    elseif isinteger(i) && isodd(i) && i > 0
+        # Odd powers `x^3`, `x^5`, … are convex on `[0, ∞)` but exist and are
+        # neither convex nor nonnegative on R (at y=-1, y^3=-1 lies above the
+        # chord -4 between -2 and 0). Gate on an established-nonnegative base —
+        # the same "exists outside the declared domain" pattern as `/` and `inv`.
+        known_nonnegative(x) || return unknown, args
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i >= 1
+        # Non-integer `i ≥ 1` throws `DomainError` for x < 0, so the domain is
+        # where the real function exists (log / sqrt convention).
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing), args
     elseif i < 0
-        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing), args
+        # Negative powers are convex-decreasing on `(0, ∞)`. Integer exponents
+        # also exist for x < 0 (where the curvature is wrong: `x^-1` is concave
+        # on `(-∞, 0)`, and `x^-2` is not convex across 0), so require an
+        # established-positive base. Non-integer exponents throw `DomainError`
+        # for x < 0 and keep the log / sqrt convention.
+        if isinteger(i)
+            known_positive(x) || return unknown, args
+            return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
+        else
+            return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Decreasing), args
+        end
     end
-    return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return unknown, args
 end
 
 function dcprule(::typeof(^), x::Symbolic, i)
@@ -789,6 +808,18 @@ function known_positive(x)
     _has_vardomain(x) || return false
     return try
         issubset(getmetadata(x, VarDomain), HalfLine{Real, :open}())
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
+# Nonnegativity for atoms convex on `[0, ∞)` (odd powers). `Positive` sign is
+# accepted: the package annotates `abs` and similar as `Positive` even at 0.
+function known_nonnegative(x)
+    getsign(x) == Positive && return true
+    _has_vardomain(x) || return false
+    return try
+        issubset(getmetadata(x, VarDomain), HalfLine())
     catch e
         e isa MethodError ? false : rethrow()
     end
