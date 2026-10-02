@@ -865,3 +865,44 @@ ipv_pos = Symbolics.wrap(
     )
 )
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos)) == SymbolicAnalysis.Convex
+
+# Array domain / sign must reach `getindex` and a nonnegative affine shift.
+@test curv_of(inv(ipv_pos[1])) == SymbolicAnalysis.Convex
+@test curv_of(Symbolics.term(inv, unwrap(ipv_pos[1]))) == SymbolicAnalysis.Convex
+@test curv_of(SymbolicAnalysis.invprod(ipv_pos .+ 1)) == SymbolicAnalysis.Convex
+@test curv_of(inv(s_pos + 1)) == SymbolicAnalysis.Convex
+let r = SymbolicAnalysis.analyze(unwrap(inv(ipv_pos[1])))
+    @test r.curvature == SymbolicAnalysis.Convex
+    @test r.sign == SymbolicAnalysis.Positive
+end
+# undeclared / mixed-sign arrays, and domains that include 0 or negatives, must
+# not certify `inv`.
+@variables ipv_free[1:2]
+@test curv_of(inv(ipv_free[1])) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(SymbolicAnalysis.invprod(ipv_free .+ 1)) ==
+    SymbolicAnalysis.UnknownCurvature
+ipv_closed = Symbolics.wrap(
+    setmetadata(
+        unwrap(ipv), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :closed}(), 1)
+    )
+)
+@test curv_of(inv(ipv_closed[1])) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(SymbolicAnalysis.invprod(ipv_closed)) ==
+    SymbolicAnalysis.UnknownCurvature
+ipv_real = Symbolics.wrap(
+    setmetadata(
+        unwrap(ipv), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.RealLine(), 1)
+    )
+)
+@test curv_of(inv(ipv_real[1])) == SymbolicAnalysis.UnknownCurvature
+s_closed = Symbolics.wrap(
+    setmetadata(
+        unwrap(s), SymbolicAnalysis.VarDomain,
+        Symbolics.DomainSets.HalfLine{Real, :closed}()
+    )
+)
+@test curv_of(Symbolics.term(inv, unwrap(s_closed))) ==
+    SymbolicAnalysis.UnknownCurvature
+@test curv_of(inv(ipv_pos[1] + (-2))) == SymbolicAnalysis.UnknownCurvature

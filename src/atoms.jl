@@ -2,6 +2,10 @@
 
 add_dcprule(+, RealLine(), AnySign, Affine, Increasing)
 
+function dcprule(::typeof(+), args...)
+    return makerule(RealLine(), add_sign(args), Affine, Increasing), args
+end
+
 """
     dcprule(::typeof(-), x[, y])
 
@@ -131,18 +135,7 @@ array `VarDomain` whose element domain lies in `(0, ∞)`).
 function dcprule(::typeof(invprod), x)
     args = (x,)
     unknown = makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono)
-    ok = getsign(x) == Positive
-    if !ok && _has_vardomain(x)
-        d = getmetadata(x, VarDomain)
-        ok = try
-            f = d.in
-            hasproperty(f, :element_domain) &&
-                issubset(f.element_domain, HalfLine{Real, :open}())
-        catch e
-            e isa MethodError ? false : rethrow()
-        end
-    end
-    ok || return unknown, args
+    known_positive(x) || return unknown, args
     return makerule(array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing),
         args
 end
@@ -863,18 +856,62 @@ function dcprule(::typeof(/), num, den)
 end
 hasdcprule(::typeof(/)) = true
 
-# Positivity established rather than assumed: either a propagated sign says so, or
-# the argument was declared on a domain inside the positive half line. `analyze`
-# overwrites `Sign` metadata during propagation, so a `VarDomain` declaration is
-# how a caller states the precondition durably.
-function known_positive(x)
-    getsign(x) == Positive && return true
-    _has_vardomain(x) || return false
+# Positivity established rather than assumed: a propagated `Positive` sign, a
+# `VarDomain` inside `(0, ∞)` (scalar, or an `array_domain` whose element domain
+# is), a `getindex` of such an array, or a sum/broadcast-`+` of known-positive
+# terms with nonnegative constants. `analyze` overwrites `Sign` metadata during
+# propagation, so a `VarDomain` declaration is how a caller states the
+# precondition durably.
+function domain_inside_open_halfline(d)
+    ed = d
+    if d isa CustomDomain
+        f = d.in
+        hasproperty(f, :element_domain) || return false
+        ed = getproperty(f, :element_domain)
+    end
     return try
-        issubset(getmetadata(x, VarDomain), HalfLine{Real, :open}())
+        issubset(ed, HalfLine{Real, :open}())
     catch e
         e isa MethodError ? false : rethrow()
     end
+end
+
+function _nonnegative_const(x)
+    v = constval(x)
+    return v isa Real && v >= zero(v)
+end
+
+function affine_nneg_shift_positive(args)
+    saw_pos = false
+    for a in args
+        if _nonnegative_const(a)
+            continue
+        elseif known_positive(a)
+            saw_pos = true
+        else
+            return false
+        end
+    end
+    return saw_pos
+end
+
+function known_positive(x)
+    getsign(x) == Positive && return true
+    if _has_vardomain(x)
+        return domain_inside_open_halfline(getmetadata(x, VarDomain))
+    end
+    iscall(x) || return false
+    f = operation(x)
+    args = arguments(x)
+    if f === getindex
+        return !isempty(args) && known_positive(first(args))
+    elseif f === (+) || Symbol(f) === :+
+        return affine_nneg_shift_positive(args)
+    elseif f === broadcast && !isempty(args)
+        g = constval(first(args))
+        (g === (+) || Symbol(g) === :+) && return affine_nneg_shift_positive(args[2:end])
+    end
+    return false
 end
 
 hasdcprule(::typeof(^)) = true
@@ -999,6 +1036,12 @@ add_dcprule(Base.adjoint, array_domain(RealLine(), 1), AnySign, Affine, Increasi
 # `adjoint` just above. They are the same function on every supported version.
 add_dcprule(Base.transpose, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
 add_dcprule(Base.getindex, array_domain(RealLine(), 1), AnySign, Affine, AnyMono)
+
+function dcprule(::typeof(Base.getindex), x, idxs...)
+    args = (x, idxs...)
+    s = known_positive(x) ? Positive : getsign(x)
+    return makerule(array_domain(RealLine(), 1), s, Affine, AnyMono), args
+end
 
 # On Symbolics v7 / SymbolicUtils v4, reductions and maps over symbolic arrays
 # trace to `SymbolicUtils.Mapreducer`/`SymbolicUtils.Mapper` operations rather
