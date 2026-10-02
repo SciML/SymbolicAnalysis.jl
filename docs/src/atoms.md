@@ -10,7 +10,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | dotsort                   | (array_domain(ℝ, 1), array_domain(ℝ, 1))                                       | AnySign   | See below | See below                                   |
 | StatsBase.geomean         | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
 | StatsBase.harmmean        | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
-| invprod                   | array_domain(HalfLine{Real,:open}())                                           | Positive  | Convex    | Decreasing                                  |
+| invprod                   | See below                                                                      | See below | See below | See below                                   |
 | eigmax                    | symmetric_domain()                                                             | AnySign   | Convex    | AnyMono                                     |
 | eigmin                    | symmetric_domain()                                                             | AnySign   | Concave   | AnyMono                                     |
 | LinearAlgebra.opnorm      | array_domain(ℝ, 2)                                                             | Positive  | Convex    | AnyMono                                     |
@@ -23,7 +23,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | minimum                   | array_domain(ℝ)                                                                | AnySign   | Concave   | Increasing                                  |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(1, Inf))                            | Positive  | Convex    | increasing_if_positive                      |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(0, 1))                              | Positive  | Convex    | increasing_if_positive                      |
-| perspective(f, x, s)      | (function_domain(), ℝ, Positive)                                               | Same as f | Same as f | AnyMono                                     |
+| perspective(f, x, s)      | See below                                                                      | See below | See below | See below                                   |
 | quad_form                 | (array_domain(ℝ, 1), semidefinite_domain())                                    | See below | See below | See below                                   |
 | quad_over_lin             | (array_domain(ℝ), HalfLine{Real,:open}())                                      | Positive  | Convex    | (increasing_if_positive, Decreasing)        |
 | quad_over_lin             | (ℝ, HalfLine{Real,:open}())                                                    | Positive  | Convex    | (increasing_if_positive, Decreasing)        |
@@ -46,11 +46,11 @@ This page is intended to be a reference for the atoms that are currently impleme
 | xlogx                     | ℝ                                                                              | AnySign   | Convex    | AnyMono                                     |
 | huber                     | (ℝ, HalfLine())                                                                | See below | See below | See below                                   |
 | imag                      | ℂ                                                                              | AnySign   | Affine    | AnyMono                                     |
-| inv                       | HalfLine{Real,:open}()                                                         | Positive  | Convex    | Decreasing                                  |
+| inv                       | See below                                                                      | See below | See below | See below                                   |
 | log                       | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
 | log2                      | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
 | log10                     | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
-| log                       | array_domain(ℝ, 2)                                                             | Positive  | Concave   | Increasing                                  |
+| log                       | array_domain(ℝ, 2)                                                             | AnySign   | Concave   | Increasing                                  |
 | inv                       | semidefinite_domain()                                                          | AnySign   | Convex    | Decreasing                                  |
 | sqrt                      | semidefinite_domain()                                                          | Positive  | Concave   | Increasing                                  |
 | kldivergence              | (array_domain(HalfLine{Real,:open}(), 1), array_domain(HalfLine{Real,:open}(), 1)) | Positive  | Convex    | AnyMono                                     |
@@ -74,6 +74,41 @@ This page is intended to be a reference for the atoms that are currently impleme
 | kron                      | (array_domain(ℝ, 2), array_domain(ℝ, 2))                                       | AnySign   | Affine    | Increasing                                  |
 | tril                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
 | transpose                 | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                                  |
+
+### Perspective
+
+`perspective(f, x, s) = s*f(x/s)` for `s > 0` inherits the sign and curvature of
+`f` when that positivity is established (a positive constant, or a variable with
+a positive `VarDomain` / propagated sign) and `f` has a DCP rule. Monotonicity in
+`x` matches `f`'s; the `s` slot is `AnyMono` and accepts only affine `s` for a
+joint certificate. If `f` has no rule or `s > 0` cannot be proved, the
+certificate is `UnknownCurvature` / `AnySign`.
+
+| Atom                 | Condition                         | Sign     | Curvature | Monotonicity                    |
+|:-------------------- |:--------------------------------- |:-------- |:--------- |:------------------------------- |
+| perspective(f, x, s) | `s` known positive and affine, `f` has rule | Same as f | Same as f | (AnyMono, f's mono, AnyMono) |
+| perspective(f, x, s) | otherwise                         | AnySign  | UnknownCurvature | AnyMono                  |
+
+### Inverse
+
+`inv(x) = 1/x` is convex-decreasing and positive only on `(0, ∞)`. The atom
+exists for every nonzero `x` and is concave on the negative reals, so the
+certificate requires a known-positive argument (same house rule as `/` and
+`xexpx`). Matrix `inv` keeps the Loewner-order semidefinite rule.
+
+| Atom   | Condition              | Sign     | Curvature         | Monotonicity |
+|:------ |:---------------------- |:-------- |:----------------- |:------------ |
+| inv(x) | `x` known positive     | Positive | Convex            | Decreasing   |
+| inv(x) | otherwise (scalar)     | AnySign  | UnknownCurvature  | AnyMono      |
+
+`invprod(x) = 1/∏xᵢ` is convex-decreasing on the positive orthant only; a
+mixed-sign product lands in the concave branch of `1/t`, so the argument must be
+known positive.
+
+| Atom       | Condition              | Sign     | Curvature         | Monotonicity |
+|:---------- |:---------------------- |:-------- |:----------------- |:------------ |
+| invprod(x) | `x` known positive     | Positive | Convex            | Decreasing   |
+| invprod(x) | otherwise              | AnySign  | UnknownCurvature  | AnyMono      |
 
 ### Bilinear atoms
 
@@ -120,7 +155,7 @@ in Julia, so they keep the log / sqrt convention.
 
 | Atom                       | Sign     | Geodesic Curvature | Monotonicity |
 |:-------------------------- |:-------- |:------------------ |:------------ |
-| LinearAlgebra.logdet       | Positive | GLinear            | GIncreasing  |
+| LinearAlgebra.logdet       | AnySign  | GLinear            | GIncreasing  |
 | conjugation                | Positive | GConvex            | GIncreasing  |
 | LinearAlgebra.tr           | Positive | GConvex            | GIncreasing  |
 | sum                        | Positive | GConvex            | GIncreasing  |
@@ -131,12 +166,12 @@ in Julia, so they keep the log / sqrt convention.
 | Manifolds.distance         | Positive | GConvex            | GAnyMono     |
 | SymbolicAnalysis.quad_form | Positive | GConvex            | GIncreasing  |
 | LinearAlgebra.eigmax       | Positive | GConvex            | GIncreasing  |
-| log_quad_form              | Positive | GConvex            | GIncreasing  |
+| log_quad_form              | AnySign  | GConvex            | GIncreasing  |
 | inv                        | Positive | GConvex            | GDecreasing  |
 | diag                       | Positive | GConvex            | GIncreasing  |
 | eigsummax                  | Positive | GConvex            | GIncreasing  |
 | schatten_norm              | Positive | GConvex            | GIncreasing  |
-| sum_log_eigmax             | Positive | GConvex            | GIncreasing  |
+| sum_log_eigmax             | AnySign  | GConvex            | GIncreasing  |
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |
 
@@ -145,9 +180,9 @@ in Julia, so they keep the log / sqrt convention.
 | Atom                          | Sign     | Geodesic Curvature | Monotonicity |
 |:----------------------------- |:-------- |:------------------ |:------------ |
 | lorentz_distance              | Positive | GConvex            | GAnyMono     |
-| lorentz_log_barrier           | Positive | GConvex            | GIncreasing  |
-| lorentz_homogeneous_quadratic | Positive | GConvex            | GAnyMono     |
-| lorentz_homogeneous_diagonal  | Positive | GConvex            | GAnyMono     |
+| lorentz_log_barrier           | AnySign  | GConvex            | GIncreasing  |
+| lorentz_homogeneous_quadratic | AnySign  | GConvex            | GAnyMono     |
+| lorentz_homogeneous_diagonal  | AnySign  | GConvex            | GAnyMono     |
 | lorentz_least_squares         | Positive | GConvex            | GAnyMono     |
 | lorentz_transform             | -        | -                  | -            |
 

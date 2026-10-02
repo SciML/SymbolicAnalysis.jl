@@ -58,7 +58,9 @@ function lorentz_log_barrier(p::AbstractVector)
 end
 
 @register_symbolic lorentz_log_barrier(p::Vector{Num})
-add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, Positive, GConvex, GIncreasing)
+# `-log(p[end] - 1)` is positive near the boundary `p[end] → 1⁺` but negative for
+# `p[end] > 2` (e.g. p[end] = 5 ⇒ ≈ -1.39).
+add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, AnySign, GConvex, GIncreasing)
 
 """
     lorentz_homogeneous_quadratic(A, p) -> Real
@@ -117,7 +119,9 @@ end
     A::AbstractMatrix,
     p::Vector{Num}
 )
-add_gdcprule(lorentz_homogeneous_quadratic, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
+# Geodesic convexity allows `σ ≥ -λ_min(Ā)` with `a = 0`, so `A = diag(I_d, -1/2)`
+# is admitted and `p'Ap = -1/2` at the basepoint — not nonnegative.
+add_gdcprule(lorentz_homogeneous_quadratic, Manifolds.Lorentz, AnySign, GConvex, GAnyMono)
 
 """
     lorentz_homogeneous_diagonal(a, p) -> Real
@@ -168,7 +172,9 @@ end
     a::AbstractVector,
     p::Vector{Num}
 )
-add_gdcprule(lorentz_homogeneous_diagonal, Manifolds.Lorentz, Positive, GConvex, GAnyMono)
+# Convexity only needs `min(a[1:end-1]) + a[end] ≥ 0`, so `a = [1, -1/2]` is
+# legal and evaluates to `-1/2` at the Lorentz basepoint.
+add_gdcprule(lorentz_homogeneous_diagonal, Manifolds.Lorentz, AnySign, GConvex, GAnyMono)
 
 """
     lorentz_nonhomogeneous_quadratic(A::AbstractMatrix, b::AbstractVector, c::Real, p::AbstractVector)
