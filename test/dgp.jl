@@ -276,3 +276,28 @@ end
 @test analyze(unwrap(eigmax(X)), M).gcurvature == SymbolicAnalysis.GConvex
 @test analyze(unwrap(logdet(X)), M).gcurvature == SymbolicAnalysis.GLinear
 @test analyze(unwrap(log(tr(X))), M).gcurvature == SymbolicAnalysis.GConvex
+
+# `logdet` on SPD is GLinear but not nonnegative (logdet(0.01I₂) ≈ -9.21). The
+# false Positive sign certified `abs(logdet(X)+tr(X))` as GConvex; a geodesic
+# midpoint can sit above the chord (convexity requires ≤).
+@variables X2[1:2, 1:2]
+M2 = SymmetricPositiveDefinite(2)
+@test analyze(logdet(X2), M2).sign != SymbolicAnalysis.Positive
+@test analyze(abs(logdet(X2) + tr(X2)), M2).gcurvature != SymbolicAnalysis.GConvex
+let A = [
+        0.19439548280694857 -0.027683931785232742;
+        -0.027683931785232742 0.01892741465443008
+    ],
+        B = [
+        0.9010733896285387 -1.365891310427168;
+        -1.365891310427168 2.105439954050302
+    ]
+    f = P -> abs(logdet(P) + tr(P))
+    γ = Manifolds.shortest_geodesic(M2, A, B, 0.5)
+    @test f(γ) > (f(A) + f(B)) / 2
+end
+# Same false-Positive class: log(y'Xy) and sum(log λᵢ) go negative near 0.
+@test analyze(SymbolicAnalysis.log_quad_form([1.0, 0.0], X2), M2).sign !=
+    SymbolicAnalysis.Positive
+@test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 2), M2).sign !=
+    SymbolicAnalysis.Positive

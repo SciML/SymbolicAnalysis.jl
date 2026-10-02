@@ -718,7 +718,9 @@ end
 
 Base.log(A::Symbolics.Arr) = matrix_atom(log, A)
 Base.log(A::Matrix{Num}) = matrix_atom(log, A)
-add_dcprule(log, array_domain(RealLine(), 2), Positive, Concave, Increasing)
+# Matrix logarithm of a PD matrix with eigenvalues in (0, 1) is negative
+# definite (e.g. log(0.01I₂) = −log(100)·I), so the result is not Positive.
+add_dcprule(log, array_domain(RealLine(), 2), AnySign, Concave, Increasing)
 
 add_dcprule(inv, semidefinite_domain(), AnySign, Convex, Decreasing)
 

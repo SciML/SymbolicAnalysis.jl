@@ -893,6 +893,11 @@ using Manifolds: SymmetricPositiveDefinite
     @test analyze(e_abs).curvature == SymbolicAnalysis.UnknownCurvature
 end
 
+# Matrix `log` declared Positive, but log(0.01I) = -log(100)·I is negative definite.
+# Default `analyze(log(X))` already took the scalar AnySign rule; assert the
+# array-domain table entry itself is no longer Positive.
+@test all(r -> r.sign != SymbolicAnalysis.Positive, SymbolicAnalysis.dcprules_dict[log])
+
 # `perspective(f, x, s)` inherits sign/curvature from `f` when `s > 0` is proved.
 @variables px
 let r = SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.perspective(exp, px, 2.0)))
