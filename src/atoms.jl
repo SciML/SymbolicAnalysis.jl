@@ -1,10 +1,9 @@
 ### DCP atom rules
 
-add_dcprule(+, RealLine(), AnySign, Affine, Increasing)
-
 function dcprule(::typeof(+), args...)
     return makerule(RealLine(), add_sign(args), Affine, Increasing), args
 end
+hasdcprule(::typeof(+)) = true
 
 """
     dcprule(::typeof(-), x[, y])
@@ -858,11 +857,11 @@ hasdcprule(::typeof(/)) = true
 
 # Positivity established rather than assumed: a propagated `Positive` sign, a
 # `VarDomain` inside `(0, ∞)` (scalar, or an `array_domain` whose element domain
-# is), a `getindex` of such an array, or a sum/broadcast-`+` of known-positive
-# terms with nonnegative constants. `analyze` overwrites `Sign` metadata during
-# propagation, so a `VarDomain` declaration is how a caller states the
-# precondition durably.
-function domain_inside_open_halfline(d)
+# is), a `getindex` of such an array, a positive scaling / sum of known-positive
+# terms, or a sum/broadcast-`+` of known-positive terms with nonnegative
+# constants. `analyze` overwrites `Sign` metadata during propagation, so a
+# `VarDomain` declaration is how a caller states the precondition durably.
+function _domain_inside_open_halfline(d)
     ed = d
     if d isa CustomDomain
         f = d.in
@@ -881,7 +880,12 @@ function _nonnegative_const(x)
     return v isa Real && v >= zero(v)
 end
 
-function affine_nneg_shift_positive(args)
+function _strictly_positive_const(x)
+    v = constval(x)
+    return v isa Real && v > zero(v)
+end
+
+function _affine_nneg_shift_positive(args)
     saw_pos = false
     for a in args
         if _nonnegative_const(a)
@@ -895,21 +899,41 @@ function affine_nneg_shift_positive(args)
     return saw_pos
 end
 
+# Product of known-positive factors and strictly positive constants stays positive.
+# Zero is excluded: `0 * x` is not in `(0, ∞)`.
+function _positive_product(args)
+    saw_pos = false
+    for a in args
+        if _strictly_positive_const(a)
+            continue
+        elseif known_positive(a)
+            saw_pos = true
+        else
+            return false
+        end
+    end
+    return saw_pos
+end
+
 function known_positive(x)
     getsign(x) == Positive && return true
     if _has_vardomain(x)
-        return domain_inside_open_halfline(getmetadata(x, VarDomain))
+        return _domain_inside_open_halfline(getmetadata(x, VarDomain))
     end
     iscall(x) || return false
     f = operation(x)
     args = arguments(x)
     if f === getindex
         return !isempty(args) && known_positive(first(args))
-    elseif f === (+) || Symbol(f) === :+
-        return affine_nneg_shift_positive(args)
+    elseif Symbol(f) === :+
+        return _affine_nneg_shift_positive(args)
+    elseif Symbol(f) === :*
+        return _positive_product(args)
+    elseif f === sum || f isa SymbolicUtils.Mapreducer{typeof(identity), typeof(Base.add_sum)}
+        return !isempty(args) && known_positive(first(args))
     elseif f === broadcast && !isempty(args)
         g = constval(first(args))
-        (g === (+) || Symbol(g) === :+) && return affine_nneg_shift_positive(args[2:end])
+        Symbol(g) === :+ && return _affine_nneg_shift_positive(args[2:end])
     end
     return false
 end
@@ -1035,13 +1059,13 @@ add_dcprule(Base.adjoint, array_domain(RealLine(), 1), AnySign, Affine, Increasi
 # `Base` and the name is no longer public in `LinearAlgebra`, exactly as for
 # `adjoint` just above. They are the same function on every supported version.
 add_dcprule(Base.transpose, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
-add_dcprule(Base.getindex, array_domain(RealLine(), 1), AnySign, Affine, AnyMono)
 
 function dcprule(::typeof(Base.getindex), x, idxs...)
     args = (x, idxs...)
     s = known_positive(x) ? Positive : getsign(x)
     return makerule(array_domain(RealLine(), 1), s, Affine, AnyMono), args
 end
+hasdcprule(::typeof(Base.getindex)) = true
 
 # On Symbolics v7 / SymbolicUtils v4, reductions and maps over symbolic arrays
 # trace to `SymbolicUtils.Mapreducer`/`SymbolicUtils.Mapper` operations rather

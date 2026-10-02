@@ -377,7 +377,7 @@ function node_sign(ex, M = nothing)
         elseif hasdcprule(ex)
             return dcprule(ex)[1].sign
         elseif _has_vardomain(ex) &&
-                domain_inside_open_halfline(getmetadata(ex, VarDomain))
+                _domain_inside_open_halfline(getmetadata(ex, VarDomain))
             return Positive
         end
     end

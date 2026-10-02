@@ -871,6 +871,8 @@ ipv_pos = Symbolics.wrap(
 @test curv_of(Symbolics.term(inv, unwrap(ipv_pos[1]))) == SymbolicAnalysis.Convex
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos .+ 1)) == SymbolicAnalysis.Convex
 @test curv_of(inv(s_pos + 1)) == SymbolicAnalysis.Convex
+@test curv_of(inv(2 * s_pos + 1)) == SymbolicAnalysis.Convex
+@test curv_of(inv(sum(ipv_pos))) == SymbolicAnalysis.Convex
 let r = SymbolicAnalysis.analyze(unwrap(inv(ipv_pos[1])))
     @test r.curvature == SymbolicAnalysis.Convex
     @test r.sign == SymbolicAnalysis.Positive
