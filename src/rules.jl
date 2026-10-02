@@ -265,12 +265,18 @@ setsign(ex, sign) = ex
 
 function symbolic_sign(ex)::Sign
     # An assembled array aggregates its elements' signs, as `getsign(::AbstractArray)`
-    # does for a plain container, but it cannot be read back from metadata: the
-    # curvature pass rebuilds each node through `maketerm`, which drops what the sign
-    # pass wrote on an `array_literal`. Argument 1 is the size tuple.
+    # does for a plain container. This must win over both the fold memo and any
+    # Sign metadata: `node_sign` writes the rule-table `AnySign` onto an
+    # `array_literal`, but callers (e.g. `norm`'s `increasing_if_positive`) need
+    # the elementwise aggregation. Argument 1 is the size tuple.
     if iscall(ex) && operation(ex) === SymbolicUtils.array_literal
         return add_sign(@view arguments(ex)[2:end])
     end
+    # During the read-only fold, child results live in the memo rather than in
+    # Sign metadata. Prefer the memo so rule logic that calls `getsign` on an
+    # already-folded child sees the same value the Postwalk engine wrote.
+    hit = fold_lookup(ex)
+    hit !== nothing && return hit.sign::Sign
     if hasmetadata(ex, Sign)
         return getmetadata(ex, Sign)::Sign
     end
@@ -280,7 +286,7 @@ end
 # Split over `Num` and `Symbolic` instead of their union: `Num <: Real` while
 # `BasicSymbolic` is not, so a union method would be ambiguous with the `Real`
 # method below rather than more specific than it.
-getsign(ex::Num)::Sign = symbolic_sign(ex)
+getsign(ex::Num)::Sign = symbolic_sign(unwrap(ex))
 getsign(ex::Symbolic)::Sign = symbolic_sign(ex)
 
 # `Real`, not `Union{AbstractFloat, Integer}`: Symbolics folds `-a/2` into
@@ -297,7 +303,11 @@ function getsign(ex::AbstractArray)::Sign
     end
 end
 
-hassign(ex::Union{Num, Symbolic}) = hasmetadata(ex, Sign)
+function hassign(ex::Union{Num, Symbolic})
+    hit = fold_lookup(ex isa Num ? unwrap(ex) : ex)
+    hit !== nothing && return true
+    return hasmetadata(ex, Sign)
+end
 hassign(ex) = ex isa Real
 
 hassign(ex::typeof(Base.broadcast)) = true
@@ -407,12 +417,14 @@ end
 setcurvature(ex::Union{Num, Symbolic}, curv) = setmetadata(ex, Curvature, curv)
 setcurvature(ex, curv) = ex
 function getcurvature(ex::Union{Num, Symbolic})::Curvature
+    v = unwrap(ex)
+    hit = fold_lookup(v)
+    hit !== nothing && return hit.curvature
     hasmetadata(ex, Curvature) && return getmetadata(ex, Curvature)::Curvature
     # A constant-folded expression (`a - a`, `0*a`, `Num(3.0)`) is a
     # `BasicSymbolic` that is neither `issym` nor `iscall`, so the propagation
     # walk never annotates it; it is a constant, hence affine. Anything else
     # arriving here was never analyzed, and carries no certificate.
-    v = unwrap(ex)
     return (issym(v) || iscall(v)) ? UnknownCurvature : Affine
 end
 getcurvature(ex)::Curvature = Affine
@@ -441,7 +453,12 @@ function getcurvature(ex::AbstractArray)::Curvature
     end
     return has_convex ? Convex : has_concave ? Concave : Affine
 end
-hascurvature(ex::Union{Num, Symbolic}) = hasmetadata(ex, Curvature)
+function hascurvature(ex::Union{Num, Symbolic})
+    v = unwrap(ex)
+    hit = fold_lookup(v)
+    hit !== nothing && return true
+    return hasmetadata(ex, Curvature)
+end
 hascurvature(ex) = ex isa Real
 
 # Sign of the product of the constant factors of a multiplication, i.e. the
