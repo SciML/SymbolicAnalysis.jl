@@ -119,7 +119,34 @@ function invprod(x::AbstractVector)
 end
 Symbolics.@register_symbolic invprod(x::AbstractVector)
 
-add_dcprule(invprod, array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing)
+"""
+    dcprule(::typeof(invprod), x)
+
+`inv(prod(x))` is convex-decreasing on the positive orthant, but the product of
+a mixed-sign vector can be negative, and `1/t` is concave there — e.g.
+`g(-1,2) = -1/2`, `g(-3,4) = -1/12`, midpoint `g(-2,3) = -1/6` above the chord
+`-7/24`. Require a known-positive argument (propagated `Positive` sign, or an
+array `VarDomain` whose element domain lies in `(0, ∞)`).
+"""
+function dcprule(::typeof(invprod), x)
+    args = (x,)
+    unknown = makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono)
+    ok = getsign(x) == Positive
+    if !ok && _has_vardomain(x)
+        d = getmetadata(x, VarDomain)
+        ok = try
+            f = d.in
+            hasproperty(f, :element_domain) &&
+                issubset(f.element_domain, HalfLine{Real, :open}())
+        catch e
+            e isa MethodError ? false : rethrow()
+        end
+    end
+    ok || return unknown, args
+    return makerule(array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing),
+        args
+end
+hasdcprule(::typeof(invprod)) = true
 
 # `eigmax`/`eigmin` build symbolic terms via Symbolics' own registration (a Base
 # LinearAlgebra function belongs to Symbolics, not pirated here); we only attach
@@ -315,13 +342,44 @@ function perspective(f::Function, x, s::Real)
     return s * f(x / s)
 end
 Symbolics.@register_symbolic perspective(f::Function, x, s::Real)
-add_dcprule(
-    perspective,
-    (function_domain(), RealLine(), Positive),
-    getsign,
-    getcurvature,
-    AnyMono
-)
+
+"""
+    dcprule(::typeof(perspective), f, x, s)
+
+The perspective `s·f(x/s)` (for `s > 0`) inherits the sign and curvature of `f`
+when that positivity is established — a positive constant, or a variable whose
+`VarDomain` / propagated sign proves it — and `f` itself has a DCP rule.
+
+Monotonicity in `x` matches `f`'s (scaling by positive `s` preserves direction);
+the `s` slot stays `AnyMono`. Certifying joint convexity also requires `s` to be
+affine; a non-affine positive `s` is not certified. Without a rule for `f`, or
+without a proof that `s > 0`, the result is `UnknownCurvature` / `AnySign`.
+"""
+function dcprule(::typeof(perspective), f, x, s)
+    args = (f, x, s)
+    dom = (function_domain(), RealLine(), HalfLine{Real, :open}())
+    unknown = makerule(dom, AnySign, UnknownCurvature, AnyMono)
+    g = constval(f)
+    g isa Function && hasdcprule(g) || return unknown, args
+    sv = constval(s)
+    if sv isa Number
+        sv > 0 || return unknown, args
+    else
+        known_positive(s) || return unknown, args
+    end
+    local frule
+    try
+        frule, _ = dcprule(g, x)
+    catch e
+        (e isa MethodError || e isa KeyError) || rethrow()
+        return unknown, args
+    end
+    (frule.sign isa Sign && frule.curvature isa Curvature) || return unknown, args
+    frule.curvature == UnknownCurvature && return unknown, args
+    mono_x = get_arg_property(frule.monotonicity, 1, (x,))
+    return makerule(dom, frule.sign, frule.curvature, (AnyMono, mono_x, AnyMono)), args
+end
+hasdcprule(::typeof(perspective)) = true
 
 """
     quad_form(x::AbstractVector, P::AbstractMatrix)
@@ -584,7 +642,32 @@ hasdcprule(::typeof(huber)) = true
 
 add_dcprule(imag, ℂ, AnySign, Affine, AnyMono)
 
-add_dcprule(inv, HalfLine{Real, :open}(), Positive, Convex, Decreasing)
+"""
+    dcprule(::typeof(inv), x)
+
+`1/x` is convex-decreasing and positive on `(0, ∞)`, but it **exists** for every
+nonzero `x` and is concave (and negative) on `(-∞, 0)` — e.g. `f(-1) = -1`,
+`f(-3) = -1/3`, and the midpoint `f(-2) = -1/2` lies above the chord `-2/3`.
+Certifying `Convex`/`Positive` for a sign-unknown argument is therefore a false
+certificate over the function's own real domain. The same house rule that guards
+`/` and `xexpx` applies; `log`/`sqrt` escape it only because they are undefined
+outside their declared domain.
+
+Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually
+covers rewritten forms; this method covers the bare `inv` term (as built by
+`perspective` and `Symbolics.term`). Matrix `inv` keeps the Loewner-order table
+entry via the fallback.
+"""
+function dcprule(::typeof(inv), x)
+    args = (x,)
+    if SymbolicUtils.symtype(x) <: AbstractArray
+        return @invoke dcprule(inv::Any, x)
+    end
+    known_positive(x) ||
+        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
+end
+# Matrix Loewner-order rule registered below; keeps `hasdcprule(inv)`.
 add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 # `log2`/`log10` are `log` rescaled by a positive constant.
 add_dcprule(log2, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
