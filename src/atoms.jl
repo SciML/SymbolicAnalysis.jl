@@ -128,8 +128,8 @@ Symbolics.@register_symbolic invprod(x::AbstractVector)
 `inv(prod(x))` is convex-decreasing on the positive orthant, but the product of
 a mixed-sign vector can be negative, and `1/t` is concave there — e.g.
 `g(-1,2) = -1/2`, `g(-3,4) = -1/12`, midpoint `g(-2,3) = -1/6` above the chord
-`-7/24`. Require a known-positive argument (propagated `Positive` sign, or an
-array `VarDomain` whose element domain lies in `(0, ∞)`).
+`-7/24`. Require a strictly known-positive argument (open `VarDomain` on the
+array or a structural proof — not a memoized `Sign.Positive`).
 """
 function dcprule(::typeof(invprod), x)
     args = (x,)
@@ -857,12 +857,15 @@ function dcprule(::typeof(/), num, den)
 end
 hasdcprule(::typeof(/)) = true
 
-# Positivity established rather than assumed: a propagated `Positive` sign, a
-# `VarDomain` inside `(0, ∞)` (scalar, or an `array_domain` whose element domain
-# is), a `getindex` of such an array, a positive scaling / sum of known-positive
-# terms, or a sum/broadcast-`+` of known-positive terms with nonnegative
-# constants. `analyze` overwrites `Sign` metadata during propagation, so a
-# `VarDomain` declaration is how a caller states the precondition durably.
+# Strict positivity for open-half-line preconditions (`inv`, `/`, `perspective`,
+# …). `Sign.Positive` means *nonnegative* in this package (`0`, `abs(x)`, …), so
+# it must never be treated as a strict-positivity proof — including when the
+# memoized fold caches that sign. Derive strict positivity only structurally:
+# open `VarDomain` (scalar or array element domain), `getindex` of such an array,
+# `+` / broadcast-`+` of strictly-positive terms with nonnegative constants, or
+# `*` / broadcast-`*` of strictly-positive factors with strictly positive
+# constants. Reductions (`sum` / `Mapreducer`) are deliberately not trusted:
+# `init` and empty arrays make any such rule unsound without a full bound.
 function _domain_inside_open_halfline(d)
     ed = d
     if d isa CustomDomain
@@ -918,7 +921,6 @@ function _positive_product(args)
 end
 
 function known_positive(x)
-    getsign(x) == Positive && return true
     if _has_vardomain(x)
         return _domain_inside_open_halfline(getmetadata(x, VarDomain))
     end
@@ -931,11 +933,10 @@ function known_positive(x)
         return _affine_nneg_shift_positive(args)
     elseif Symbol(f) === :*
         return _positive_product(args)
-    elseif f === sum || f isa SymbolicUtils.Mapreducer{typeof(identity), typeof(Base.add_sum)}
-        return !isempty(args) && known_positive(first(args))
     elseif f === broadcast && !isempty(args)
         g = constval(first(args))
         Symbol(g) === :+ && return _affine_nneg_shift_positive(args[2:end])
+        Symbol(g) === :* && return _positive_product(args[2:end])
     end
     return false
 end
@@ -982,7 +983,11 @@ which is the only reason the unenforced domain never bit.
 """
 function dcprule(::typeof(xexpx), x)
     args = (x,)
-    known_positive(x) ||
+    # Domain is closed `HalfLine()` (`[0, ∞)`), so nonnegative (`Sign.Positive`)
+    # is the right guard — not strict `known_positive`. Keeping the sign check
+    # here preserves `xexpx(exp(s))` after `known_positive` stopped trusting
+    # memoized `Positive` (which is unsound for open-half-line atoms).
+    (known_positive(x) || getsign(x) == Positive) ||
         return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
     return makerule(HalfLine(), Positive, Convex, Increasing), args
 end

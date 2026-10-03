@@ -953,7 +953,8 @@ ipv_pos = Symbolics.wrap(
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos .+ 1)) == SymbolicAnalysis.Convex
 @test curv_of(inv(s_pos + 1)) == SymbolicAnalysis.Convex
 @test curv_of(inv(2 * s_pos + 1)) == SymbolicAnalysis.Convex
-@test curv_of(inv(sum(ipv_pos))) == SymbolicAnalysis.Convex
+# `sum` / Mapreducer positivity is not trusted (`init` / empty arrays).
+@test curv_of(inv(sum(ipv_pos))) == SymbolicAnalysis.UnknownCurvature
 let r = SymbolicAnalysis.analyze(unwrap(inv(ipv_pos[1])))
     @test r.curvature == SymbolicAnalysis.Convex
     @test r.sign == SymbolicAnalysis.Positive
@@ -989,3 +990,58 @@ s_closed = Symbolics.wrap(
 @test curv_of(Symbolics.term(inv, unwrap(s_closed))) ==
     SymbolicAnalysis.UnknownCurvature
 @test curv_of(inv(ipv_pos[1] + (-2))) == SymbolicAnalysis.UnknownCurvature
+
+# Reviewer false-certificate reproducers (elem-sign-delta): reductions ignore
+# `init` / emptiness, and memoized nonnegative `Sign.Positive` must not prove
+# open-half-line preconditions.
+let T(f, args...) = Symbolics.term(
+            f, unwrap.(args)...;
+            type = f === broadcast ? Vector{Real} : Real
+        )
+    @variables zv0[1:0]
+    zp0 = Symbolics.wrap(
+        setmetadata(
+            unwrap(zv0), SymbolicAnalysis.VarDomain,
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1)
+        )
+    )
+    # negative / empty reductions
+    @test curv_of(inv(sum(ipv_pos; init = -10))) == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.analyze(unwrap(inv(sum(ipv_pos; init = -10)))).sign ==
+        SymbolicAnalysis.AnySign
+    let e = T(getindex, sum(ipv_pos; dims = 1, init = -10), 1)
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature != SymbolicAnalysis.Convex
+        @test r.sign != SymbolicAnalysis.Positive
+    end
+    let e = T(inv, T(getindex, sum(ipv_pos; dims = 1, init = -10), 1))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    @test curv_of(inv(sum(zp0; init = -10))) == SymbolicAnalysis.UnknownCurvature
+    @test curv_of(inv(sum(zp0))) == SymbolicAnalysis.UnknownCurvature
+    @test curv_of(SymbolicAnalysis.invprod(sum(ipv_pos; dims = 1, init = -10.0))) ==
+        SymbolicAnalysis.UnknownCurvature
+    let e = T(inv, unwrap(s_pos) + T(getindex, sum(ipv_pos; dims = 1, init = -10.0), 1))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    # zero products: Sign.Positive is nonnegative, not a strict-positivity proof
+    let e = T(*, 0, s_pos)
+        r = SymbolicAnalysis.analyze(e)
+        @test r.sign == SymbolicAnalysis.Positive # nonnegative is fine
+        @test !SymbolicAnalysis.known_positive(unwrap(e))
+    end
+    let e = T(inv, T(*, 0, s_pos))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    let e = T(inv, T(getindex, T(broadcast, *, 0, ipv_pos), 1))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+end
