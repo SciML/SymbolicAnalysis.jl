@@ -375,7 +375,11 @@ end
 # only when manifold analysis was actually requested. Without the gate it leaked
 # into Euclidean analysis, where `eigmax(X)` for an unconstrained symmetric `X`
 # has no sign; that made `abs`'s `increasing_if_positive` resolve to `Increasing`
-# and certified `abs(eigmax(X))` as `Convex`, which is false.
+# and certified `abs(eigmax(X))` as `Convex`, which is false. Likewise a GDCP
+# rule is about a manifold point, so `inv`/`adjoint` of a scalar keep their DCP
+# sign rather than the SPD `Positive`.
+_has_array_arg(args) = any(a -> SymbolicUtils.symtype(a) <: AbstractArray, args)
+
 function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
@@ -384,7 +388,7 @@ function node_sign(ex, M = nothing)
             return mul_sign(arguments(ex))
         elseif f === (+)
             return add_sign(arguments(ex))
-        elseif usegdcp && hasgdcprule(f)
+        elseif usegdcp && hasgdcprule(f) && _has_array_arg(arguments(ex))
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign
@@ -394,7 +398,7 @@ function node_sign(ex, M = nothing)
             return gdcprule(ex)[1].sign
         elseif hasdcprule(ex)
             return dcprule(ex)[1].sign
-        elseif _vardomain_inside(ex, HalfLine{Real, :open}())
+        elseif _vardomain_inside(ex, HalfLine())
             return Positive
         end
     end

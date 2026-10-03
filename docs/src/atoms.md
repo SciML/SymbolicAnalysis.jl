@@ -140,8 +140,10 @@ established-nonnegative / established-positive base (`known_nonnegative` /
 `known_positive`): those functions exist outside the declared domain with the
 wrong curvature. `known_nonnegative` trusts a `Positive` sign only for
 scalar-typed arguments; on matrices `Positive` means Loewner PSD (e.g. `inv(X)`,
-`X'` on the SPD cone), not entrywise ≥ 0, so array bases need an element domain
-inside `HalfLine()` (`array_domain(HalfLine(), …)`). Integer exponents outside
+`X'` on the SPD cone), not entrywise ≥ 0, so array bases need an elementwise
+proof: an element domain inside `HalfLine()` (`array_domain(HalfLine(), …)`) or
+an elementwise expression such as `abs.(x)` or `exp.(x)`. Indexing (`x[i]`)
+inherits `Positive` only from such an elementwise proof. Integer exponents outside
 the exact `Int64` range are refused outright: Julia's `^(::Float64, ::Integer)`
 clamps to `Int64`, so a mathematically even `BigInt` / `UInt64` can evaluate as
 an odd Float64 power. Non-integer exponents throw `DomainError` for a negative

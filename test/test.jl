@@ -1189,3 +1189,39 @@ let T(f, args...) = Symbolics.term(
         @test r.sign == SymbolicAnalysis.AnySign
     end
 end
+
+# A matrix `Positive` sign is Loewner order, so its entries inherit no sign:
+# `sqrt([2 -1; -1 2])[1, 2] < 0` and `inv([2 1; 1 2])[1, 2] < 0`.
+let T(f, args...; type = Real) = Symbolics.term(f, unwrap.(args)...; type)
+    @variables Xg[1:2, 1:2] xg
+    M = SymmetricPositiveDefinite(2)
+    Xg_adj = T(adjoint, Xg; type = Matrix{Real})
+    Xg_inv = T(inv, Xg; type = Matrix{Real})
+    entry_cases = [
+        (sqrt(Xg)[1, 2], nothing),
+        (T(getindex, Xg_adj, 1, 2), M),
+        (T(getindex, Xg_inv, 1, 2), M),
+    ]
+    for (e, Mg) in entry_cases
+        @test SymbolicAnalysis.analyze(unwrap(e), Mg).sign == SymbolicAnalysis.AnySign
+        for g in (LogExpFunctions.xexpx, inv)
+            r = SymbolicAnalysis.analyze(T(g, e), Mg)
+            @test r.curvature == SymbolicAnalysis.UnknownCurvature
+            @test r.sign == SymbolicAnalysis.AnySign
+        end
+        @test SymbolicAnalysis.analyze(T(^, e, 3), Mg).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    # GDCP signs describe manifold points; scalar `adjoint`/`inv` keep their DCP sign.
+    for e in (T(adjoint, xg), T(inv, T(getindex, Xg_adj, 1, 2)))
+        @test SymbolicAnalysis.analyze(e, M).sign == SymbolicAnalysis.AnySign
+        @test SymbolicAnalysis.analyze(T(LogExpFunctions.xexpx, e), M).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    @test SymbolicAnalysis.analyze(unwrap(tr(Xg)), M).sign == SymbolicAnalysis.Positive
+    # Elementwise proofs still reach entries.
+    @variables vg[1:2]
+    @test SymbolicAnalysis.analyze(T(LogExpFunctions.xexpx, abs.(vg)[1])).curvature ==
+        SymbolicAnalysis.Convex
+    @test SymbolicAnalysis.analyze(unwrap(exp.(vg)[1])).sign == SymbolicAnalysis.Positive
+end

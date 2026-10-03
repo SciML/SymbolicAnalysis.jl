@@ -1047,11 +1047,7 @@ which is the only reason the unenforced domain never bit.
 """
 function dcprule(::typeof(xexpx), x)
     args = (x,)
-    # Domain is closed `HalfLine()` (`[0, ∞)`), so nonnegative (`Sign.Positive`)
-    # is the right guard — not strict `known_positive`. Keeping the sign check
-    # here preserves `xexpx(exp(s))` after `known_positive` stopped trusting
-    # memoized `Positive` (which is unsound for open-half-line atoms).
-    (known_positive(x) || getsign(x) == Positive) ||
+    known_nonnegative(x) ||
         return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
     return makerule(HalfLine(), Positive, Convex, Increasing), args
 end
@@ -1133,7 +1129,7 @@ add_dcprule(Base.transpose, array_domain(RealLine(), 1), AnySign, Affine, Increa
 
 function dcprule(::typeof(Base.getindex), x, idxs...)
     args = (x, idxs...)
-    s = known_positive(x) ? Positive : getsign(x)
+    s = known_nonnegative(x) ? Positive : AnySign
     return makerule(array_domain(RealLine(), 1), s, Affine, AnyMono), args
 end
 hasdcprule(::typeof(Base.getindex)) = true
