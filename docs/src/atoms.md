@@ -138,11 +138,14 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 Odd positive integer powers and all integer negative powers are gated on an
 established-nonnegative / established-positive base (`known_nonnegative` /
 `known_positive`): those functions exist outside the declared domain with the
-wrong curvature. Integer exponents outside the exact `Int64` range are refused
-outright: Julia's `^(::Float64, ::Integer)` clamps to `Int64`, so a
-mathematically even `BigInt` / `UInt64` can evaluate as an odd Float64 power.
-Non-integer exponents throw `DomainError` for a negative base in Julia, so they
-keep the log / sqrt convention.
+wrong curvature. `known_nonnegative` trusts a `Positive` sign only for
+scalar-typed arguments; on matrices `Positive` means Loewner PSD (e.g. `inv(X)`,
+`X'` on the SPD cone), not entrywise ≥ 0, so array bases need an element domain
+inside `HalfLine()` (`array_domain(HalfLine(), …)`). Integer exponents outside
+the exact `Int64` range are refused outright: Julia's `^(::Float64, ::Integer)`
+clamps to `Int64`, so a mathematically even `BigInt` / `UInt64` can evaluate as
+an odd Float64 power. Non-integer exponents throw `DomainError` for a negative
+base in Julia, so they keep the log / sqrt convention.
 
 | Condition on i                         | Domain                      | Sign     | Curvature | Monotonicity           |
 |:-------------------------------------- |:--------------------------- |:-------- |:--------- |:---------------------- |

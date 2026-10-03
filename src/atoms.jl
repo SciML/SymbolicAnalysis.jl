@@ -903,16 +903,41 @@ function known_positive(x)
     end
 end
 
-# Nonnegativity for atoms convex on `[0, ∞)` (odd powers). `Positive` sign is
-# accepted: the package annotates `abs` and similar as `Positive` even at 0.
-function known_nonnegative(x)
-    getsign(x) == Positive && return true
-    _has_vardomain(x) || return false
+# `array_domain(d, …)` closures capture `element_domain`; a plain scalar domain is
+# used as-is. Matches the array-element-sign branch's open-half-line helper.
+function _domain_inside_halfline(d, halfline)
+    ed = d
+    if d isa CustomDomain
+        f = d.in
+        hasproperty(f, :element_domain) || return false
+        ed = getproperty(f, :element_domain)
+    end
     return try
-        issubset(getmetadata(x, VarDomain), HalfLine())
+        issubset(ed, halfline)
     catch e
         e isa MethodError ? false : rethrow()
     end
+end
+
+_is_real_scalar(x::Real) = true
+function _is_real_scalar(x)
+    return try
+        SymbolicUtils.symtype(x isa Num ? unwrap(x) : x) <: Real
+    catch
+        false
+    end
+end
+
+# Nonnegativity for atoms convex on `[0, ∞)` (odd powers). `Positive` sign is
+# accepted only for scalars (`abs`, `exp`, …): on matrices it means Loewner PSD
+# (e.g. `inv(X)`, `X'` under `SymmetricPositiveDefinite`), not entrywise ≥ 0.
+# Array arguments need an element domain inside `HalfLine()`.
+function known_nonnegative(x)
+    if getsign(x) == Positive && _is_real_scalar(x)
+        return true
+    end
+    _has_vardomain(x) || return false
+    return _domain_inside_halfline(getmetadata(x, VarDomain), HalfLine())
 end
 
 hasdcprule(::typeof(^)) = true

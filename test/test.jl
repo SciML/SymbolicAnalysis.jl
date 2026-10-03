@@ -297,8 +297,11 @@ ws = Symbolics.scalarize(w)
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 2))).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature ==
     SymbolicAnalysis.UnknownCurvature
+# `Positive` on an array is not an entrywise-nonnegativity proof (matrix atoms
+# reuse it for Loewner PSD), so elementwise cubes need a scalar Positive base or
+# an element-domain `VarDomain` — not a broadcast that only carries `Positive`.
 @test SymbolicAnalysis.analyze(unwrap(sum(exp.(w) .^ 3))).curvature ==
-    SymbolicAnalysis.Convex
+    SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 0.5))).curvature ==
     SymbolicAnalysis.Concave
 @test SymbolicAnalysis.analyze(unwrap(sum(Xm .^ 2))).curvature == SymbolicAnalysis.Convex
@@ -603,7 +606,21 @@ bpos = setmetadata(
     SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bpos) .^ (-1))).curvature ==
     SymbolicAnalysis.Convex
-@test SymbolicAnalysis.analyze(unwrap(exp.(bx) .^ 3)).curvature == SymbolicAnalysis.Convex
+# Element-domain nonnegative array: `array_domain(HalfLine(), 1)` recovers the cube.
+bnneg = setmetadata(
+    unwrap(bx),
+    SymbolicAnalysis.VarDomain,
+    SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine(), 1)
+)
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bnneg) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bnneg) .^ 3)).sign ==
+    SymbolicAnalysis.Positive
+# Array-valued `Positive` (broadcast `exp`/`abs`) is not entrywise proof enough.
+@test SymbolicAnalysis.analyze(unwrap(exp.(bx) .^ 3)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(abs.(bx) .^ 3)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(u^2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(u^1.5)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(u^0.5)).curvature == SymbolicAnalysis.Concave
@@ -626,6 +643,26 @@ n_uint = UInt64(1) << 63
 # Scalar `u^0` constant-folds; `bx.^0` reaches `power_rule` via the elementwise path.
 @test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).curvature == SymbolicAnalysis.Affine
 @test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).sign == SymbolicAnalysis.Positive
+
+# Matrix `Positive` under SPD / Euclidean matrix atoms is Loewner PSD, not
+# entrywise ≥ 0. Entries of `inv(X)` and `X'` can be negative, so elementwise
+# cubes must not certify (t^3 is concave for t < 0).
+using Manifolds: SymmetricPositiveDefinite
+@variables Xpsd[1:2, 1:2]
+Mpsd_cube = SymmetricPositiveDefinite(2)
+let r = SymbolicAnalysis.analyze(unwrap(inv(Xpsd) .^ 3), Mpsd_cube)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
+let r = SymbolicAnalysis.analyze(unwrap(Xpsd' .^ 3), Mpsd_cube)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
+@test SymbolicAnalysis.analyze(unwrap(sum(inv(Xpsd) .^ 3)), Mpsd_cube).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Euclidean matrix sqrt is likewise PSD-not-entrywise; refuse the elementwise cube.
+@test SymbolicAnalysis.analyze(unwrap(sqrt(Xpsd) .^ 3)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
 
 # Symbolics folds `-c/2` into `(-1//2)*c`, so a coefficient can be a `Rational`.
 @variables c d
