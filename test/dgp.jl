@@ -301,3 +301,50 @@ end
     SymbolicAnalysis.Positive
 @test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 2), M2).sign !=
     SymbolicAnalysis.Positive
+
+# Geodesic rules hold only at a point of the manifold: `tr(X .- 5)` can be
+# negative on the SPD cone, and `tr(-X) = -tr(X)` is geodesically concave.
+@testset "GDCP rules need a manifold-point argument" begin
+    @variables X2[1:2, 1:2]
+    xexpx = SymbolicAnalysis.LogExpFunctions.xexpx
+    M2 = SymmetricPositiveDefinite(2)
+    not_positive = [
+        tr(X2 .- 5), tr(X2 - 5 * I(2)), tr(-X2), eigmax(-X2), tr(-X2 + I(2)),
+        SymbolicAnalysis.eigsummax(log(X2), 1),
+    ]
+    for ex in not_positive
+        @test analyze(ex, M2).sign != SymbolicAnalysis.Positive
+    end
+    not_convex = [
+        xexpx(tr(X2 .- 5)), inv(tr(X2 .- 5)), xexpx(tr(X2 - 5 * I(2))), xexpx(tr(-X2)),
+        abs(eigmax(-X2)), eigmax(-X2)^2,
+    ]
+    for ex in not_convex
+        @test analyze(ex, M2).curvature != SymbolicAnalysis.Convex
+    end
+    not_gconvex = [
+        tr(-X2), eigmax(-X2), tr(sin.(X2)), tr(-X2 + I(2)), tr(inv(-X2)),
+        tr(inv(X2 .- 5)), tr(inv(X2 + I(2))), xexpx(tr(X2 .- 5)), tr(X2 - 5 * I(2))^2,
+        abs(eigmax(-X2)), SymbolicAnalysis.eigsummax(log(X2), 1)^2,
+        log(tr(X2 - I(2))),
+    ]
+    for ex in not_gconvex
+        @test analyze(ex, M2).gcurvature != SymbolicAnalysis.GConvex
+    end
+    # A point's isometric images and PSD shifts keep the rule.
+    for ex in [tr(X2), tr(inv(X2)), tr(2 * X2), tr(X2 + 0.5 * I(2)), eigmax(inv(X2))]
+        @test analyze(ex, M2).sign == SymbolicAnalysis.Positive
+    end
+    for ex in [tr(inv(X2))^2, tr(2 * X2)^2, tr(X2 + 0.5 * I(2))^2, logdet(X2 + I(2))]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
+    end
+    @test analyze(tr(X2), Lorentz(2)).sign != SymbolicAnalysis.Positive
+
+    A = [0.5 0.1; 0.1 0.3]
+    B = [4.0 -1.0; -1.0 3.0]
+    @test tr(A .- 5) < 0
+    γ = Manifolds.shortest_geodesic(M2, A, B, 0.5)
+    @test tr(-γ) > (tr(-A) + tr(-B)) / 2
+    xe = P -> (t = tr(P .- 5); t * exp(t))
+    @test xe((A + B) / 2) > (xe(A) + xe(B)) / 2
+end

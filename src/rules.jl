@@ -375,7 +375,9 @@ end
 # only when manifold analysis was actually requested. Without the gate it leaked
 # into Euclidean analysis, where `eigmax(X)` for an unconstrained symmetric `X`
 # has no sign; that made `abs`'s `increasing_if_positive` resolve to `Increasing`
-# and certified `abs(eigmax(X))` as `Convex`, which is false.
+# and certified `abs(eigmax(X))` as `Convex`, which is false. For the same reason
+# it needs every symbolic argument to be a point of `M`: `tr(X .- 5)` is not
+# `Positive` just because `tr` is on the SPD cone.
 function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
@@ -384,7 +386,7 @@ function node_sign(ex, M = nothing)
             return mul_sign(arguments(ex))
         elseif f === (+)
             return add_sign(arguments(ex))
-        elseif usegdcp && hasgdcprule(f)
+        elseif usegdcp && hasgdcprule(f) && gdcp_args_on_manifold(arguments(ex), M)
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign
