@@ -953,11 +953,58 @@ ipv_pos = Symbolics.wrap(
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos .+ 1)) == SymbolicAnalysis.Convex
 @test curv_of(inv(s_pos + 1)) == SymbolicAnalysis.Convex
 @test curv_of(inv(2 * s_pos + 1)) == SymbolicAnalysis.Convex
+@test curv_of(inv(sqrt(s_pos))) == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(inv(sqrt(s_pos)))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(exp(x)))).sign == SymbolicAnalysis.Positive
+@test curv_of(inv(abs(x))) == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(inv(abs(x)))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(x^2))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(norm(ipv)))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(sum(ipv_pos)^2))).sign ==
+    SymbolicAnalysis.Positive
+@test !SymbolicAnalysis.known_positive(unwrap(sum(ipv_pos)^2))
+@test SymbolicAnalysis.analyze(unwrap(inv(1 + abs(x) + exp(y)))).sign ==
+    SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.perspective(exp, px, exp(s)))
+).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.invprod(exp.(ipv)))
+).sign == SymbolicAnalysis.Positive
 # `sum` / Mapreducer positivity is not trusted (`init` / empty arrays).
 @test curv_of(inv(sum(ipv_pos))) == SymbolicAnalysis.UnknownCurvature
 let r = SymbolicAnalysis.analyze(unwrap(inv(ipv_pos[1])))
     @test r.curvature == SymbolicAnalysis.Convex
     @test r.sign == SymbolicAnalysis.Positive
+end
+
+let
+    @variables A[1:2, 1:0] B[1:0, 1:2] C[1:2, 1:2] v0[1:0]
+    matrix_domain = SymbolicAnalysis.array_domain(
+        Symbolics.DomainSets.HalfLine{Real, :open}(), 2
+    )
+    vector_domain = SymbolicAnalysis.array_domain(
+        Symbolics.DomainSets.HalfLine{Real, :open}(), 1
+    )
+    Ap = Symbolics.wrap(setmetadata(unwrap(A), SymbolicAnalysis.VarDomain, matrix_domain))
+    Bp = Symbolics.wrap(setmetadata(unwrap(B), SymbolicAnalysis.VarDomain, matrix_domain))
+    Cp = Symbolics.wrap(setmetadata(unwrap(C), SymbolicAnalysis.VarDomain, matrix_domain))
+    vp = Symbolics.wrap(setmetadata(unwrap(v0), SymbolicAnalysis.VarDomain, vector_domain))
+    e = unwrap((Ap * Bp)[1, 1])
+    @test !SymbolicAnalysis.known_positive(e)
+    @test !SymbolicAnalysis.known_positive(
+        Symbolics.term(exp, unwrap(Cp); type = Matrix{Real})
+    )
+    @test SymbolicAnalysis.dcprule(/, 1, unwrap(Cp))[1].curvature ==
+        SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(inv, e)[1].curvature == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(/, 1, e)[1].curvature == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(
+        SymbolicAnalysis.perspective, exp, unwrap(x), e
+    )[1].curvature == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(
+        SymbolicAnalysis.invprod, unwrap(Ap * vp)
+    )[1].curvature == SymbolicAnalysis.UnknownCurvature
 end
 # undeclared / mixed-sign arrays, and domains that include 0 or negatives, must
 # not certify `inv`.
@@ -989,15 +1036,18 @@ s_closed = Symbolics.wrap(
 )
 @test curv_of(Symbolics.term(inv, unwrap(s_closed))) ==
     SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(inv(inv(s_closed)^3))).sign ==
+    SymbolicAnalysis.Positive
+@test !SymbolicAnalysis.known_positive(unwrap(inv(s_closed)))
 @test curv_of(inv(ipv_pos[1] + (-2))) == SymbolicAnalysis.UnknownCurvature
 
 # Reviewer false-certificate reproducers (elem-sign-delta): reductions ignore
 # `init` / emptiness, and memoized nonnegative `Sign.Positive` must not prove
 # open-half-line preconditions.
 let T(f, args...) = Symbolics.term(
-            f, unwrap.(args)...;
-            type = f === broadcast ? Vector{Real} : Real
-        )
+        f, unwrap.(args)...;
+        type = f === broadcast ? Vector{Real} : Real
+    )
     @variables zv0[1:0]
     zp0 = Symbolics.wrap(
         setmetadata(
