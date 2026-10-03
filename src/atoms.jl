@@ -640,10 +640,12 @@ add_dcprule(imag, ℂ, AnySign, Affine, AnyMono)
 `1/x` is convex-decreasing and positive on `(0, ∞)`, but it **exists** for every
 nonzero `x` and is concave (and negative) on `(-∞, 0)` — e.g. `f(-1) = -1`,
 `f(-3) = -1/3`, and the midpoint `f(-2) = -1/2` lies above the chord `-2/3`.
-The convex rule requires a structural proof that `x > 0`. A structurally
-nonnegative `x` gives a positive sign wherever `1/x` is defined, while its
-curvature remains unknown. The same strict-domain rule guards `/` and `xexpx`;
-`log` and `sqrt` are undefined outside their declared domains.
+The rule therefore needs `x` proved nonnegative (a scalar `Positive` sign or a
+domain inside `[0, ∞)`). Where `x` can reach `0`, `1/x` is `+∞` there, which is
+the extended-value convex-decreasing function cvxpy's `inv_pos` uses, so
+`inv(sqrt(t))` is convex for `t ≥ 0`. Without that proof the result is
+`UnknownCurvature`/`AnySign`. `log` and `sqrt` need no such proof because they
+are undefined outside their declared domains.
 
 Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually
 covers rewritten forms; this method covers the bare `inv` term (as built by
@@ -655,12 +657,25 @@ function dcprule(::typeof(inv), x)
     if SymbolicUtils.symtype(x) <: AbstractArray
         return @invoke dcprule(inv::Any, x)
     end
-    if !known_positive(x)
-        v = constval(x)
-        sign = !(v isa Number && iszero(v)) && known_nonnegative(x) ? Positive : AnySign
-        return makerule(RealLine(), sign, UnknownCurvature, AnyMono), args
+    rule = _reciprocal_rule(1, x)
+    isnothing(rule) && return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return makerule(rule...), args
+end
+
+# The law of `c/x` (`c ≠ 0`) in `x`. On `x ≥ 0` it is the extended-value
+# `c/x` (`+∞`·sign(c) at 0), still convex-decreasing (`c > 0`) or
+# concave-increasing (`c < 0`), as cvxpy's `inv_pos`.
+function _reciprocal_rule(c, x)
+    _is_real_scalar(x) || return nothing
+    domain = if known_positive(x)
+        HalfLine{Real, :open}()
+    elseif known_nonnegative(x) && !_const_satisfies(x, iszero)
+        HalfLine()
+    else
+        return nothing
     end
-    return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
+    return c > 0 ? (domain, Positive, Convex, Decreasing) :
+        (domain, Negative, Concave, Increasing)
 end
 # Matrix Loewner-order rule registered below; keeps `hasdcprule(inv)`.
 add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
@@ -850,12 +865,10 @@ constant. A nonzero constant denominator is an affine rescaling, flipping
 curvature and sign when it is negative.
 
 A constant numerator is the `inv` atom: `c/x` is convex-decreasing for `c > 0`
-and concave-increasing for `c < 0` — but **only on `x > 0`**, and the
-scalar denominator must be structurally strictly positive for that curvature
-rule. A structurally nonnegative scalar denominator gives the quotient a sign
-on its real domain, but no curvature certificate. This matters because `1/x`
-exists for every nonzero `x` and is concave below zero: `f(-1) = -1`, `f(2) = 0.5`,
-and the midpoint `f(0.5) = 2` lies above the chord `-0.25`.
+and concave-increasing for `c < 0` on `x ≥ 0` (see the `inv` rule), so the
+scalar denominator must be proved nonnegative. `1/x` exists for every nonzero
+`x` and is concave below zero: `f(-1) = -1`, `f(2) = 0.5`, and the midpoint
+`f(0.5) = 2` lies above the chord `-0.25`.
 
 Symbolics rewrites `inv(x)` to `/(1, x)` and `x^-n` to `/(1, x)^n`, so this rule
 is also what gives those their curvature.
@@ -870,21 +883,12 @@ function dcprule(::typeof(/), num, den)
         mono = dv > 0 ? Increasing : Decreasing
         return makerule((RealLine(), RealLine()), mul_sign(args), Affine, (mono, AnyMono)),
             args
-    elseif nv isa Number && !iszero(nv) && SymbolicUtils.symtype(den) <: Real &&
-            known_positive(den)
-        domain = (RealLine(), HalfLine{Real, :open}())
-        return if nv > 0
-            makerule(domain, Positive, Convex, (AnyMono, Decreasing)), args
-        else
-            makerule(domain, Negative, Concave, (AnyMono, Increasing)), args
-        end
-    elseif nv isa Real && !iszero(nv) && SymbolicUtils.symtype(den) <: Real &&
-            known_nonnegative(den)
-        # A nonnegative denominator fixes the sign wherever division is defined.
-        sign = nv > 0 ? Positive : Negative
-        return makerule((RealLine(), RealLine()), sign, UnknownCurvature, AnyMono), args
     end
-    return unknown, args
+    nv isa Real && !iszero(nv) || return unknown, args
+    rule = _reciprocal_rule(nv, den)
+    isnothing(rule) && return unknown, args
+    domain, sign, curv, mono = rule
+    return makerule((RealLine(), domain), sign, curv, (AnyMono, mono)), args
 end
 hasdcprule(::typeof(/)) = true
 

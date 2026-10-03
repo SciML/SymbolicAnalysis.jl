@@ -1099,8 +1099,8 @@ let
         SymbolicAnalysis.invprod, unwrap(Ap * vp)
     )[1].curvature == SymbolicAnalysis.UnknownCurvature
 end
-# undeclared / mixed-sign arrays, and domains that include 0 or negatives, must
-# not certify `inv`.
+# undeclared / mixed-sign arrays, and domains that include negatives, must not
+# certify `inv`; on `[0, ∞)` it is the extended-value reciprocal.
 @variables ipv_free[1:2]
 @test curv_of(inv(ipv_free[1])) == SymbolicAnalysis.UnknownCurvature
 @test curv_of(SymbolicAnalysis.invprod(ipv_free .+ 1)) ==
@@ -1111,7 +1111,7 @@ ipv_closed = Symbolics.wrap(
         SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :closed}(), 1)
     )
 )
-@test curv_of(inv(ipv_closed[1])) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(inv(ipv_closed[1])) == SymbolicAnalysis.Convex
 @test curv_of(SymbolicAnalysis.invprod(ipv_closed)) ==
     SymbolicAnalysis.UnknownCurvature
 ipv_real = Symbolics.wrap(
@@ -1127,8 +1127,7 @@ s_closed = Symbolics.wrap(
         Symbolics.DomainSets.HalfLine{Real, :closed}()
     )
 )
-@test curv_of(Symbolics.term(inv, unwrap(s_closed))) ==
-    SymbolicAnalysis.UnknownCurvature
+@test curv_of(Symbolics.term(inv, unwrap(s_closed))) == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(inv(inv(s_closed)^3))).sign ==
     SymbolicAnalysis.Positive
 @test !SymbolicAnalysis.known_positive(unwrap(inv(s_closed)))
@@ -1177,10 +1176,10 @@ let T(f, args...) = Symbolics.term(
         @test r.sign == SymbolicAnalysis.Positive # nonnegative is fine
         @test !SymbolicAnalysis.known_positive(unwrap(e))
     end
-    # `1/(0*s)` is `+∞`: nonnegative, but not a strict-positivity proof.
+    # `1/(0*s)` is `+∞` everywhere: the extended-value reciprocal, as `inv(t)` on `t ≥ 0`.
     let e = T(inv, T(*, 0, s_pos))
         r = SymbolicAnalysis.analyze(e)
-        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.curvature == SymbolicAnalysis.Convex
         @test r.sign == SymbolicAnalysis.Positive
     end
     let e = T(inv, T(getindex, T(broadcast, *, 0, ipv_pos), 1))
@@ -1224,4 +1223,23 @@ let T(f, args...; type = Real) = Symbolics.term(f, unwrap.(args)...; type)
     @test SymbolicAnalysis.analyze(T(LogExpFunctions.xexpx, abs.(vg)[1])).curvature ==
         SymbolicAnalysis.Convex
     @test SymbolicAnalysis.analyze(unwrap(exp.(vg)[1])).sign == SymbolicAnalysis.Positive
+end
+
+# `c/x` on a nonnegative concave `x` is convex (cvxpy's `inv_pos`), with `+∞` at 0.
+let tg = Symbolics.wrap(
+        setmetadata(unwrap(only(@variables tg)), SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine())
+    )
+    for (e, curv, sgn) in [
+            (inv(sqrt(tg)), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+            (Symbolics.term(inv, unwrap(sqrt(tg))), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+            (1 / sqrt(tg), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+            (-2 / sqrt(tg), SymbolicAnalysis.Concave, SymbolicAnalysis.Negative),
+            (1 / abs(x), SymbolicAnalysis.UnknownCurvature, SymbolicAnalysis.Positive),
+            (1 / x, SymbolicAnalysis.UnknownCurvature, SymbolicAnalysis.AnySign),
+            (Symbolics.term(inv, 0), SymbolicAnalysis.UnknownCurvature, SymbolicAnalysis.AnySign),
+        ]
+        r = SymbolicAnalysis.analyze(unwrap(e))
+        @test r.curvature == curv
+        @test r.sign == sgn
+    end
 end
