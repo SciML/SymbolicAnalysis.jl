@@ -904,7 +904,7 @@ function known_positive(x)
 end
 
 # `array_domain(d, …)` closures capture `element_domain`; a plain scalar domain is
-# used as-is. Matches the array-element-sign branch's open-half-line helper.
+# used as-is.
 function _domain_inside_halfline(d, halfline)
     ed = d
     if d isa CustomDomain
@@ -923,8 +923,8 @@ _is_real_scalar(x::Real) = true
 function _is_real_scalar(x)
     return try
         SymbolicUtils.symtype(x isa Num ? unwrap(x) : x) <: Real
-    catch
-        false
+    catch e
+        e isa MethodError ? false : rethrow()
     end
 end
 
