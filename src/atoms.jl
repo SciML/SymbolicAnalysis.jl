@@ -776,18 +776,9 @@ add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 # special cases which depend on arguments:
 
 # The scalar power laws, applied to a scalar base or elementwise to an array one.
-# Julia's `^(::Float64, ::Integer)` clamps the exponent to `Int64`. A
-# mathematically even `BigInt` / `UInt64` outside that range can therefore
-# evaluate as an odd Float64 power (negative at a negative base). Refuse any
-# integer exponent that is not exactly representable as `Int64`.
-function _integer_power_runtime_exact(i)
-    return try
-        convert(Int64, i)
-        true
-    catch
-        false
-    end
-end
+# Julia's `^(::Float64, ::Integer)` clamps the exponent to `Int64`, so an even
+# `BigInt`/`UInt64` exponent outside that range can evaluate as an odd power.
+_integer_power_runtime_exact(i) = typemin(Int64) <= i <= typemax(Int64)
 
 function power_rule(x, i)
     args = (x, i)
@@ -814,10 +805,8 @@ function power_rule(x, i)
         # Even positive powers are convex on all of R.
         return makerule(RealLine(), Positive, Convex, increasing_if_positive), args
     elseif isinteger(i) && isodd(i) && i > 0
-        # Odd powers `x^3`, `x^5`, … are convex on `[0, ∞)` but exist and are
-        # neither convex nor nonnegative on R (at y=-1, y^3=-1 lies above the
-        # chord -4 between -2 and 0). Gate on an established-nonnegative base —
-        # the same "exists outside the declared domain" pattern as `/` and `inv`.
+        # Odd powers are convex only on `[0, ∞)` but also exist for x < 0, so
+        # the domain cannot be assumed; require an established-nonnegative base.
         known_nonnegative(x) || return unknown, args
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i >= 1
@@ -827,11 +816,9 @@ function power_rule(x, i)
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing), args
     elseif i < 0
-        # Negative powers are convex-decreasing on `(0, ∞)`. Integer exponents
-        # also exist for x < 0 (where the curvature is wrong: `x^-1` is concave
-        # on `(-∞, 0)`, and `x^-2` is not convex across 0), so require an
-        # established-positive base. Non-integer exponents throw `DomainError`
-        # for x < 0 and keep the log / sqrt convention.
+        # Convex-decreasing on `(0, ∞)`. Integer exponents also exist for x < 0,
+        # where `x^-1` is concave and `x^-2` is not convex across 0, so they need
+        # an established-positive base; non-integer ones throw `DomainError` there.
         if isinteger(i)
             known_positive(x) || return unknown, args
             return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
