@@ -394,8 +394,7 @@ function node_sign(ex, M = nothing)
             return gdcprule(ex)[1].sign
         elseif hasdcprule(ex)
             return dcprule(ex)[1].sign
-        elseif _has_vardomain(ex) &&
-                _domain_inside_open_halfline(getmetadata(ex, VarDomain))
+        elseif _vardomain_inside(ex, HalfLine{Real, :open}())
             return Positive
         end
     end

@@ -657,7 +657,7 @@ function dcprule(::typeof(inv), x)
     end
     if !known_positive(x)
         v = constval(x)
-        sign = !(v isa Number && iszero(v)) && _known_nonnegative(x) ? Positive : AnySign
+        sign = !(v isa Number && iszero(v)) && known_nonnegative(x) ? Positive : AnySign
         return makerule(RealLine(), sign, UnknownCurvature, AnyMono), args
     end
     return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
@@ -771,8 +771,13 @@ add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 # special cases which depend on arguments:
 
 # The scalar power laws, applied to a scalar base or elementwise to an array one.
+# Julia's `^(::Float64, ::Integer)` clamps the exponent to `Int64`, so an even
+# `BigInt`/`UInt64` exponent outside that range can evaluate as an odd power.
+_integer_power_runtime_exact(i) = typemin(Int64) <= i <= typemax(Int64)
+
 function power_rule(x, i)
     args = (x, i)
+    unknown = makerule(RealLine(), AnySign, UnknownCurvature, AnyMono)
     if !(i isa Real)
         # The power laws below all need a numeric exponent. The remaining case
         # with a DCP curvature is a constant base: `c^g == exp(g*log(c))` is
@@ -782,22 +787,41 @@ function power_rule(x, i)
             mono = base > 1 ? Increasing : base < 1 ? Decreasing : AnyMono
             return makerule(RealLine(), Positive, Convex, (AnyMono, mono)), args
         end
-        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+        return unknown, args
     end
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
-    elseif isinteger(i) && iseven(i)
+    elseif iszero(i)
+        # `x^0 == 1` for every real `x` in Julia, including `0^0`.
+        return makerule(RealLine(), Positive, Affine, AnyMono), args
+    elseif isinteger(i) && !_integer_power_runtime_exact(i)
+        return unknown, args
+    elseif isinteger(i) && iseven(i) && i > 0
+        # Even positive powers are convex on all of R.
         return makerule(RealLine(), Positive, Convex, increasing_if_positive), args
-    elseif isinteger(i) && isodd(i)
+    elseif isinteger(i) && isodd(i) && i > 0
+        # Odd powers are convex only on `[0, ∞)` but also exist for x < 0, so
+        # the domain cannot be assumed; require an established-nonnegative base.
+        known_nonnegative(x) || return unknown, args
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i >= 1
+        # Non-integer `i ≥ 1` throws `DomainError` for x < 0, so the domain is
+        # where the real function exists (log / sqrt convention).
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing), args
     elseif i < 0
-        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing), args
+        # Convex-decreasing on `(0, ∞)`. Integer exponents also exist for x < 0,
+        # where `x^-1` is concave and `x^-2` is not convex across 0, so they need
+        # an established-positive base; non-integer ones throw `DomainError` there.
+        if isinteger(i)
+            known_positive(x) || return unknown, args
+            return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
+        else
+            return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Decreasing), args
+        end
     end
-    return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return unknown, args
 end
 
 function dcprule(::typeof(^), x::Symbolic, i)
@@ -855,7 +879,7 @@ function dcprule(::typeof(/), num, den)
             makerule(domain, Negative, Concave, (AnyMono, Increasing)), args
         end
     elseif nv isa Real && !iszero(nv) && SymbolicUtils.symtype(den) <: Real &&
-            _known_nonnegative(den)
+            known_nonnegative(den)
         # A nonnegative denominator fixes the sign wherever division is defined.
         sign = nv > 0 ? Positive : Negative
         return makerule((RealLine(), RealLine()), sign, UnknownCurvature, AnyMono), args
@@ -864,12 +888,8 @@ function dcprule(::typeof(/), num, den)
 end
 hasdcprule(::typeof(/)) = true
 
-# Strict positivity for open-half-line preconditions (`inv`, `/`, `perspective`,
-# …). `Sign.Positive` means *nonnegative* in this package (`0`, `abs(x)`, …), so
-# it must never be treated as a strict-positivity proof — including when the
-# memoized fold caches that sign. Derive strict positivity only structurally:
-# open `VarDomain` (scalar or array element domain) and operations that preserve
-# strict positivity. Reductions need bounds on `init` and array length.
+# `array_domain(d, …)` closures capture `element_domain`; a plain scalar domain is
+# used as-is.
 function _domain_inside_halfline(d, halfline)
     ed = d
     if d isa CustomDomain
@@ -884,56 +904,67 @@ function _domain_inside_halfline(d, halfline)
     end
 end
 
-_domain_inside_open_halfline(d) = _domain_inside_halfline(d, HalfLine{Real, :open}())
+_vardomain_inside(x, halfline) =
+    _has_vardomain(x) && _domain_inside_halfline(getmetadata(x, VarDomain), halfline)
 
-function _nonnegative_const(x)
-    v = constval(x)
-    return v isa Real && v >= zero(v)
-end
-
-function _strictly_positive_const(x)
-    v = constval(x)
-    return v isa Real && v > zero(v)
-end
-
-_real_scalar_or_array(x) = SymbolicUtils.symtype(x) <: Real ||
-    SymbolicUtils.symtype(x) <: AbstractArray{<:Real}
-
-function _known_nonnegative(x)
-    _nonnegative_const(x) && return true
-    known_positive(x) && return true
-    if _has_vardomain(x)
-        return _domain_inside_halfline(getmetadata(x, VarDomain), HalfLine{Real, :closed}())
+_is_real_scalar(x::Real) = true
+function _is_real_scalar(x)
+    return try
+        SymbolicUtils.symtype(x isa Num ? unwrap(x) : x) <: Real
+    catch e
+        e isa MethodError ? false : rethrow()
     end
+end
+
+function _const_satisfies(x, pred)
+    v = constval(x)
+    return v isa Real && pred(v)
+end
+
+# Elementwise `x ≥ 0`. A `Positive` sign proves this only for scalars: on a
+# matrix it can mean Loewner PSD (`sqrt(X)`, or `inv(X)`/`X'` under
+# `SymmetricPositiveDefinite`), whose off-diagonal entries may be negative.
+function known_nonnegative(x)
+    _const_satisfies(x, >=(0)) && return true
+    _is_real_scalar(x) && getsign(x) == Positive && return true
+    known_positive(x) && return true
+    _vardomain_inside(x, HalfLine()) && return true
+    iscall(x) && operation(x) === broadcast && length(arguments(x)) == 2 &&
+        SymbolicUtils.symtype(x) <: AbstractArray{<:Real} || return false
+    g = constval(first(arguments(x)))
+    return g === abs || g === abs2 || g === sqrt || g === norm
+end
+
+# `Positive` means nonnegative, so strict positivity (needed by `inv`, `/`,
+# `perspective`, …) is derived only from open-half-line domains and operations
+# that preserve it. This is elementwise for arrays.
+function known_positive(x)
+    _has_vardomain(x) && return _vardomain_inside(x, HalfLine{Real, :open}())
     iscall(x) || return false
     f = operation(x)
     args = arguments(x)
-    broadcasted = f === broadcast && !isempty(args)
-    if broadcasted
-        f = constval(first(args))
-        args = args[2:end]
-    end
-    if f === abs || f === abs2 || f === sqrt || f === norm
-        return length(args) == 1 && _real_scalar_or_array(x) &&
-            (broadcasted || SymbolicUtils.symtype(x) <: Real)
-    elseif f === (^) && length(args) == 2
-        exponent = constval(args[2])
-        return exponent isa Integer && (iseven(exponent) || _known_nonnegative(args[1])) &&
-            SymbolicUtils.symtype(x) <: Real
+    if f === getindex
+        return !isempty(args) && known_positive(first(args))
+    elseif f === (*)
+        # A matrix contraction may sum zero terms even when both inputs are positive.
+        any(a -> SymbolicUtils.symtype(a) <: AbstractArray, args) && return false
+        return _positive_product(args)
+    elseif f === broadcast && !isempty(args)
+        return _positive_elementwise(constval(first(args)), args[2:end], true)
+    elseif f === invprod
+        return length(args) == 1 && known_positive(first(args))
     elseif f === (/) && length(args) == 2
-        return SymbolicUtils.symtype(x) <: Real &&
-            all(a -> SymbolicUtils.symtype(a) <: Real, args) &&
-            _known_nonnegative(args[1]) && _known_nonnegative(args[2])
+        return all(_is_real_scalar, args) && all(known_positive, args)
     end
-    return false
+    return _positive_elementwise(f, args)
 end
 
 function _affine_nneg_shift_positive(args)
     saw_pos = false
     for a in args
-        if _strictly_positive_const(a) || known_positive(a)
+        if _const_satisfies(a, >(0)) || known_positive(a)
             saw_pos = true
-        elseif !_known_nonnegative(a)
+        elseif !known_nonnegative(a)
             return false
         end
     end
@@ -943,7 +974,7 @@ end
 function _positive_product(args)
     saw_pos = false
     for a in args
-        if _strictly_positive_const(a)
+        if _const_satisfies(a, >(0))
             continue
         elseif known_positive(a)
             saw_pos = true
@@ -955,53 +986,23 @@ function _positive_product(args)
 end
 
 function _positive_elementwise(f, args, broadcasted = false)
-    if f === (+)
-        return _affine_nneg_shift_positive(args)
-    elseif f === (*)
-        return _positive_product(args)
-    elseif f === exp || f === exp2 || f === exp10 ||
-            f === LogExpFunctions.log1pexp
-        return length(args) == 1 && _real_scalar_or_array(first(args)) &&
-            (broadcasted || SymbolicUtils.symtype(first(args)) <: Real)
+    f === (+) && return _affine_nneg_shift_positive(args)
+    f === (*) && return _positive_product(args)
+    f === min && return !isempty(args) && all(known_positive, args)
+    f === max && return any(known_positive, args)
+    isempty(args) && return false
+    x = first(args)
+    # Unbroadcast, these names are matrix functions on an array argument.
+    T = SymbolicUtils.symtype(x)
+    (T <: Real || broadcasted && T <: AbstractArray{<:Real}) || return false
+    if f === exp || f === exp2 || f === exp10 || f === LogExpFunctions.log1pexp
+        return length(args) == 1
     elseif f === sqrt || f === inv
-        return length(args) == 1 && known_positive(first(args)) &&
-            (broadcasted || SymbolicUtils.symtype(first(args)) <: Real)
-    elseif f === (^) && length(args) == 2
-        exponent = constval(args[2])
-        return exponent isa Real && known_positive(first(args)) &&
-            (broadcasted || SymbolicUtils.symtype(first(args)) <: Real)
-    elseif f === min
-        return !isempty(args) && all(known_positive, args)
-    elseif f === max
-        return any(known_positive, args)
+        return length(args) == 1 && known_positive(x)
+    elseif f === (^)
+        return length(args) == 2 && constval(args[2]) isa Real && known_positive(x)
     end
     return false
-end
-
-function known_positive(x)
-    if _has_vardomain(x)
-        return _domain_inside_open_halfline(getmetadata(x, VarDomain))
-    end
-    iscall(x) || return false
-    f = operation(x)
-    args = arguments(x)
-    if f === getindex
-        return !isempty(args) && known_positive(first(args))
-    elseif f === (*)
-        # A matrix contraction may sum zero terms even when both inputs are positive.
-        any(a -> SymbolicUtils.symtype(a) <: AbstractArray, args) && return false
-        return _positive_product(args)
-    elseif f === broadcast && !isempty(args)
-        g = constval(first(args))
-        return _positive_elementwise(g, args[2:end], true)
-    elseif f === invprod
-        return length(args) == 1 && known_positive(first(args))
-    elseif f === (/) && length(args) == 2
-        return SymbolicUtils.symtype(x) <: Real &&
-            all(a -> SymbolicUtils.symtype(a) <: Real, args) &&
-            known_positive(args[1]) && known_positive(args[2])
-    end
-    return _positive_elementwise(f, args)
 end
 
 hasdcprule(::typeof(^)) = true
