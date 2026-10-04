@@ -174,9 +174,10 @@ through `inv`, `adjoint`, `transpose`, a positive scalar multiple, or `conjugati
 a constant nonsingular matrix. The sign rule also accepts sums of such points and
 constant positive semidefinite matrices (`X + γI`). Any other argument, such as
 `X .- 5`, `-X` or `X - 5I`, falls back to the Euclidean rule, so `tr(X .- 5)` has no
-sign. For `tr`, `sum`, `diag`, `eigmax` and `eigsummax`, geodesic convexity also
-survives adding a constant to the point, so `tr(X - 5I)` and
-`eigmax(X .- 5)` are `GConvex`.
+sign. For `tr`, `sum` and `diag`, geodesic convexity also survives adding any
+constant to the point. For `eigmax` and `eigsummax` the constant must be symmetric
+(a symmetric matrix, or a scalar via `.-` / `.+`), so `eigmax(X .- 5)` is `GConvex`
+but `eigmax(X + [0 3; 0 0])` is not.
 
 ## DGCP Atoms (Lorentz Model)
 

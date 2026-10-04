@@ -338,6 +338,16 @@ end
     for ex in [tr(inv(X2))^2, tr(2 * X2)^2, tr(X2 + 0.5 * I(2))^2, logdet(X2 + I(2))]
         @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
     end
+    Cns = [0.0 3.0; 0.0 0.0]
+    for ex in [
+            eigmax(X2 + Cns), eigmax(X2 .+ Cns), eigmax(X2 .- [0.0, 3.0]),
+            SymbolicAnalysis.eigsummax(X2 + Cns, 1),
+        ]
+        @test analyze(ex, M2).gcurvature != SymbolicAnalysis.GConvex
+    end
+    @test analyze(eigmax(X2 .- 5), M2).gcurvature == SymbolicAnalysis.GConvex
+    @test analyze(eigmax(X2 + [1.0 4.0; 4.0 -2.0]), M2).gcurvature ==
+        SymbolicAnalysis.GConvex
     @test analyze(tr(X2), Lorentz(2)).sign != SymbolicAnalysis.Positive
 
     A = [0.5 0.1; 0.1 0.3]

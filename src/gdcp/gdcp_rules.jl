@@ -131,10 +131,22 @@ function fits_manifold(ex, M)
         return false
     end
     sh = SymbolicUtils.shape(ex)
-    return !(sh isa AbstractVector) || Tuple(map(length, sh)) == Manifolds.representation_size(M)
+    sh isa AbstractVector || return true
+    got = Tuple(map(length, sh))
+    want = Manifolds.representation_size(M)
+    got == want && return true
+    return M isa Lorentz && got == (want[1] + 1,)
 end
 
 positive_const(x) = (v = constval(x); v isa Real && v > 0)
+
+function symmetric_const(x)
+    isconstarg(x) || return false
+    v = constval(x)
+    v isa Real && return true
+    v = map(constval, v)
+    return v isa AbstractMatrix && issymmetric(v)
+end
 
 function psd_const(x)
     isconstarg(x) || return false
@@ -258,10 +270,6 @@ function add_gcurvature(args)
     end
 end
 
-# Atoms that are a supremum of positive linear functionals of `X` (plus a
-# constant), so `f(C + X)` and `f(B + Φ(X))` stay geodesically convex for any
-# constant `C`, PSD `B` and positive linear `Φ`. `inv` or `logdet` are not:
-# `tr(inv(X + I))` is `1/(1 + eᵗ)` along a scalar geodesic, which is not convex.
 const SHIFT_INVARIANT_GATOMS = (LinearAlgebra.tr, sum, LinearAlgebra.diag, eigmax, eigsummax)
 
 function positive_image(ex)
@@ -279,32 +287,32 @@ end
 # `logdet(B + Φ(X))` is geodesically convex for PSD `B` and positive linear `Φ`.
 function logdet_gconvex_arg(a)
     iscall(a) || return false
-    if operation(a) === (+)
+    g = operation(a)
+    if g === (+)
         return count(!isconstarg, arguments(a)) == 1 &&
             all(x -> isconstarg(x) ? psd_const(x) : positive_image(x), arguments(a))
     end
-    g = operation(a)
-    return (
-        g === conjugation || g === LinearAlgebra.diag || g === affine_map ||
-            g === hadamard_product
-    ) && positive_image(a)
+    return g !== inv && g !== adjoint && g !== transpose && g !== (*) && positive_image(a)
 end
 
 function geodesic_rule_arg(f, a)
     isometric_point(a) && return true
     g = operation(a)
     any(h -> h === f, SHIFT_INVARIANT_GATOMS) || return false
+    eig_shift = f === eigmax || f === eigsummax
     if g === affine_map
         return isometric_point(arguments(a)[2])
     elseif g === (+)
-        nonconst = filter(!isconstarg, arguments(a))
-        return length(nonconst) == 1 && isometric_point(only(nonconst))
+        args = arguments(a)
+        nonconst = filter(!isconstarg, args)
+        return length(nonconst) == 1 && isometric_point(only(nonconst)) &&
+            (!eig_shift || all(x -> !isconstarg(x) || symmetric_const(x), args))
     elseif g === broadcast
-        # `X .- c`, `X .+ C`, `X - C` (Symbolics lowers the last to a broadcast).
         bargs = arguments(a)
         op = constval(bargs[1])
         return length(bargs) == 3 && (op === (+) || op === (-)) &&
-            isometric_point(bargs[2]) && isconstarg(bargs[3])
+            isometric_point(bargs[2]) && isconstarg(bargs[3]) &&
+            (!eig_shift || symmetric_const(bargs[3]))
     end
     return false
 end

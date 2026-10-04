@@ -20,6 +20,8 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
     # Test analyze function
     analyze_res = analyze(ex, M)
     @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
+    @test analyze(Manifolds.distance(M, q, p), M).sign == SymbolicAnalysis.Positive
+    @test analyze(Manifolds.distance(M, q, p)^2, M).gcurvature == SymbolicAnalysis.GConvex
 
     # Test lorentz_log_barrier
     ex = SymbolicAnalysis.lorentz_log_barrier(p) |> unwrap
