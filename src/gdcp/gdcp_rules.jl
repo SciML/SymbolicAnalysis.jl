@@ -115,6 +115,19 @@ hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
 hasgdcprule(f) = false
 gdcprule(f, args...) = gdcprules_dict[f], args
 
+# A rule applies only on the manifold type it was registered for. `distance` is
+# registered for both SPD and Lorentz with the same Positive/GConvex/GAnyMono
+# descriptor; Lorentz's `add_gdcprule` overwrites the SPD dict entry, so accept
+# either supported type for that atom.
+function gdcp_rule_applies(f, M)
+    M === nothing && return false
+    hasgdcprule(f) || return false
+    rule = gdcprules_dict[f]
+    M isa rule.manifold && return true
+    return f === Manifolds.distance &&
+        (M isa SymmetricPositiveDefinite || M isa Lorentz)
+end
+
 # A geodesic rule describes its atom at a point of the manifold, so it applies
 # only to an argument that provably is one. `isometric_point` follows the
 # variable through maps that send SPD geodesics to geodesics; `manifold_point`
@@ -145,7 +158,7 @@ function symmetric_const(x)
     v = constval(x)
     v isa Real && return true
     v = map(constval, v)
-    return v isa AbstractMatrix && issymmetric(v)
+    return v isa AbstractMatrix && ishermitian(v)
 end
 
 function psd_const(x)
@@ -210,7 +223,7 @@ function hasgcurvature(ex::Union{Symbolic, Num})
 end
 hasgcurvature(ex) = ex isa Real
 
-function mul_gcurvature(args)
+function mul_gcurvature(args, M = nothing)
     # Avoid allocations by not using findall
     non_constant_expr = nothing
     non_constant_count = 0
@@ -228,7 +241,7 @@ function mul_gcurvature(args)
         end
     end
     if non_constant_expr !== nothing
-        curv = find_gcurvature(non_constant_expr)
+        curv = find_gcurvature(non_constant_expr, M)
         return if constant_prod < 0
             # flip
             curv == GConvex ? GConcave : curv == GConcave ? GConvex : curv
@@ -239,12 +252,12 @@ function mul_gcurvature(args)
     return GLinear
 end
 
-function add_gcurvature(args)
+function add_gcurvature(args, M = nothing)
     # Avoid allocating intermediate arrays - check curvatures in one pass
     has_gconvex = false
     has_gconcave = false
     for arg in args
-        curv = find_gcurvature(arg)
+        curv = find_gcurvature(arg, M)
         if curv == GLinear
             continue
         elseif curv == GConvex
@@ -270,6 +283,10 @@ function add_gcurvature(args)
     end
 end
 
+# Atoms that are a supremum of positive linear functionals of `X` (plus a
+# constant), so `f(C + X)` and `f(B + Φ(X))` stay geodesically convex for any
+# constant `C`, PSD `B` and positive linear `Φ`. `inv` and `logdet` are not:
+# `tr(inv(X + I))` is `1/(1 + eᵗ)` along a scalar geodesic, which is not convex.
 const SHIFT_INVARIANT_GATOMS = (LinearAlgebra.tr, sum, LinearAlgebra.diag, eigmax, eigsummax)
 
 function positive_image(ex)
@@ -285,6 +302,8 @@ function positive_image(ex)
 end
 
 # `logdet(B + Φ(X))` is geodesically convex for PSD `B` and positive linear `Φ`.
+# Exclude isometric constructors (`inv`, `adjoint`, `transpose`, `*`) so bare
+# `logdet(X)` stays `GLinear` via its table rule.
 function logdet_gconvex_arg(a)
     iscall(a) || return false
     g = operation(a)
@@ -292,7 +311,10 @@ function logdet_gconvex_arg(a)
         return count(!isconstarg, arguments(a)) == 1 &&
             all(x -> isconstarg(x) ? psd_const(x) : positive_image(x), arguments(a))
     end
-    return g !== inv && g !== adjoint && g !== transpose && g !== (*) && positive_image(a)
+    return (
+        g === conjugation || g === LinearAlgebra.diag || g === affine_map ||
+            g === hadamard_product
+    ) && positive_image(a)
 end
 
 function geodesic_rule_arg(f, a)
@@ -317,7 +339,7 @@ function geodesic_rule_arg(f, a)
     return false
 end
 
-function find_gcurvature(ex)
+function find_gcurvature(ex, M = nothing)
     if hasgcurvature(ex)
         return getgcurvature(ex)
     end
@@ -327,7 +349,7 @@ function find_gcurvature(ex)
         f_curvature = GUnknownCurvature
         f_monotonicity = (GAnyMono,)
 
-        if hasgdcprule(f) && !any(iscall.(args))
+        if gdcp_rule_applies(f, M) && !any(iscall.(args))
             rule, args = gdcprule(f, args...)
             f_curvature = rule.gcurvature
             f_monotonicity = rule.gmonotonicity
@@ -359,7 +381,7 @@ function find_gcurvature(ex)
             else
                 return GUnknownCurvature
             end
-        elseif hasgdcprule(f) && any(iscall, args) &&
+        elseif gdcp_rule_applies(f, M) && any(iscall, args) &&
                 all(a -> !iscall(a) || geodesic_rule_arg(f, a), args)
             rule, args = gdcprule(f, args...)
             f_curvature = rule.gcurvature
@@ -368,9 +390,9 @@ function find_gcurvature(ex)
         elseif f === (*)
             a1 = constval(args[1])
             if a1 isa Number && a1 > 0
-                return find_gcurvature(args[2])
+                return find_gcurvature(args[2], M)
             elseif a1 isa Number && a1 < 0
-                argscurv = find_gcurvature(args[2])
+                argscurv = find_gcurvature(args[2], M)
                 if argscurv == GConvex
                     return GConcave
                 elseif argscurv == GConcave
@@ -394,7 +416,7 @@ function find_gcurvature(ex)
         # B = [2.8936 0.3831; 0.3831 0.7551] the geodesic midpoint gives 2.3890
         # against a chord of 3.8712 — below it, so concavity is refuted.
         if !knowngcurv
-            (hasdcprule(f) && any(a -> find_gcurvature(a) in (GConvex, GConcave), args)) ||
+            (hasdcprule(f) && any(a -> find_gcurvature(a, M) in (GConvex, GConcave), args)) ||
                 return GUnknownCurvature
             rule, args = dcprule(f, args...)
             f_curvature = rule.curvature
@@ -403,7 +425,7 @@ function find_gcurvature(ex)
 
         if f_curvature == Convex || f_curvature == Affine
             if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_gcurvature(arg)
+                    arg_curv = find_gcurvature(arg, M)
                     m = get_arg_property(f_monotonicity, i, args)
                     # @show arg
                     if arg_curv == GConvex
@@ -420,7 +442,7 @@ function find_gcurvature(ex)
             end
         elseif f_curvature == Concave
             if all(enumerate(args)) do (i, arg)
-                    arg_curv = find_gcurvature(arg)
+                    arg_curv = find_gcurvature(arg, M)
                     m = f_monotonicity[i]
                     if arg_curv == GConcave
                         m == Increasing
@@ -441,6 +463,7 @@ function find_gcurvature(ex)
         end
     elseif hasfield(typeof(ex), :val) && haskey(gdcprules_dict, operation(ex.val))
         f, args = operation(ex.val), arguments(ex.val)
+        gdcp_rule_applies(f, M) || return GLinear
         rule, args = gdcprule(f, args...)
         return rule.gcurvature
     else
@@ -451,16 +474,16 @@ end
 
 # See `node_curvature`: geodesic curvature of a single node whose children the
 # bottom-up walk has already annotated.
-function node_gcurvature(ex)
+function node_gcurvature(ex, M = nothing)
     if iscall(ex)
         f = operation(ex)
         if f === (*)
-            return mul_gcurvature(arguments(ex))
+            return mul_gcurvature(arguments(ex), M)
         elseif f === (+)
-            return add_gcurvature(arguments(ex))
+            return add_gcurvature(arguments(ex), M)
         end
     end
-    return find_gcurvature(ex)
+    return find_gcurvature(ex, M)
 end
 
 function propagate_gcurvature(ex, M::AbstractManifold)
@@ -475,5 +498,5 @@ function propagate_gcurvature(ex, M::AbstractManifold)
     # rule table for atoms with no geodesic rule and picks up `increasing_if_positive`
     # with it, so `distance(M, A, X)^2` needs `distance`'s manifold sign to compose.
     ex = propagate_sign(ex, M)
-    return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
+    return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x, M)) : x)(ex)
 end
