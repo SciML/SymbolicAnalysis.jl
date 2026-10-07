@@ -385,6 +385,7 @@ function node_sign(ex, M = nothing)
         elseif f === (+)
             return add_sign(arguments(ex))
         elseif usegdcp && hasgdcprule(f)
+            valid_constant_factors(ex) || return AnySign
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign

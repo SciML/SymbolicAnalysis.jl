@@ -111,6 +111,33 @@ function makegrule(manifold, sign, curvature, monotonicity)
     return GDCPRule(manifold, sign, curvature, monotonicity)
 end
 
+"""
+    constant_factors_ok(f, args)
+
+Whether the constant factors of the gDCP atom call `f(args...)` meet the
+preconditions under which the atom's registered rule holds. Atoms without such
+preconditions accept any arguments; `hadamard_product` and `affine_map` add
+methods.
+"""
+constant_factors_ok(f, args) = true
+
+"""
+    valid_constant_factors(ex)
+
+`false` when some call in `ex` (including `ex` itself) fails
+`constant_factors_ok`. Such a node may not be a point of the manifold,
+so no geodesic sign or curvature is derived for anything that contains it.
+"""
+function valid_constant_factors(ex)
+    iscall(ex) || return true
+    args = arguments(ex)
+    constant_factors_ok(operation(ex), args) || return false
+    for a in args
+        valid_constant_factors(a) || return false
+    end
+    return true
+end
+
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
 hasgdcprule(f) = false
 gdcprule(f, args...) = gdcprules_dict[f], args
@@ -205,6 +232,7 @@ function find_gcurvature(ex)
         return getgcurvature(ex)
     end
     if iscall(ex)
+        valid_constant_factors(ex) || return GUnknownCurvature
         f, args = operation(ex), arguments(ex)
         knowngcurv = false
         f_curvature = GUnknownCurvature

@@ -301,3 +301,52 @@ end
     SymbolicAnalysis.Positive
 @test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 2), M2).sign !=
     SymbolicAnalysis.Positive
+
+# Hadamard and affine-map rules hold only for PSD constant factors (Schur product
+# theorem; a PSD additive constant). Each claim below was refuted on random SPD pairs.
+@testset "gDCP constant factors" begin
+    had, aff, cj = SymbolicAnalysis.hadamard_product, SymbolicAnalysis.affine_map,
+        SymbolicAnalysis.conjugation
+    D = [1.0 0.0; 0.0 -1.0]
+    Hind = [1.0 1.5; 1.5 1.0]
+    Hpsd = [2.0 1.0; 1.0 1.0]
+    I2 = Matrix(1.0I, 2, 2)
+    A0 = [1.0 2.0; 0.5 3.0]
+    @variables Bs[1:2, 1:2]
+    gconvex(ex) = analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
+    positive(ex) = analyze(ex, M2).sign == SymbolicAnalysis.Positive
+
+    @test !positive(had(X2, D))
+    @test !gconvex(had(X2, D))
+    @test !positive(tr(had(X2, D)))
+    @test !gconvex(tr(had(X2, D)))
+    @test !gconvex(sum(had(X2, D)))
+    @test !gconvex(tr(aff(had, X2, D, I2)))
+    @test !gconvex(logdet(had(X2, Hind)))
+    @test !positive(aff(cj, X2, -0.5 * I2, I2))
+    @test !gconvex(logdet(aff(cj, X2, -0.5 * I2, I2)))
+    @test !positive(tr(aff(cj, X2, [1.0 4.0; 4.0 -2.0], A0)))
+    @test !gconvex(log(tr(had(X2, D))))
+    @test !gconvex(tr(inv(aff(cj, X2, -0.5 * I2, I2))))
+    @test !positive(had(X2, Bs))
+    @test !gconvex(logdet(aff(cj, X2, I2, Bs)))
+
+    for ex in (
+            had(X2, Hpsd), tr(had(X2, Hpsd)), aff(cj, X2, I2, A0),
+            tr(aff(had, X2, Hpsd, I2)),
+        )
+        @test positive(ex)
+        @test gconvex(ex)
+    end
+    @test gconvex(sum(had(X2, ones(2, 2))))
+    @test gconvex(logdet(had(X2, Hpsd)))
+    @test gconvex(log(tr(had(X2, Hpsd))))
+    @test gconvex(logdet(aff(cj, X2, I2, A0)))
+
+    let P = [2.0 0.0; 0.0 1.0], Q = [1.0 0.0; 0.0 4.0]
+        @test eigmin(D .* P) < 0
+        @test eigmin([0.1 0.0; 0.0 1.0] - 0.5I) < 0
+        γ = Manifolds.shortest_geodesic(M2, P, Q, 0.5)
+        @test tr(D .* γ) > (tr(D .* P) + tr(D .* Q)) / 2
+    end
+end
