@@ -370,12 +370,14 @@ end
 # over a DCP rule, which wins over the `AnySign` default (also overwriting any
 # stale metadata from a previous analysis).
 #
-# A GDCP rule's sign only holds on its manifold — `eigmax` is registered
+# A GDCP rule's sign only holds on its registered manifold — `eigmax` is
 # `Positive` because every eigenvalue of an SPD matrix is — so it is consulted
-# only when manifold analysis was actually requested. Without the gate it leaked
-# into Euclidean analysis, where `eigmax(X)` for an unconstrained symmetric `X`
-# has no sign; that made `abs`'s `increasing_if_positive` resolve to `Increasing`
-# and certified `abs(eigmax(X))` as `Convex`, which is false.
+# only when manifold analysis was actually requested and the rule's manifold
+# type matches `M`. Without that gate an SPD atom would apply in Euclidean analysis
+# (`abs(eigmax(X))` Convex) and in Lorentz analysis of a vector
+# (`quad_form(p, diag(1,1,-5))` Positive). It also needs every symbolic argument
+# to be a point of `M`: `tr(X .- 5)` is not `Positive` just because `tr` is on
+# the SPD cone.
 function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
@@ -384,13 +386,14 @@ function node_sign(ex, M = nothing)
             return mul_sign(arguments(ex))
         elseif f === (+)
             return add_sign(arguments(ex))
-        elseif usegdcp && hasgdcprule(f)
+        elseif usegdcp && gdcp_rule_applies(f, M) &&
+                gdcp_args_on_manifold(arguments(ex), M)
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign
         end
     elseif issym(ex)
-        if usegdcp && hasgdcprule(ex)
+        if usegdcp && gdcp_rule_applies(ex, M)
             return gdcprule(ex)[1].sign
         elseif hasdcprule(ex)
             return dcprule(ex)[1].sign

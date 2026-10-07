@@ -168,6 +168,17 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |
 
+These signs and curvatures hold at a point of the manifold, so they apply only when
+the atom's matrix argument provably is one: the variable `X` itself, or `X` passed
+through `inv`, `adjoint`, `transpose`, a positive scalar multiple, or `conjugation` by
+a constant nonsingular matrix. The sign rule also accepts sums of such points and
+constant positive semidefinite matrices (`X + γI`). Any other argument, such as
+`X .- 5`, `-X` or `X - 5I`, falls back to the Euclidean rule, so `tr(X .- 5)` has no
+sign. For `tr`, `sum` and `diag`, geodesic convexity also survives adding any
+constant to the point. For `eigmax` and `eigsummax` the constant must be symmetric
+(a symmetric matrix, or a scalar via `.-` / `.+`), so `eigmax(X .- 5)` is `GConvex`
+but `eigmax(X + [0 3; 0 0])` is not.
+
 ## DGCP Atoms (Lorentz Model)
 
 | Atom                          | Sign     | Geodesic Curvature | Monotonicity |

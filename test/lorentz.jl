@@ -20,6 +20,8 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
     # Test analyze function
     analyze_res = analyze(ex, M)
     @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
+    @test analyze(Manifolds.distance(M, q, p), M).sign == SymbolicAnalysis.Positive
+    @test analyze(Manifolds.distance(M, q, p)^2, M).gcurvature == SymbolicAnalysis.GConvex
 
     # Test lorentz_log_barrier
     ex = SymbolicAnalysis.lorentz_log_barrier(p) |> unwrap
@@ -120,4 +122,18 @@ end
     a = [1.0, 1.0, -0.5]
     @test analyze(SymbolicAnalysis.lorentz_homogeneous_diagonal(a, p), M).sign !=
         SymbolicAnalysis.Positive
+end
+
+# SPD sign rules must not fire under Lorentz for a vector argument: p = e₃ lies
+# on the hyperboloid and `quad_form(p, diag(1,1,-5)) = -5`.
+@testset "SPD atoms do not certify Lorentz vectors" begin
+    @variables p[1:3]
+    Cind = Diagonal([1, 1, -5])
+    for M in (Lorentz(2), Lorentz(3))
+        @test analyze(SymbolicAnalysis.quad_form(p, Cind), M).sign !=
+            SymbolicAnalysis.Positive
+        @test analyze(tr(p), M).sign != SymbolicAnalysis.Positive
+    end
+    e3 = [0.0, 0.0, 1.0]
+    @test SymbolicAnalysis.quad_form(e3, Matrix(Cind)) < 0
 end
