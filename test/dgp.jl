@@ -343,6 +343,28 @@ end
     @test gconvex(log(tr(had(X2, Hpsd))))
     @test gconvex(logdet(aff(cj, X2, I2, A0)))
 
+    # Matrices that are PSD only up to rounding are refused: Hadamard products
+    # scale the negative eigenvalue by large entries of X.
+    Beps = [1.0 0.0; 0.0 -2eps()]
+    Bnear = [1.0 1.0; 1.0 1.0 - eps() / 2]
+    for B in (Beps, Bnear)
+        @test !positive(had(X2, B))
+        @test !gconvex(had(X2, B))
+        @test !gconvex(tr(had(X2, B)))
+    end
+    @test eigmin(Beps .* [1.0 0.0; 0.0 1.0e12]) < -1.0e-4
+    @test det(Rational{BigInt}.(Bnear)) < 0
+    for B in ([2 1; 1 1], [2 // 1 1; 1 1], big.(Hpsd))
+        @test positive(had(X2, B))
+        @test gconvex(had(X2, B))
+    end
+
+    Cind = [1.0 4.0; 4.0 -2.0]
+    @test !gconvex(SymbolicAnalysis.sdivergence(X2, Cind))
+    @test !positive(SymbolicAnalysis.sdivergence(X2, Cind))
+    @test !gconvex(SymbolicAnalysis.sdivergence(X2, ones(2, 2)))
+    @test gconvex(SymbolicAnalysis.sdivergence(X2, I2))
+
     let P = [2.0 0.0; 0.0 1.0], Q = [1.0 0.0; 0.0 4.0]
         @test eigmin(D .* P) < 0
         @test eigmin([0.1 0.0; 0.0 1.0] - 0.5I) < 0

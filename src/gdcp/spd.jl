@@ -96,6 +96,10 @@ Symmetric divergence of two symmetric positive definite matrices `X` and `Y` is 
 
     - `X::Matrix`: A symmetric positive definite matrix.
     - `Y::Matrix`: A symmetric positive definite matrix.
+
+The gDCP rule (`Positive`, `GConvex`) applies only when every constant argument is
+a numeric positive definite matrix (see `pd_constant`); otherwise the analysis
+returns `AnySign` and `GUnknownCurvature` for it and every expression containing it.
 """
 function sdivergence(X, Y)
     return logdet((X + Y) / 2) - 1 / 2 * logdet(X * Y)
@@ -117,6 +121,8 @@ function sdivergence(X::Symbolics.Arr, Y::Symbolics.Arr)
     return array_atom_term(sdivergence, X, Y; type = Real)
 end
 add_gdcprule(sdivergence, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+
+constant_factors_ok(::typeof(sdivergence), args) = all(a -> !isconstarg(a) || pd_constant(a), args)
 
 # Symbolic geodesic distance must remain an unevaluated `distance` term so the
 # gDCP pass can dispatch on `operation(ex) == Manifolds.distance`. The SPD and
@@ -250,18 +256,37 @@ add_gdcprule(sum_log_eigmax, SymmetricPositiveDefinite, AnySign, GConvex, GIncre
 
 """
     psd_constant(B)
+    pd_constant(B)
 
-Whether `B` is a numeric, finite, real, square, symmetric matrix that is positive
-semidefinite up to rounding: its smallest eigenvalue is at least
-`-n * eps() * opnorm(B)` for an `n × n` matrix. Symbolic matrices return `false`.
+Whether `B` is a numeric, finite, real, square, symmetric matrix that is exactly
+positive semidefinite (`psd_constant`) or positive definite (`pd_constant`).
+Entries must be integers, rationals or floating-point numbers; each is converted
+exactly to `Rational{BigInt}` and the test is a pivoted LDLᵀ elimination in exact
+arithmetic, so a floating-point matrix that is PSD only up to rounding is refused.
+Symbolic matrices return `false`.
 """
-function psd_constant(B)
+psd_constant(B) = exact_semidefinite(B, false)
+pd_constant(B) = exact_semidefinite(B, true)
+
+function exact_semidefinite(B, strict::Bool)
     real_constant_matrix(B) || return false
-    Bv = Float64.(constval.(constval(B)))
-    n = size(Bv, 1)
-    (n == size(Bv, 2) && issymmetric(Bv)) || return false
-    n == 0 && return true
-    return eigmin(Symmetric(Bv)) >= -n * eps(Float64) * opnorm(Bv)
+    Bv = map(constval, constval(B))
+    all(x -> x isa Union{Integer, Rational, AbstractFloat}, Bv) || return false
+    size(Bv, 1) == size(Bv, 2) || return false
+    A = Matrix{Rational{BigInt}}(Bv)
+    A == transpose(A) || return false
+    while !isempty(A)
+        d = diag(A)
+        any(<(0), d) && return false
+        k = argmax(d)
+        p = A[k, k]
+        # A PSD matrix with a zero diagonal entry has a zero row there.
+        iszero(p) && return !strict && iszero(A)
+        r = [1:(k - 1); (k + 1):size(A, 1)]
+        a = A[r, k]
+        A = A[r, r] - a * transpose(a) / p
+    end
+    return true
 end
 
 function real_constant_matrix(B)
