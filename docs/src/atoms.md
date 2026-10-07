@@ -135,14 +135,29 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 
 ### Special Cases for ^(x, i)
 
-| Condition on i    | Domain                      | Sign     | Curvature | Monotonicity           |
-|:----------------- |:--------------------------- |:-------- |:--------- |:---------------------- |
-| i = 1             | ℝ                           | AnySign  | Affine    | Increasing             |
-| i is even integer | ℝ                           | Positive | Convex    | increasing_if_positive |
-| i is odd integer  | HalfLine()                  | Positive | Convex    | Increasing             |
-| i ≥ 1             | HalfLine()                  | Positive | Convex    | Increasing             |
-| 0 < i < 1         | HalfLine()                  | Positive | Concave   | Increasing             |
-| i < 0             | HalfLine{Float64,:closed}() | Positive | Convex    | Increasing             |
+Odd positive integer powers and all integer negative powers are gated on an
+established-nonnegative / established-positive base (`known_nonnegative` /
+`known_positive`): those functions exist outside the declared domain with the
+wrong curvature. `known_nonnegative` trusts a `Positive` sign only for
+scalar-typed arguments; on matrices `Positive` means Loewner PSD (e.g. `inv(X)`,
+`X'` on the SPD cone), not entrywise ≥ 0, so array bases need an element domain
+inside `HalfLine()` (`array_domain(HalfLine(), …)`). Integer exponents outside
+the exact `Int64` range are refused outright: Julia's `^(::Float64, ::Integer)`
+clamps to `Int64`, so a mathematically even `BigInt` / `UInt64` can evaluate as
+an odd Float64 power. Non-integer exponents throw `DomainError` for a negative
+base in Julia, so they keep the log / sqrt convention.
+
+| Condition on i                         | Domain                      | Sign     | Curvature | Monotonicity           |
+|:-------------------------------------- |:--------------------------- |:-------- |:--------- |:---------------------- |
+| i = 1                                  | ℝ                           | AnySign  | Affine    | Increasing             |
+| i = 0                                  | ℝ                           | Positive | Affine    | AnyMono                |
+| i integer, not exact as Int64          | ℝ                           | AnySign  | Unknown   | AnyMono                |
+| i even integer, i > 0                  | ℝ                           | Positive | Convex    | increasing_if_positive |
+| i odd integer, i ≥ 3 (base ⪰ 0)        | HalfLine()                  | Positive | Convex    | Increasing             |
+| i ≥ 1 non-integer                      | HalfLine()                  | Positive | Convex    | Increasing             |
+| 0 < i < 1                              | HalfLine()                  | Positive | Concave   | Increasing             |
+| i integer, i < 0 (base ≻ 0)            | HalfLine{Real,:open}()      | Positive | Convex    | Decreasing             |
+| i < 0 non-integer                      | HalfLine{Float64,:closed}() | Positive | Convex    | Decreasing             |
 
 ## DGCP Atoms (Symmetric Positive Definite)
 

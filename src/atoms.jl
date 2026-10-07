@@ -776,8 +776,13 @@ add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 # special cases which depend on arguments:
 
 # The scalar power laws, applied to a scalar base or elementwise to an array one.
+# Julia's `^(::Float64, ::Integer)` clamps the exponent to `Int64`, so an even
+# `BigInt`/`UInt64` exponent outside that range can evaluate as an odd power.
+_integer_power_runtime_exact(i) = typemin(Int64) <= i <= typemax(Int64)
+
 function power_rule(x, i)
     args = (x, i)
+    unknown = makerule(RealLine(), AnySign, UnknownCurvature, AnyMono)
     if !(i isa Real)
         # The power laws below all need a numeric exponent. The remaining case
         # with a DCP curvature is a constant base: `c^g == exp(g*log(c))` is
@@ -787,22 +792,41 @@ function power_rule(x, i)
             mono = base > 1 ? Increasing : base < 1 ? Decreasing : AnyMono
             return makerule(RealLine(), Positive, Convex, (AnyMono, mono)), args
         end
-        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+        return unknown, args
     end
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
-    elseif isinteger(i) && iseven(i)
+    elseif iszero(i)
+        # `x^0 == 1` for every real `x` in Julia, including `0^0`.
+        return makerule(RealLine(), Positive, Affine, AnyMono), args
+    elseif isinteger(i) && !_integer_power_runtime_exact(i)
+        return unknown, args
+    elseif isinteger(i) && iseven(i) && i > 0
+        # Even positive powers are convex on all of R.
         return makerule(RealLine(), Positive, Convex, increasing_if_positive), args
-    elseif isinteger(i) && isodd(i)
+    elseif isinteger(i) && isodd(i) && i > 0
+        # Odd powers are convex only on `[0, ∞)` but also exist for x < 0, so
+        # the domain cannot be assumed; require an established-nonnegative base.
+        known_nonnegative(x) || return unknown, args
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i >= 1
+        # Non-integer `i ≥ 1` throws `DomainError` for x < 0, so the domain is
+        # where the real function exists (log / sqrt convention).
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing), args
     elseif i < 0
-        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing), args
+        # Convex-decreasing on `(0, ∞)`. Integer exponents also exist for x < 0,
+        # where `x^-1` is concave and `x^-2` is not convex across 0, so they need
+        # an established-positive base; non-integer ones throw `DomainError` there.
+        if isinteger(i)
+            known_positive(x) || return unknown, args
+            return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
+        else
+            return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Decreasing), args
+        end
     end
-    return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return unknown, args
 end
 
 function dcprule(::typeof(^), x::Symbolic, i)
@@ -877,6 +901,43 @@ function known_positive(x)
     catch e
         e isa MethodError ? false : rethrow()
     end
+end
+
+# `array_domain(d, …)` closures capture `element_domain`; a plain scalar domain is
+# used as-is.
+function _domain_inside_halfline(d, halfline)
+    ed = d
+    if d isa CustomDomain
+        f = d.in
+        hasproperty(f, :element_domain) || return false
+        ed = getproperty(f, :element_domain)
+    end
+    return try
+        issubset(ed, halfline)
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
+_is_real_scalar(x::Real) = true
+function _is_real_scalar(x)
+    return try
+        SymbolicUtils.symtype(x isa Num ? unwrap(x) : x) <: Real
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
+# Nonnegativity for atoms convex on `[0, ∞)` (odd powers). `Positive` sign is
+# accepted only for scalars (`abs`, `exp`, …): on matrices it means Loewner PSD
+# (e.g. `inv(X)`, `X'` under `SymmetricPositiveDefinite`), not entrywise ≥ 0.
+# Array arguments need an element domain inside `HalfLine()`.
+function known_nonnegative(x)
+    if getsign(x) == Positive && _is_real_scalar(x)
+        return true
+    end
+    _has_vardomain(x) || return false
+    return _domain_inside_halfline(getmetadata(x, VarDomain), HalfLine())
 end
 
 hasdcprule(::typeof(^)) = true
