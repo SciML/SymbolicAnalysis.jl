@@ -21,12 +21,6 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
     analyze_res = analyze(ex, M)
     @test analyze_res.gcurvature == SymbolicAnalysis.GConvex
 
-    # Test lorentz_log_barrier
-    ex = SymbolicAnalysis.lorentz_log_barrier(p) |> unwrap
-    ex = propagate_sign(ex)
-    ex = propagate_gcurvature(ex, M)
-    @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
-
     # Test lorentz_homogeneous_quadratic
     A = [2.0 0.0 0.0; 0.0 2.0 0.0; 0.0 0.0 1.0]  # Positive definite matrix
     ex = SymbolicAnalysis.lorentz_homogeneous_quadratic(A, p) |> unwrap
@@ -86,8 +80,8 @@ using SymbolicAnalysis: propagate_sign, propagate_curvature, propagate_gcurvatur
         # @test isequal(simplify(expr), simplify(direct_expr))
     end
     # Test composition of functions
-    ex = 2.0 * Manifolds.distance(M, q, p) + SymbolicAnalysis.lorentz_log_barrier(p) |>
-        unwrap
+    ex = 2.0 * Manifolds.distance(M, q, p) +
+        Manifolds.distance(M, [1.0, 0.0, sqrt(2.0)], p) |> unwrap
     ex = propagate_sign(ex)
     ex = propagate_gcurvature(ex, M)
     @test SymbolicAnalysis.getgcurvature(ex) == SymbolicAnalysis.GConvex
@@ -120,4 +114,24 @@ end
     a = [1.0, 1.0, -0.5]
     @test analyze(SymbolicAnalysis.lorentz_homogeneous_diagonal(a, p), M).sign !=
         SymbolicAnalysis.Positive
+end
+
+@testset "lorentz_log_barrier is not certified geodesically convex" begin
+    @variables p[1:3]
+    M = Manifolds.Lorentz(2)
+    @test analyze(SymbolicAnalysis.lorentz_log_barrier(p), M).gcurvature ==
+        SymbolicAnalysis.GUnknownCurvature
+    ex = 2.0 * Manifolds.distance(M, [0.0, 0.0, 1.0], p) +
+        SymbolicAnalysis.lorentz_log_barrier(p)
+    @test analyze(ex, M).gcurvature == SymbolicAnalysis.GUnknownCurvature
+
+    # Witness: along the geodesic through q in the direction v (v[end] = 0) the
+    # barrier is strictly concave at q, with second derivative -q[end] / (q[end] - 1).
+    H = Manifolds.Hyperbolic(2)
+    q = [0.3, 0.4, sqrt(1.25)]
+    v = [-0.8, 0.6, 0.0]
+    a, b = exp(H, q, -v), exp(H, q, v)
+    @test shortest_geodesic(H, a, b, 0.5) ≈ q
+    f = SymbolicAnalysis.lorentz_log_barrier
+    @test f(q) > (f(a) + f(b)) / 2
 end
