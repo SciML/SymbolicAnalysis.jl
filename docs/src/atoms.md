@@ -168,6 +168,15 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |
 
+The `affine_map` and `hadamard_product` rules hold only for numeric positive
+semidefinite constant factors: the Hadamard factor `B` in `B ∘ X` (Schur product
+theorem) and the additive constant `B` in `B + f(X, Y)`; the conjugation factor `Y`
+must be a numeric real matrix. For any other factor, including a symbolic one, the
+atom and every expression containing it get `AnySign` and `GUnknownCurvature`.
+The same holds for `sdivergence` unless each constant argument is numeric positive
+definite. These checks are exact: a floating-point matrix that is positive
+semidefinite only up to rounding is refused.
+
 ## DGCP Atoms (Lorentz Model)
 
 | Atom                          | Sign     | Geodesic Curvature | Monotonicity |

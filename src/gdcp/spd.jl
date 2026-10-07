@@ -96,6 +96,10 @@ Symmetric divergence of two symmetric positive definite matrices `X` and `Y` is 
 
     - `X::Matrix`: A symmetric positive definite matrix.
     - `Y::Matrix`: A symmetric positive definite matrix.
+
+The gDCP rule (`Positive`, `GConvex`) applies only when every constant argument is
+a numeric positive definite matrix (see `pd_constant`); otherwise the analysis
+returns `AnySign` and `GUnknownCurvature` for it and every expression containing it.
 """
 function sdivergence(X, Y)
     return logdet((X + Y) / 2) - 1 / 2 * logdet(X * Y)
@@ -117,6 +121,8 @@ function sdivergence(X::Symbolics.Arr, Y::Symbolics.Arr)
     return array_atom_term(sdivergence, X, Y; type = Real)
 end
 add_gdcprule(sdivergence, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+
+constant_factors_ok(::typeof(sdivergence), args) = all(a -> !isconstarg(a) || pd_constant(a), args)
 
 # Symbolic geodesic distance must remain an unevaluated `distance` term so the
 # gDCP pass can dispatch on `operation(ex) == Manifolds.distance`. The SPD and
@@ -249,10 +255,62 @@ end
 add_gdcprule(sum_log_eigmax, SymmetricPositiveDefinite, AnySign, GConvex, GIncreasing)
 
 """
+    psd_constant(B)
+    pd_constant(B)
+
+Whether `B` is a numeric, finite, real, square, symmetric matrix that is exactly
+positive semidefinite (`psd_constant`) or positive definite (`pd_constant`).
+Entries must be integers, rationals or floating-point numbers; each is converted
+exactly to `Rational{BigInt}` and the test is a pivoted LDLᵀ elimination in exact
+arithmetic, so a floating-point matrix that is PSD only up to rounding is refused.
+Symbolic matrices return `false`.
+"""
+psd_constant(B) = exact_semidefinite(B, false)
+pd_constant(B) = exact_semidefinite(B, true)
+
+function exact_semidefinite(B, strict::Bool)
+    real_constant_matrix(B) || return false
+    Bv = map(constval, constval(B))
+    all(x -> x isa Union{Integer, Rational, AbstractFloat}, Bv) || return false
+    size(Bv, 1) == size(Bv, 2) || return false
+    A = Matrix{Rational{BigInt}}(Bv)
+    A == transpose(A) || return false
+    while !isempty(A)
+        d = diag(A)
+        any(<(0), d) && return false
+        k = argmax(d)
+        p = A[k, k]
+        # A PSD matrix with a zero diagonal entry has a zero row there.
+        iszero(p) && return !strict && iszero(A)
+        r = [1:(k - 1); (k + 1):size(A, 1)]
+        a = A[r, k]
+        A = A[r, r] - a * transpose(a) / p
+    end
+    return true
+end
+
+function real_constant_matrix(B)
+    isconstarg(B) || return false
+    Bv = constval(B)
+    return Bv isa AbstractMatrix && all(x -> (y = constval(x); y isa Real && isfinite(y)), Bv)
+end
+
+"""
     affine_map(f, X, B, Y)
     affine_map(f, X, B, Ys)
 
 Affine map, i.e., `B + f(X, Y)` or `B + sum(f(X, Y) for Y in Ys)` for a function `f` where `f` is a positive linear operator.
+
+The gDCP rule (`Positive`, `GConvex`, `GIncreasing`), and the `logdet`/`log(tr(⋅))`
+compositions over it, apply only when every constant factor makes the map positive:
+`B` is a numeric positive semidefinite matrix (see `psd_constant`), `Y` is a
+numeric real matrix for `conjugation`, and the Hadamard factor `Y` is numeric
+positive semidefinite for `hadamard_product`. Then `X ↦ B + f(X, Y)` maps the SPD cone
+into the PSD cone and is geodesically convex in the Löwner order, and
+`logdet(B + f(X, Y))` is geodesically convex (Sra and Hosseini, "Conic geometric
+optimization on the manifold of positive definite matrices", SIAM J. Optim. 2015).
+Otherwise, including for symbolic factors, the analysis returns `AnySign` and
+`GUnknownCurvature` for the map and for every expression containing it.
 
 # Arguments
 
@@ -285,6 +343,18 @@ end
 
 add_gdcprule(affine_map, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
+function constant_factors_ok(::typeof(affine_map), args)
+    g = constval(args[1])
+    if g === conjugation
+        return length(args) == 4 && psd_constant(args[3]) && real_constant_matrix(args[4])
+    elseif g === hadamard_product
+        return length(args) == 4 && psd_constant(args[3]) && psd_constant(args[4])
+    elseif g === LinearAlgebra.tr || g === LinearAlgebra.diag
+        return length(args) == 3 && psd_constant(args[3])
+    end
+    return false
+end
+
 """
     hadamard_product(X, B)
 
@@ -294,6 +364,14 @@ Hadamard product or element-wise multiplication of a symmetric positive definite
 
     - `X::Matrix`: A symmetric positive definite matrix.
     - `B::Matrix`: A positive semi-definite matrix.
+
+The gDCP rule (`Positive`, `GConvex`, `GIncreasing`) applies only when `B` is a
+numeric positive semidefinite matrix (see `psd_constant`). Then `B ∘ X` is
+positive semidefinite (Schur product theorem), `X ↦ B ∘ X` is a positive linear map
+and hence geodesically convex in the Löwner order, and `logdet(B ∘ X)` is
+geodesically convex (Sra and Hosseini 2015). For an indefinite, non-symmetric or
+symbolic `B` none of this holds, and the analysis returns `AnySign` and
+`GUnknownCurvature` for the product and for every expression containing it.
 """
 function hadamard_product(X::AbstractMatrix, B::AbstractMatrix)
     if (!(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)) &&
@@ -308,6 +386,8 @@ function hadamard_product(X::Symbolics.Arr, B::AbstractMatrix)
 end
 
 add_gdcprule(hadamard_product, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+
+constant_factors_ok(::typeof(hadamard_product), args) = psd_constant(args[2])
 
 function affine_map(f::typeof(hadamard_product), X::Matrix, Y::Matrix, B::Matrix)
     if !(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)
