@@ -16,9 +16,9 @@ This page is intended to be a reference for the atoms that are currently impleme
 | LinearAlgebra.opnorm      | array_domain(ℝ, 2)                                                             | Positive  | Convex    | AnyMono                                     |
 | eigsummax                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Convex    | AnyMono                                     |
 | eigsummin                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Concave   | AnyMono                                     |
-| logdet                    | semidefinite_domain()                                                          | AnySign   | Concave   | AnyMono                                     |
+| logdet                    | See below                                                                      | See below | See below | See below                                   |
 | LogExpFunctions.logsumexp | array_domain(ℝ)                                                                | AnySign   | Convex    | Increasing                                  |
-| matrix_frac               | (array_domain(ℝ, 1), definite_domain())                                        | AnySign   | Convex    | AnyMono                                     |
+| matrix_frac               | See below                                                                      | See below | See below | See below                                   |
 | maximum                   | array_domain(ℝ)                                                                | AnySign   | Convex    | Increasing                                  |
 | minimum                   | array_domain(ℝ)                                                                | AnySign   | Concave   | Increasing                                  |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(1, Inf))                            | Positive  | Convex    | increasing_if_positive                      |
@@ -31,7 +31,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | sum_largest               | (array_domain(ℝ, 2), ℤ)                                                        | AnySign   | Convex    | Increasing                                  |
 | sum_smallest              | (array_domain(ℝ, 2), ℤ)                                                        | AnySign   | Concave   | Increasing                                  |
 | tr                        | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
-| trinv                     | definite_domain()                                                              | Positive  | Convex    | AnyMono                                     |
+| trinv                     | See below                                                                      | See below | See below | See below                                   |
 | tv                        | array_domain(ℝ, 1)                                                             | Positive  | Convex    | AnyMono                                     |
 | tv                        | array_domain(array_domain(ℝ, 2), 1)                                            | Positive  | Convex    | AnyMono                                     |
 | abs                       | ℂ                                                                              | Positive  | Convex    | increasing_if_positive                      |
@@ -50,9 +50,9 @@ This page is intended to be a reference for the atoms that are currently impleme
 | log                       | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
 | log2                      | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
 | log10                     | HalfLine{Real,:open}()                                                         | AnySign   | Concave   | Increasing                                  |
-| log                       | array_domain(ℝ, 2)                                                             | AnySign   | Concave   | Increasing                                  |
-| inv                       | semidefinite_domain()                                                          | AnySign   | Convex    | Decreasing                                  |
-| sqrt                      | semidefinite_domain()                                                          | Positive  | Concave   | Increasing                                  |
+| log (matrix)              | See below                                                                      | See below | See below | See below                                   |
+| inv (matrix)              | See below                                                                      | See below | See below | See below                                   |
+| sqrt (matrix)             | See below                                                                      | See below | See below | See below                                   |
 | kldivergence              | (array_domain(HalfLine{Real,:open}(), 1), array_domain(HalfLine{Real,:open}(), 1)) | Positive  | Convex    | AnyMono                                     |
 | lognormcdf                | ℝ                                                                              | Negative  | Concave   | Increasing                                  |
 | log1p                     | Interval{:open,:open}(-1, Inf)                                                 | AnySign   | Concave   | Increasing                                  |
@@ -94,7 +94,7 @@ certificate is `UnknownCurvature` / `AnySign`.
 `inv(x) = 1/x` is convex-decreasing and positive only on `(0, ∞)`. The atom
 exists for every nonzero `x` and is concave on the negative reals, so the
 certificate requires a known-positive argument (same house rule as `/` and
-`xexpx`). Matrix `inv` keeps the Loewner-order semidefinite rule.
+`xexpx`). Matrix `inv` is covered under [Matrix atoms](@ref matrix-atoms-pd).
 
 | Atom   | Condition              | Sign     | Curvature         | Monotonicity |
 |:------ |:---------------------- |:-------- |:----------------- |:------------ |
@@ -109,6 +109,41 @@ known positive.
 |:---------- |:---------------------- |:-------- |:----------------- |:------------ |
 | invprod(x) | `x` known positive     | Positive | Convex            | Decreasing   |
 | invprod(x) | otherwise              | AnySign  | UnknownCurvature  | AnyMono      |
+
+### [Matrix atoms](@id matrix-atoms-pd)
+
+`logdet`, `trinv`, `matrix_frac` and the matrix `inv`, `log` and `sqrt` are
+convex or concave on the positive definite cone only, but each also exists off it:
+`logdet` wherever `det(X) > 0`, `inv` for every nonsingular matrix, and `log` and
+`sqrt` for any real matrix without eigenvalues on `(-∞, 0]`. Along
+`[s 1-s; s-1 s]`, whose determinant stays positive, `logdet` and `tr(log(X))` are
+`0` at `s = 0` and `s = 1` but `log(1/2)` at the midpoint, and `tr(inv(-t*I))` is
+concave in `t > 0`. So each certifies only an argument proven positive definite:
+
+  - a constant symmetric matrix that passes `isposdef`;
+  - a symbolic matrix with `VarDomain` metadata `semidefinite_domain()` or
+    `definite_domain()` (both are the `isposdef` test);
+  - a positive constant multiple, a sum, or a transpose of proven ones.
+
+```julia
+@variables X[1:3, 1:3]
+X = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.definite_domain())
+analyze(logdet(X) - tr(X)).curvature  # Concave
+```
+
+| Atom              | Condition                    | Sign      | Curvature        | Monotonicity |
+|:----------------- |:---------------------------- |:--------- |:---------------- |:------------ |
+| logdet(X)         | `X` proven positive definite | AnySign   | Concave          | AnyMono      |
+| trinv(X)          | `X` proven positive definite | Positive  | Convex           | AnyMono      |
+| matrix_frac(x, P) | `P` proven positive definite | AnySign   | Convex           | AnyMono      |
+| inv(X)            | `X` proven positive definite | AnySign   | Convex           | Decreasing   |
+| log(X)            | `X` proven positive definite | AnySign   | Concave          | Increasing   |
+| sqrt(X)           | `X` proven positive definite | Positive  | Concave          | Increasing   |
+| any of the above  | otherwise                    | AnySign   | UnknownCurvature | AnyMono      |
+
+The curvature and monotonicity of `inv`, `log` and `sqrt` are in the Loewner
+order, so they compose into `tr`, `sum` and `maximum` but not into an entrywise
+`minimum`. Broadcast forms (`log.(X)`, `sqrt.(X)`, `inv.(X)`) take the scalar rules.
 
 ### Bilinear atoms
 

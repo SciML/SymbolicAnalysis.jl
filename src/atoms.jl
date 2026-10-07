@@ -198,7 +198,16 @@ end
 Symbolics.@register_symbolic eigsummin(m::Matrix, k::Int)
 add_dcprule(eigsummin, (array_domain(RealLine(), 2), RealLine()), AnySign, Concave, AnyMono)
 
-add_dcprule(logdet, semidefinite_domain(), AnySign, Concave, AnyMono)
+"""
+    dcprule(::typeof(logdet), X)
+
+`logdet` is concave on the positive definite cone, but it exists wherever
+`det(X) > 0`. Off the cone it is not concave: along `[s 1-s; s-1 s]` it is `0` at
+`s = 0` and `s = 1` and `log(1/2)` at the midpoint. So the certificate needs `X`
+proven positive definite (see `known_posdef`).
+"""
+dcprule(::typeof(logdet), X) = posdef_rule(X, AnySign, Concave, AnyMono)
+hasdcprule(::typeof(logdet)) = true
 
 # `LogExpFunctions.logsumexp` on a symbolic vector must stay an unevaluated
 # `logsumexp` term so the curvature pass can dispatch on it; Symbolics' own
@@ -248,13 +257,13 @@ function matrix_frac(x::AbstractVector, P::AbstractMatrix)
     return x' * inv(P) * x
 end
 Symbolics.@register_symbolic matrix_frac(x::AbstractVector, P::AbstractMatrix)
-add_dcprule(
-    matrix_frac,
-    (array_domain(RealLine(), 1), definite_domain()),
-    AnySign,
-    Convex,
-    AnyMono
-)
+function dcprule(::typeof(matrix_frac), x, P)
+    dom = (array_domain(RealLine(), 1), definite_domain())
+    known_posdef(P) ||
+        return makerule(dom, AnySign, UnknownCurvature, AnyMono), (x, P)
+    return makerule(dom, AnySign, Convex, AnyMono), (x, P)
+end
+hasdcprule(::typeof(matrix_frac)) = true
 
 add_dcprule(maximum, array_domain(RealLine()), AnySign, Convex, Increasing)
 
@@ -527,7 +536,8 @@ function trinv(x::AbstractMatrix)
     return tr(inv(x))
 end
 Symbolics.@register_symbolic trinv(x::AbstractMatrix)
-add_dcprule(trinv, definite_domain(), Positive, Convex, AnyMono)
+dcprule(::typeof(trinv), X) = posdef_rule(X, Positive, Convex, AnyMono)
+hasdcprule(::typeof(trinv)) = true
 
 """
     tv(x::AbstractVector{<:Real})
@@ -655,19 +665,21 @@ outside their declared domain.
 
 Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually
 covers rewritten forms; this method covers the bare `inv` term (as built by
-`perspective` and `Symbolics.term`). Matrix `inv` keeps the Loewner-order table
-entry via the fallback.
+`perspective` and `Symbolics.term`). Matrix `inv` is convex-decreasing in the
+Loewner order on the positive definite cone only, and exists for every
+nonsingular matrix (`tr(inv(-t*I))` is concave in `t > 0`), so it is certified
+only for an argument proven positive definite.
 """
 function dcprule(::typeof(inv), x)
     args = (x,)
     if SymbolicUtils.symtype(x) <: AbstractArray
-        return @invoke dcprule(inv::Any, x)
+        return posdef_rule(x, AnySign, Convex, Decreasing)
     end
     known_positive(x) ||
         return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
     return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
 end
-# Matrix Loewner-order rule registered below; keeps `hasdcprule(inv)`.
+hasdcprule(::typeof(inv)) = true
 add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 # `log2`/`log10` are `log` rescaled by a positive constant.
 add_dcprule(log2, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
@@ -718,14 +730,23 @@ end
 
 Base.log(A::Symbolics.Arr) = matrix_atom(log, A)
 Base.log(A::Matrix{Num}) = matrix_atom(log, A)
-# Matrix logarithm of a PD matrix with eigenvalues in (0, 1) is negative
-# definite (e.g. log(0.01I₂) = −log(100)·I), so the result is not Positive.
-add_dcprule(log, array_domain(RealLine(), 2), AnySign, Concave, Increasing)
-
-add_dcprule(inv, semidefinite_domain(), AnySign, Convex, Decreasing)
-
 Base.sqrt(A::Symbolics.Arr) = matrix_atom(sqrt, A)
-add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
+
+# Matrix `log` and `sqrt` are operator concave on the positive definite cone, but
+# both are real-valued on any real matrix without eigenvalues on (-∞, 0], where
+# they are not concave: along `[s 1-s; s-1 s]`, `tr(log(X))` is `0` at both ends
+# and `log(1/2)` at the midpoint. A matrix argument must be proven positive
+# definite. The matrix `log` is not Positive: `log(0.01I)` is negative definite.
+function dcprule(::typeof(log), x)
+    SymbolicUtils.symtype(x) <: AbstractArray{<:Any, 2} ||
+        return @invoke dcprule(log::Any, x)
+    return posdef_rule(x, AnySign, Concave, Increasing)
+end
+function dcprule(::typeof(sqrt), x)
+    SymbolicUtils.symtype(x) <: AbstractArray{<:Any, 2} ||
+        return @invoke dcprule(sqrt::Any, x)
+    return posdef_rule(x, Positive, Concave, Increasing)
+end
 
 add_dcprule(
     kldivergence,
@@ -881,6 +902,43 @@ end
 
 hasdcprule(::typeof(^)) = true
 
+"""
+    known_posdef(X)
+
+Whether the matrix expression `X` is proven positive definite: a constant
+symmetric `isposdef` matrix, a symbolic matrix declared with
+`VarDomain` metadata `semidefinite_domain()` / `definite_domain()` (both are the
+`isposdef` test), a positive constant multiple, sum or transpose of proven ones.
+Anything else is unproven, and the matrix atoms that need it degrade to
+`UnknownCurvature`.
+"""
+function known_posdef(x)
+    x = unwrap(x)
+    v = constval(x)
+    if v isa AbstractMatrix
+        isconstarg(x) || return false
+        m = map(constval, v)
+        return issymmetric(m) && isposdef(m)
+    end
+    _has_vardomain(x) && return is_posdef_domain(getmetadata(x, VarDomain))
+    iscall(x) || return false
+    f, args = operation(x), arguments(x)
+    f === (+) && return all(known_posdef, args)
+    f in (adjoint, transpose) && return known_posdef(args[1])
+    if f === (*)
+        mats = filter(a -> !(constval(a) isa Number), args)
+        length(mats) == 1 || return false
+        return all(a -> a === mats[1] || constval(a) > 0, args) && known_posdef(mats[1])
+    end
+    return false
+end
+
+function posdef_rule(X, sign, curvature, monotonicity)
+    dom = definite_domain()
+    known_posdef(X) || return makerule(dom, AnySign, UnknownCurvature, AnyMono), (X,)
+    return makerule(dom, sign, curvature, monotonicity), (X,)
+end
+
 add_dcprule(real, ℂ, AnySign, Affine, Increasing)
 
 function rel_entr(x::Real, y::Real)
@@ -964,6 +1022,13 @@ in `dcprule` and restore the scalar law here.
 elementwise_dcprule(f, args...) = dcprule(f, args...)
 elementwise_dcprule(::typeof(^), x, i) = power_rule(x, constval(i))
 elementwise_dcprule(::typeof(exp), x) = @invoke dcprule(exp::Any, x)
+elementwise_dcprule(::typeof(log), x) = @invoke dcprule(log::Any, x)
+elementwise_dcprule(::typeof(sqrt), x) = @invoke dcprule(sqrt::Any, x)
+function elementwise_dcprule(::typeof(inv), x)
+    known_positive(x) ||
+        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), (x,)
+    return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), (x,)
+end
 
 """
     dcprule(::typeof(broadcast), f, x...)

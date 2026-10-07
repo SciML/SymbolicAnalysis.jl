@@ -226,11 +226,27 @@ _has_vardomain(x) = (x isa Union{Num, Symbolic}) && hasmetadata(x, VarDomain)
 # always matches it. Any other incomparable pair degrades to "no match".
 function subdomain(argdomain, ruledomain)
     ruledomain === ℂ && return true
+    is_posdef_domain(argdomain) && is_real_array_domain(ruledomain) && return true
     return try
         issubset(argdomain, ruledomain)
     catch e
         e isa MethodError ? false : rethrow()
     end
+end
+
+# `semidefinite_domain()` and `definite_domain()` are the same `isposdef` test, and a
+# `CustomDomain` is compared by identity of its predicate, so `===` recognizes a
+# declared positive definite matrix. DomainSets cannot order `CustomDomain`s, so
+# its inclusion in the real-array domains other atoms declare is spelled out here.
+# The array rank is not checked: `adjoint`, `transpose` and `getindex` declare
+# `array_domain(ℝ, 1)` but are applied to matrices.
+is_posdef_domain(d) = d === definite_domain()
+
+function is_real_array_domain(d)
+    (d === definite_domain() || d === symmetric_domain()) && return true
+    d isa CustomDomain || return false
+    f = d.in
+    return hasproperty(f, :element_domain) && f.element_domain === RealLine()
 end
 
 # Selected when no registered domain covers the declared argument domains. A
