@@ -36,6 +36,14 @@ Evaluate the log-barrier `-log(-1 - <a, p>_L)` for the Lorentz model, where
 
 - A real scalar containing the barrier value.
 
+# Geodesic curvature
+
+The barrier is registered with `GUnknownCurvature`: it is not geodesically
+convex on the hyperboloid of dimension `n ≥ 2`. Ferreira, Németh and Zhu
+(arXiv:2110.06514, Example 4) state it is convex on `{p : p[1:n] .> 0}`, but
+for a unit tangent `v` with `v[end] = 0` the Riemannian Hessian is
+`-p[end] / (p[end] - 1) < 0` at every point.
+
 # Throws
 
 - `DomainError`: if the last coordinate of `p` is outside the real logarithm's
@@ -60,7 +68,7 @@ end
 @register_symbolic lorentz_log_barrier(p::Vector{Num})
 # `-log(p[end] - 1)` is positive near the boundary `p[end] → 1⁺` but negative for
 # `p[end] > 2` (e.g. p[end] = 5 ⇒ ≈ -1.39).
-add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, AnySign, GConvex, GIncreasing)
+add_gdcprule(lorentz_log_barrier, Manifolds.Lorentz, AnySign, GUnknownCurvature, GAnyMono)
 
 """
     lorentz_homogeneous_quadratic(A, p) -> Real

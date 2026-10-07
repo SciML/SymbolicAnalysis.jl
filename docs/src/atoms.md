@@ -173,7 +173,7 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 | Atom                          | Sign     | Geodesic Curvature | Monotonicity |
 |:----------------------------- |:-------- |:------------------ |:------------ |
 | lorentz_distance              | Positive | GConvex            | GAnyMono     |
-| lorentz_log_barrier           | AnySign  | GConvex            | GIncreasing  |
+| lorentz_log_barrier           | AnySign  | GUnknownCurvature  | GAnyMono     |
 | lorentz_homogeneous_quadratic | AnySign  | GConvex            | GAnyMono     |
 | lorentz_homogeneous_diagonal  | AnySign  | GConvex            | GAnyMono     |
 | lorentz_least_squares         | Positive | GConvex            | GAnyMono     |
