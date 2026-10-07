@@ -302,8 +302,8 @@ function positive_image(ex)
 end
 
 # `logdet(B + Φ(X))` is geodesically convex for PSD `B` and positive linear `Φ`.
-# Exclude isometric constructors (`inv`, `adjoint`, `transpose`, `*`) so bare
-# `logdet(X)` stays `GLinear` via its table rule.
+# Only these positive images qualify; isometric constructors (`inv`, `adjoint`,
+# `transpose`, `*`) are absent so bare `logdet(X)` stays `GLinear` via its table rule.
 function logdet_gconvex_arg(a)
     iscall(a) || return false
     g = operation(a)

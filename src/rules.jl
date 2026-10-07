@@ -373,8 +373,8 @@ end
 # A GDCP rule's sign only holds on its registered manifold — `eigmax` is
 # `Positive` because every eigenvalue of an SPD matrix is — so it is consulted
 # only when manifold analysis was actually requested and the rule's manifold
-# type matches `M`. Without that gate an SPD atom leaked into Euclidean analysis
-# (`abs(eigmax(X))` Convex) and into Lorentz analysis of a vector
+# type matches `M`. Without that gate an SPD atom would apply in Euclidean analysis
+# (`abs(eigmax(X))` Convex) and in Lorentz analysis of a vector
 # (`quad_form(p, diag(1,1,-5))` Positive). It also needs every symbolic argument
 # to be a point of `M`: `tr(X .- 5)` is not `Positive` just because `tr` is on
 # the SPD cone.
