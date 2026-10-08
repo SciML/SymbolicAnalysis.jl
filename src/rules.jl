@@ -234,12 +234,9 @@ function subdomain(argdomain, ruledomain)
     end
 end
 
-# `semidefinite_domain()` and `definite_domain()` are the same `isposdef` test, and a
-# `CustomDomain` is compared by identity of its predicate, so `===` recognizes a
-# declared positive definite matrix. DomainSets cannot order `CustomDomain`s, so
-# its inclusion in the real-array domains other atoms declare is spelled out here.
-# The array rank is not checked: `adjoint`, `transpose` and `getindex` declare
-# `array_domain(ℝ, 1)` but are applied to matrices.
+# Both PD domains are the same `isposdef` predicate, so `===` identifies them.
+# DomainSets cannot order `CustomDomain`s; rank is unchecked because `adjoint`
+# and `getindex` declare `array_domain(ℝ, 1)` but take matrices.
 is_posdef_domain(d) = d === definite_domain()
 
 function is_real_array_domain(d)
@@ -510,6 +507,8 @@ function mul_curvature(args)
     end
 
     if non_constant_expr !== nothing
+        constant_prod isa Number || !loewner_curved(non_constant_expr) ||
+            return UnknownCurvature
         curv = find_curvature(non_constant_expr)
         # A linear map keeps an affine argument affine whatever the coefficients
         # are, but it preserves a curvature only when every coefficient shares a
@@ -629,7 +628,7 @@ function find_curvature(ex)::Curvature
 
     if iscall(ex)
         f, args = operation(ex), arguments(ex)
-        # @show f
+        any(loewner_curved, args) && !loewner_reader(f, args) && return UnknownCurvature
         if hasdcprule(f)
             rule, args = dcprule(f, args...)
         elseif f === (*)

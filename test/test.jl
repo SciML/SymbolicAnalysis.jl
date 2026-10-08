@@ -207,13 +207,18 @@ ex = propagate_curvature(propagate_sign(ex))
 # not fall through to numeric eigmax and crash on eigvals!(::Matrix{Num}).
 @variables X[1:3, 1:3]
 
-ex = eigmax(X) |> unwrap
-ex = propagate_curvature(propagate_sign(ex))
-@test getcurvature(ex) == SymbolicAnalysis.Convex
-
-ex = eigmin(X) |> unwrap
-ex = propagate_curvature(propagate_sign(ex))
-@test getcurvature(ex) == SymbolicAnalysis.Concave
+# They are convex/concave only on symmetric matrices, which `X` is not declared to be.
+XS = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.symmetric_domain())
+for (A, c) in ((X, SymbolicAnalysis.UnknownCurvature), (XS, SymbolicAnalysis.Convex))
+    ex = eigmax(A) |> unwrap
+    ex = propagate_curvature(propagate_sign(ex))
+    @test getcurvature(ex) == c
+end
+for (A, c) in ((X, SymbolicAnalysis.UnknownCurvature), (XS, SymbolicAnalysis.Concave))
+    ex = eigmin(A) |> unwrap
+    ex = propagate_curvature(propagate_sign(ex))
+    @test getcurvature(ex) == c
+end
 
 # #156 G23: the default (p = 2) `opnorm` of a symbolic matrix reached `svdvals!` and threw.
 # The spectral norm is not monotone, so only affine arguments may compose.
@@ -236,8 +241,7 @@ end
 ms = Symbolics.scalarize(m)
 M = [ms[1] ms[2]; ms[2] ms[3]]
 
-# An assembled matrix is not proven positive definite, so `logdet` of it is
-# uncertified; see the matrix-domain regressions for why.
+# An assembled matrix is not proven positive definite.
 ex = SymbolicAnalysis.logdet(M) |> unwrap
 ex = propagate_curvature(propagate_sign(ex))
 @test getcurvature(ex) == SymbolicAnalysis.UnknownCurvature
@@ -629,8 +633,7 @@ creal = setmetadata(c, SymbolicAnalysis.VarDomain, Symbolics.DomainSets.RealLine
 Xl = setmetadata(Xl, SymbolicAnalysis.VarDomain, SymbolicAnalysis.definite_domain())
 Al = rand(3, 3)
 @test SymbolicAnalysis.analyze(unwrap(logdet(2 * Xl))).curvature == SymbolicAnalysis.Concave
-# `Al * Xl` is not symmetric and congruence is not inferred, so neither argument
-# is proven positive definite.
+# `Al * Xl` is not symmetric, and congruence is not inferred.
 @test SymbolicAnalysis.analyze(unwrap(logdet(Al * Xl))).curvature ==
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(logdet(Al * Xl * Al'))).curvature ==
@@ -833,6 +836,7 @@ end
 using Manifolds: SymmetricPositiveDefinite
 @testset "fold context isolation" begin
     @variables TX[1:2, 1:2]
+    TX = setmetadata(TX, SymbolicAnalysis.VarDomain, SymbolicAnalysis.symmetric_domain())
     Mspd = SymmetricPositiveDefinite(2)
     e_abs = abs(eigmax(TX))
     @test analyze(e_abs).curvature == SymbolicAnalysis.UnknownCurvature
@@ -845,6 +849,7 @@ using Manifolds: SymmetricPositiveDefinite
     n = Threads.nthreads()
     n > 1 || error("expected Threads.nthreads() > 1, got \$n")
     @variables X[1:2, 1:2]
+    X = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.symmetric_domain())
     M = SymmetricPositiveDefinite(2)
     e = abs(eigmax(X))
     # Warm the analyze paths so the race is not masked by single-threaded compile.
@@ -956,11 +961,7 @@ ipv_pos = Symbolics.wrap(
 )
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos)) == SymbolicAnalysis.Convex
 
-# The matrix atoms `logdet`, `inv`, `log`, `sqrt`, `trinv` and `matrix_frac` exist
-# off the positive definite cone, where they are not concave/convex, so they certify
-# only an argument proven positive definite. Along `R(s) = [s 1-s; s-1 s]` (det > 0
-# throughout) `logdet` and `tr(log(R))` are 0 at both ends and log(1/2) at s = 1/2,
-# and `tr(inv(-t*I))` is concave in t > 0.
+# Matrix atoms exist off the PD cone, where they are not concave/convex.
 let R(s) = [s 1 - s; s - 1 s]
     @test logdet(R(0.5)) < (logdet(R(0.0)) + logdet(R(1.0))) / 2
     @test real(tr(log(R(0.5)))) < (real(tr(log(R(0.0)))) + real(tr(log(R(1.0))))) / 2
@@ -995,3 +996,44 @@ end
 # elementwise forms keep the scalar laws
 @test curv_of(sum(log.(PX))) == SymbolicAnalysis.Concave
 @test curv_of(sum(sqrt.(PX))) == SymbolicAnalysis.Concave
+
+# Loewner-order curvature and PSD sign of matrix atoms are not entrywise.
+let f(t) = sum(inv.(sqrt(t * [2.0 -1; -1 2]))),
+        H(t) = [(t + 2) (2 - t); (2 - t) (t + 2)] / 2
+    @test f(2) > (f(1) + f(3)) / 2
+    @test minimum(2sqrt(H(6))) < (minimum(2sqrt(H(4))) + minimum(2sqrt(H(8)))) / 2
+    @test maximum(-log(H(6))) > (maximum(-log(H(4))) + maximum(-log(H(8)))) / 2
+end
+@test SymbolicAnalysis.analyze(unwrap(sqrt(PXd))).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(inv.(sqrt(PXd)))).sign == SymbolicAnalysis.AnySign
+for ex in (
+        sum(inv.(sqrt(PXd))), minimum(2sqrt(PXd)), maximum(-log(PXd)),
+        sum(exp.(-sqrt(PXd))), tr([1 2; 0 1] * log(PXd)), maximum(sum(inv(PXd); dims = 1)),
+        sum(log(PXd) .* log(PXd)), minimum(vec(sqrt(PXd))),
+    )
+    @test curv_of(ex) == SymbolicAnalysis.UnknownCurvature
+end
+@test curv_of(tr(-log(PXd))) == SymbolicAnalysis.Convex
+@test curv_of(sum(2sqrt(PXd))) == SymbolicAnalysis.Concave
+@test curv_of(tr(3 .* log(PXd) + PXd)) == SymbolicAnalysis.Concave
+
+# Floating-point Cholesky is not a PD proof: this matrix has determinant -2⁻⁴⁸.
+let A = [5.0 11; 11 24.2]
+    @test isposdef(A) && det(Rational{BigInt}.(A)) < 0
+    @test curv_of(SymbolicAnalysis.matrix_frac(pv, A)) == SymbolicAnalysis.UnknownCurvature
+    @test curv_of(SymbolicAnalysis.quad_form(pv, A)) == SymbolicAnalysis.UnknownCurvature
+    @test curv_of(logdet(A + PX)) == SymbolicAnalysis.UnknownCurvature
+end
+@test curv_of(SymbolicAnalysis.matrix_frac(pv, [2.0 0; 0 4])) == SymbolicAnalysis.Convex
+@test curv_of(logdet([2.0 1; 1 2] + PXd)) == SymbolicAnalysis.Concave
+
+# `eigmax`/`eigmin` need a symmetric argument.
+let A = [0.0 4; 1 0], B = Matrix(A')
+    @test eigmax((A + B) / 2) > (eigmax(A) + eigmax(B)) / 2
+    @test eigmin((A + B) / 2) < (eigmin(A) + eigmin(B)) / 2
+end
+@test curv_of(eigmax(QX)) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(eigmin(QX)) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(eigmax(QX + [1 2; 3 4])) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(eigmax(QX + QX')) == SymbolicAnalysis.Convex
+@test curv_of(eigmin(2 * (QX + QX') + [1 2; 2 1])) == SymbolicAnalysis.Concave

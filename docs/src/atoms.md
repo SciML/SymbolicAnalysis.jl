@@ -11,8 +11,8 @@ This page is intended to be a reference for the atoms that are currently impleme
 | StatsBase.geomean         | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
 | StatsBase.harmmean        | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
 | invprod                   | See below                                                                      | See below | See below | See below                                   |
-| eigmax                    | symmetric_domain()                                                             | AnySign   | Convex    | AnyMono                                     |
-| eigmin                    | symmetric_domain()                                                             | AnySign   | Concave   | AnyMono                                     |
+| eigmax                    | See below                                                                      | AnySign   | Convex    | AnyMono                                     |
+| eigmin                    | See below                                                                      | AnySign   | Concave   | AnyMono                                     |
 | LinearAlgebra.opnorm      | array_domain(ℝ, 2)                                                             | Positive  | Convex    | AnyMono                                     |
 | eigsummax                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Convex    | AnyMono                                     |
 | eigsummin                 | (array_domain(ℝ, 2), ℝ)                                                        | AnySign   | Concave   | AnyMono                                     |
@@ -138,12 +138,27 @@ analyze(logdet(X) - tr(X)).curvature  # Concave
 | matrix_frac(x, P) | `P` proven positive definite | AnySign   | Convex           | AnyMono      |
 | inv(X)            | `X` proven positive definite | AnySign   | Convex           | Decreasing   |
 | log(X)            | `X` proven positive definite | AnySign   | Concave          | Increasing   |
-| sqrt(X)           | `X` proven positive definite | Positive  | Concave          | Increasing   |
+| sqrt(X)           | `X` proven positive definite | AnySign   | Concave          | Increasing   |
 | any of the above  | otherwise                    | AnySign   | UnknownCurvature | AnyMono      |
 
+Constant matrices are checked exactly, by an LDLᵀ elimination in
+`Rational{BigInt}`: `[5.0 11; 11 24.2]` passes a floating-point `isposdef` but
+has determinant `-2⁻⁴⁸`, so it is not proven.
+
 The curvature and monotonicity of `inv`, `log` and `sqrt` are in the Loewner
-order, so they compose into `tr`, `sum` and `maximum` but not into an entrywise
-`minimum`. Broadcast forms (`log.(X)`, `sqrt.(X)`, `inv.(X)`) take the scalar rules.
+order, which is not entrywise: `minimum(2sqrt(P))` and `maximum(-log(P))` are not
+concave/convex. Loewner curvature passes through sums, transposes and scalar
+multiples, and is read only by `tr` and a full `sum`, plus `maximum` of a bare
+`inv(X)` (the largest entry of a positive definite matrix is on its diagonal).
+Every other consumer of it is `UnknownCurvature`. `sqrt(X)` is positive
+semidefinite but can have negative entries, so it carries no sign. Broadcast forms
+(`log.(X)`, `sqrt.(X)`, `inv.(X)`) take the scalar rules.
+
+`eigmax` (`Convex`) and `eigmin` (`Concave`) need a provably symmetric argument:
+an exactly symmetric constant, a proven positive definite matrix, a leaf declared
+`symmetric_domain()`, an assembled matrix with mirrored entries, `A + A'`, `A'A`,
+`A*A'`, or a scalar multiple, sum or transpose of those. Between `[0 4; 1 0]` and
+its transpose `eigmax` is `2` at both ends and `2.5` at the midpoint.
 
 ### Bilinear atoms
 
@@ -158,15 +173,16 @@ depends on the arguments and there is no single table entry.
 | dot(x, y)            | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
 | dotsort(x, y)        | `x` or `y` constant              | AnySign  | Convex    | (AnyMono, increasing_if_positive ∘ minimum) |
 | dotsort(x, y)        | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
-| quad_form(x, P)      | `P` a constant `isposdef` matrix | Positive | Convex    | (increasing_if_positive, Increasing)        |
+| quad_form(x, P)      | `P` an exactly PD constant       | Positive | Convex    | (increasing_if_positive, Increasing)        |
 | quad_form(x, P)      | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
 | huber(x, M)          | `M` constant                     | Positive | Convex    | increasing_if_positive                      |
 | huber(x, M)          | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
 
 `quad_form` is *linear* in `P`, so a non-constant `P` makes `x'Px` indefinite;
 a constant but indefinite `P` does too (`quad_form(x, [1 0; 0 -1])` is
-`x[1]^2 - x[2]^2`). `isposdef` matches the `semidefinite_domain()` the rule
-declares, so a singular positive semidefinite `P` gets no certificate.
+`x[1]^2 - x[2]^2`). `P` must be exactly positive definite (see
+[Matrix atoms](@ref matrix-atoms-pd)), so a singular positive semidefinite `P` gets
+no certificate.
 
 ### Special Cases for ^(x, i)
 
