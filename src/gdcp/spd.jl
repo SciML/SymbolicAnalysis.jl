@@ -218,9 +218,11 @@ function schatten_norm(X::AbstractMatrix, p::Int = 2)
 end
 
 @register_symbolic schatten_norm(X::Matrix{Num}, p::Int)
-# Schatten-p is a unitarily invariant norm (hence GConvex / GIncreasing on
-# SPD) only for literal integer p ≥ 1. Match the Euclidean `norm` atom: the
-# rule depends on the value of `p` rather than a static table entry.
+# Conservative registry entry: GUnknownCurvature / GAnyMono for every p.
+# Keeps `hasgdcprule` / dict-based gates (e.g. manifold checks) from KeyError.
+# The specialized method below refines to GConvex / GIncreasing only for a
+# literal integer p ≥ 1 (unitarily invariant norms on SPD).
+add_gdcprule(schatten_norm, SymmetricPositiveDefinite, Positive, GUnknownCurvature, GAnyMono)
 function gdcprule(::typeof(schatten_norm), X, p)
     pv = constval(p)
     args = (X, p)
@@ -233,7 +235,6 @@ function gdcprule(::typeof(schatten_norm), X, p)
             args
     end
 end
-hasgdcprule(::typeof(schatten_norm)) = true
 
 """
     sum_log_eigmax(X, k)
