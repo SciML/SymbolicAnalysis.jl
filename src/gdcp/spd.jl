@@ -202,7 +202,11 @@ add_gdcprule(eigsummax, SymmetricPositiveDefinite, Positive, GConvex, GIncreasin
 """
     schatten_norm(X, p=2)
 
-Schatten norm of a symmetric positive definite matrix `X`.
+Schatten `p`-norm of a symmetric positive definite matrix `X`, equal to
+`norm(eigvals(X), p)`. On the SPD manifold the atom is geodesically convex
+and increasing when `p` is a literal integer `≥ 1` (any unitarily invariant
+norm is); otherwise its geodesic curvature is unknown. The value is always
+nonnegative.
 
 # Arguments
 
@@ -214,7 +218,22 @@ function schatten_norm(X::AbstractMatrix, p::Int = 2)
 end
 
 @register_symbolic schatten_norm(X::Matrix{Num}, p::Int)
-add_gdcprule(schatten_norm, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+# Schatten-p is a unitarily invariant norm (hence GConvex / GIncreasing on
+# SPD) only for literal integer p ≥ 1. Match the Euclidean `norm` atom: the
+# rule depends on the value of `p` rather than a static table entry.
+function gdcprule(::typeof(schatten_norm), X, p)
+    pv = constval(p)
+    args = (X, p)
+    if pv isa Integer && pv >= 1
+        return makegrule(SymmetricPositiveDefinite, Positive, GConvex, (GIncreasing,)), args
+    else
+        return makegrule(
+                SymmetricPositiveDefinite, Positive, GUnknownCurvature, (GAnyMono,)
+            ),
+            args
+    end
+end
+hasgdcprule(::typeof(schatten_norm)) = true
 
 """
     sum_log_eigmax(X, k)

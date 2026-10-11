@@ -301,3 +301,35 @@ end
     SymbolicAnalysis.Positive
 @test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 2), M2).sign !=
     SymbolicAnalysis.Positive
+
+# `schatten_norm(X, p)` is GConvex on SPD only for literal integer p ≥ 1.
+# For p = -1, A = diag(eᵘ, e⁻ᵘ) and B = diag(e⁻ᵘ, eᵘ) have geodesic midpoint
+# I, and the midpoint value 1/2 exceeds the chord 1/(2 cosh u).
+@testset "schatten_norm p-gate" begin
+    @variables Xs[1:2, 1:2]
+    Ms = SymmetricPositiveDefinite(2)
+    for p in (1, 2, 3)
+        r = analyze(SymbolicAnalysis.schatten_norm(Xs, p), Ms)
+        @test r.gcurvature == SymbolicAnalysis.GConvex
+        @test r.sign == SymbolicAnalysis.Positive
+    end
+    for p in (0, -1, -2)
+        r = analyze(SymbolicAnalysis.schatten_norm(Xs, p), Ms)
+        @test r.gcurvature == SymbolicAnalysis.GUnknownCurvature
+        @test r.sign == SymbolicAnalysis.Positive
+    end
+    # Composed form used elsewhere in this file: p = 3 stays GConvex; p ≤ 0 must not.
+    @test analyze(
+        unwrap(sum(SymbolicAnalysis.schatten_norm(log(Xs), 3))), Ms
+    ).gcurvature == SymbolicAnalysis.GConvex
+    @test analyze(
+        unwrap(sum(SymbolicAnalysis.schatten_norm(log(Xs), -1))), Ms
+    ).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    let u = 1.2,
+            A = Diagonal([exp(u), exp(-u)]),
+            B = Diagonal([exp(-u), exp(u)]),
+            f = P -> norm(eigvals(Symmetric(Matrix(P))), -1)
+        γ = Manifolds.shortest_geodesic(Ms, Matrix(A), Matrix(B), 0.5)
+        @test f(γ) > (f(A) + f(B)) / 2
+    end
+end

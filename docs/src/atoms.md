@@ -163,7 +163,7 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 | inv                        | Positive | GConvex            | GDecreasing  |
 | diag                       | Positive | GConvex            | GIncreasing  |
 | eigsummax                  | Positive | GConvex            | GIncreasing  |
-| schatten_norm              | Positive | GConvex            | GIncreasing  |
+| schatten_norm (p ≥ 1)      | Positive | GConvex            | GIncreasing  |
 | sum_log_eigmax             | AnySign  | GConvex            | GIncreasing  |
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |
