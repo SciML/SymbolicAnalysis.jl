@@ -312,7 +312,9 @@ function mul_gcurvature(args, M = nothing)
                 return GUnknownCurvature
             end
         else
-            constant_prod *= constval(arg)
+            c = constval(arg)
+            c isa Number || return GUnknownCurvature
+            constant_prod *= c
         end
     end
     if non_constant_expr !== nothing
@@ -524,7 +526,7 @@ function find_gcurvature(ex, M = nothing)
         elseif f_curvature == Concave
             if all(enumerate(args)) do (i, arg)
                     arg_curv = find_gcurvature(arg, M)
-                    m = f_monotonicity[i]
+                    m = get_arg_property(f_monotonicity, i, args)
                     if arg_curv == GConcave
                         m == Increasing
                     elseif arg_curv == GConvex

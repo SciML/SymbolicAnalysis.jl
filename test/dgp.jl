@@ -407,3 +407,24 @@ end
         @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
     end
 end
+
+# `d(q, x)^0.5` is `|t|^0.5` along a geodesic through `q`, and `sum(A * x)` is a
+# linear functional of the ambient coordinates; neither has a geodesic
+# curvature certificate, and analysis returns Unknown for both.
+@testset "GDCP fallback handles scalar monotonicity and matrix constants" begin
+    @variables p[1:3] X3[1:3, 1:3]
+    A = [1.0 2.0 0.0; 0.5 -1.0 3.0; 0.0 1.0 1.0]
+    Q = [2.0 0.1 0.0; 0.1 3.0 0.2; 0.0 0.2 1.0]
+    cases = (
+        (Lorentz(2), [0.0, 0.0, 1.0], p),
+        (SymmetricPositiveDefinite(3), Q, X3),
+    )
+    for (Mc, q, x) in cases
+        r = analyze(Manifolds.distance(Mc, q, x)^0.5, Mc)
+        @test r.gcurvature == SymbolicAnalysis.GUnknownCurvature
+        @test r.sign == SymbolicAnalysis.Positive
+        @test analyze(sum(A * x), Mc).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    @test analyze(tr(A * X3), SymmetricPositiveDefinite(3)).gcurvature ==
+        SymbolicAnalysis.GUnknownCurvature
+end
