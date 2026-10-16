@@ -377,7 +377,7 @@ end
 # (`abs(eigmax(X))` Convex) and in Lorentz analysis of a vector
 # (`quad_form(p, diag(1,1,-5))` Positive). It also needs every symbolic argument
 # to be a point of `M`: `tr(X .- 5)` is not `Positive` just because `tr` is on
-# the SPD cone.
+# the SPD cone, and `inv`/`adjoint` of a scalar keep their DCP sign.
 function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
@@ -397,6 +397,8 @@ function node_sign(ex, M = nothing)
             return gdcprule(ex)[1].sign
         elseif hasdcprule(ex)
             return dcprule(ex)[1].sign
+        elseif _vardomain_inside(ex, HalfLine())
+            return Positive
         end
     end
     return AnySign

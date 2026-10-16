@@ -93,13 +93,15 @@ certificate is `UnknownCurvature` / `AnySign`.
 
 `inv(x) = 1/x` is convex-decreasing and positive only on `(0, ∞)`. The atom
 exists for every nonzero `x` and is concave on the negative reals, so the
-certificate requires a known-positive argument (same house rule as `/` and
-`xexpx`). Matrix `inv` keeps the Loewner-order semidefinite rule.
+certificate requires a known-nonnegative scalar argument (same house rule as
+`c/x` and `xexpx`). Where the argument reaches `0`, `1/x` is `+∞`: this is the
+extended-value function cvxpy's `inv_pos` uses, so `inv(sqrt(t))` with
+`t ∈ [0, ∞)` is convex. Matrix `inv` keeps the Loewner-order semidefinite rule.
 
-| Atom   | Condition              | Sign     | Curvature         | Monotonicity |
-|:------ |:---------------------- |:-------- |:----------------- |:------------ |
-| inv(x) | `x` known positive     | Positive | Convex            | Decreasing   |
-| inv(x) | otherwise (scalar)     | AnySign  | UnknownCurvature  | AnyMono      |
+| Atom   | Condition                         | Sign     | Curvature         | Monotonicity |
+|:------ |:--------------------------------- |:-------- |:----------------- |:------------ |
+| inv(x) | `x` known nonnegative, not `0`    | Positive | Convex            | Decreasing   |
+| inv(x) | otherwise (scalar)                | AnySign  | UnknownCurvature  | AnyMono      |
 
 `invprod(x) = 1/∏xᵢ` is convex-decreasing on the positive orthant only; a
 mixed-sign product lands in the concave branch of `1/t`, so the argument must be
@@ -140,8 +142,10 @@ established-nonnegative / established-positive base (`known_nonnegative` /
 `known_positive`): those functions exist outside the declared domain with the
 wrong curvature. `known_nonnegative` trusts a `Positive` sign only for
 scalar-typed arguments; on matrices `Positive` means Loewner PSD (e.g. `inv(X)`,
-`X'` on the SPD cone), not entrywise ≥ 0, so array bases need an element domain
-inside `HalfLine()` (`array_domain(HalfLine(), …)`). Integer exponents outside
+`X'` on the SPD cone), not entrywise ≥ 0, so array bases need an elementwise
+proof: an element domain inside `HalfLine()` (`array_domain(HalfLine(), …)`) or
+an elementwise expression such as `abs.(x)` or `exp.(x)`. Indexing (`x[i]`)
+inherits `Positive` only from such an elementwise proof. Integer exponents outside
 the exact `Int64` range are refused outright: Julia's `^(::Float64, ::Integer)`
 clamps to `Int64`, so a mathematically even `BigInt` / `UInt64` can evaluate as
 an odd Float64 power. Non-integer exponents throw `DomainError` for a negative
