@@ -90,10 +90,54 @@ function array_domain(element_domain, N)
     end
 end
 
+"""
+    symmetric_domain()
+
+`VarDomain` value for a symbolic matrix declared symmetric (`issymmetric`).
+Attach it with `SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain,
+symmetric_domain())` to unlock the `eigmax`/`eigmin` rules, which otherwise
+need a provably symmetric argument; see [`known_symmetric`](@ref).
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xs = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.symmetric_domain());
+
+julia> analyze(eigmax(Xs)).curvature
+Convex::Curvature = 0
+```
+"""
 function symmetric_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(issymmetric)
 end
 
+"""
+    semidefinite_domain()
+
+`VarDomain` value for a symbolic matrix declared positive definite
+(`isposdef`); the same test as [`definite_domain`](@ref). Attach it with
+`SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain,
+semidefinite_domain())` to unlock the matrix atoms restricted to the positive
+definite cone (`logdet`, `trinv`, `matrix_frac`, the matrix `inv`/`log`/`sqrt`);
+see [`known_posdef`](@ref).
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xd = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.semidefinite_domain());
+
+julia> analyze(logdet(Xd) - tr(Xd)).curvature
+Concave::Curvature = 1
+```
+"""
 function semidefinite_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(isposdef) #not semi so needs to change
 end
@@ -102,6 +146,29 @@ function negsemidefinite_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -) #not semi so needs to change
 end
 
+"""
+    definite_domain()
+
+`VarDomain` value for a symbolic matrix declared positive definite
+(`isposdef`); the same test as [`semidefinite_domain`](@ref). Attach it with
+`SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain,
+definite_domain())` to unlock the matrix atoms restricted to the positive
+definite cone (`logdet`, `trinv`, `matrix_frac`, the matrix `inv`/`log`/`sqrt`);
+see [`known_posdef`](@ref).
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xd = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.definite_domain());
+
+julia> analyze(logdet(Xd) - tr(Xd)).curvature
+Concave::Curvature = 1
+```
+"""
 function definite_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(isposdef)
 end

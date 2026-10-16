@@ -109,6 +109,7 @@ end
 @public VarDomain, AnalysisResult
 @public Sign, Curvature, Monotonicity, GCurvature, GMonotonicity
 @public add_dcprule, add_gdcprule
+@public definite_domain, semidefinite_domain, symmetric_domain
 
 """
     analyze(ex, M = nothing) -> AnalysisResult

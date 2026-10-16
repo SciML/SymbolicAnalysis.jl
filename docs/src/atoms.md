@@ -131,6 +131,16 @@ X = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.definite_domain(
 analyze(logdet(X) - tr(X)).curvature  # Concave
 ```
 
+These domain constructors, along with `symmetric_domain()` (used by the
+`eigmax`/`eigmin` rules below), are the supported way to declare a symbolic
+matrix's domain:
+
+```@docs
+SymbolicAnalysis.definite_domain
+SymbolicAnalysis.semidefinite_domain
+SymbolicAnalysis.symmetric_domain
+```
+
 | Atom              | Condition                    | Sign      | Curvature        | Monotonicity |
 |:----------------- |:---------------------------- |:--------- |:---------------- |:------------ |
 | logdet(X)         | `X` proven positive definite | AnySign   | Concave          | AnyMono      |
