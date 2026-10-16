@@ -96,11 +96,13 @@ add_dcprule(
 )
 
 # Known-positive vector argument: a propagated `Positive` sign, or an array
-# `VarDomain` whose element domain lies in `(0, ∞)`.
+# `VarDomain` whose element domain lies in `(0, ∞)`. Any other `VarDomain` (e.g. a
+# scalar domain attached to an array) gives no proof.
 function known_positive_array(x)
     getsign(x) == Positive && return true
     _has_vardomain(x) || return false
     d = getmetadata(x, VarDomain)
+    d isa CustomDomain || return false
     return try
         f = d.in
         hasproperty(f, :element_domain) &&

@@ -979,3 +979,17 @@ end
 
 @test SymbolicAnalysis.sum_log_eigmax([2.0 0.0; 0.0 3.0], 1) ≈ log(3.0)
 @test SymbolicAnalysis.sum_log_eigmax(exp, [2.0 0.0; 0.0 3.0], 2) ≈ 5.0
+
+# A VarDomain that is not an array domain gives no positivity proof and must not
+# make the rule lookup throw.
+@variables svd_v[1:2]
+svd_v = Symbolics.wrap(
+    setmetadata(
+        unwrap(svd_v), SymbolicAnalysis.VarDomain,
+        Symbolics.DomainSets.HalfLine{Real, :open}()
+    )
+)
+for atom in (SymbolicAnalysis.StatsBase.harmmean, SymbolicAnalysis.invprod)
+    @test SymbolicAnalysis.analyze(Symbolics.term(atom, unwrap(svd_v))).curvature ==
+        SymbolicAnalysis.UnknownCurvature
+end
