@@ -290,7 +290,7 @@ end
 
 # `norm(x, p)` is only a norm (hence convex) for p >= 1. For 0 < p < 1 the
 # generalized "norm" (sum |x_i|^p)^(1/p) is concave on the nonnegative orthant
-# and has no DCP curvature for sign-unknown arguments; for p <= 0 it is not
+# and has no DCP curvature for sign-unknown or PSD (Loewner-signed) arguments; for p <= 0 it is not
 # DCP-representable. The rule depends on the value of `p`, so it is a
 # specialized `dcprule` method like `^` rather than a static table entry.
 function dcprule(::typeof(norm), x, p)
@@ -298,17 +298,25 @@ function dcprule(::typeof(norm), x, p)
     args = (x, p)
     if !(pv isa Number)
         return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
+    elseif pv == 2
+        return makerule(array_domain(RealLine()), Positive, Convex, frobenius_monotonicity), args
     elseif pv >= 1
         return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), args
     elseif pv > 0
-        curv = getsign(x) == Positive ? Concave : UnknownCurvature
+        curv = increasing_if_positive(x) == Increasing ? Concave : UnknownCurvature
         return makerule(array_domain(HalfLine()), Positive, curv, Increasing), args
     else
         return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
     end
 end
 function dcprule(::typeof(norm), x)
-    return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), (x,)
+    return makerule(array_domain(RealLine()), Positive, Convex, frobenius_monotonicity), (x,)
+end
+
+# The Frobenius norm is also increasing in the Loewner order on PSD matrices.
+function frobenius_monotonicity(x)
+    getsign(x) == Positive && array_sign_kind(x) === :loewner && return Increasing
+    return increasing_if_positive(x)
 end
 hasdcprule(::typeof(norm)) = true
 
@@ -1116,7 +1124,7 @@ function dcprule(::typeof(broadcast), f, x...)
         # flip `mul_curvature` has already applied.
         s = const_factor_sign(x)
         mono = s == Negative ? Decreasing : s == Positive ? Increasing : AnyMono
-        return makerule(array_domain(RealLine()), mul_sign(x), mul_curvature(x), mono), x
+        return makerule(array_domain(RealLine()), mul_sign(x; elementwise = true), mul_curvature(x), mono), x
     end
     hasdcprule(g) || return no_rule(array_domain(RealLine()), x)
     return elementwise_dcprule(g, x...)

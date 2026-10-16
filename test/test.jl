@@ -1266,3 +1266,48 @@ let tg = Symbolics.wrap(
         @test r.sign == sgn
     end
 end
+
+# Array `Positive` is entrywise for element domains and Loewner PSD for matrix
+# atoms; mixing the two proves neither. At `X = [2 -1; -1 2]`, `sqrt(X)[1, 2] < 0`,
+# so `sqrt(X) + A` with `A = [0 0.1; 0.1 0]` and `sqrt(X) * I` have negative
+# entries, and `norm(sqrt(X), 0.5)` violates concavity along SPD segments.
+let
+    @variables Xk[1:2, 1:2] Yk[1:2, 1:2] Ak[1:2, 1:2] Bk[1:2, 1:2] vk[1:3]
+    nonneg(z, n) = Symbolics.wrap(
+        setmetadata(
+            unwrap(z), SymbolicAnalysis.VarDomain,
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine(), n)
+        )
+    )
+    A, B, v = nonneg(Ak, 2), nonneg(Bk, 2), nonneg(vk, 1)
+    M = SymmetricPositiveDefinite(2)
+    for (e, Mk) in (
+            (sqrt(Xk) + A, nothing), (sqrt(Xk) .+ A, nothing), (2A + sqrt(Xk), nothing),
+            (sqrt(Xk) + A .* B, nothing), (sqrt(Xk) + A * B, nothing),
+            (exp.(Xk) + sqrt(Yk), nothing), (sqrt(Xk) * sqrt(Yk), nothing),
+            (sqrt(Xk) * A, nothing), (Xk' + A, M),
+        )
+        @test SymbolicAnalysis.analyze(unwrap(e), Mk).sign == SymbolicAnalysis.AnySign
+    end
+    for (e, Mk) in (
+            (norm(sqrt(Xk), 0.5), nothing), (norm(sqrt(Xk) + A, 0.5), nothing),
+            (norm(Xk' + A, 0.5), M),
+        )
+        @test SymbolicAnalysis.analyze(unwrap(e), Mk).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    for e in (norm(v, 0.5), norm(A, 0.5), norm(A + B, 0.5))
+        @test SymbolicAnalysis.analyze(unwrap(e)).curvature == SymbolicAnalysis.Concave
+    end
+    @test SymbolicAnalysis.analyze(unwrap(sqrt(Xk) + sqrt(Yk))).sign == SymbolicAnalysis.Positive
+    @test SymbolicAnalysis.analyze(unwrap(A + B)).sign == SymbolicAnalysis.Positive
+    @test SymbolicAnalysis.analyze(unwrap(A * B)).sign == SymbolicAnalysis.Positive
+    # Under SPD `inv(X)` is Loewner-positive, but `abs(inv(X)[1, 2])` is neither
+    # convex nor geodesically convex; the Frobenius norm is Loewner-increasing.
+    r = SymbolicAnalysis.analyze(unwrap(abs.(inv(Xk))), M)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.gcurvature == SymbolicAnalysis.GUnknownCurvature
+    r = SymbolicAnalysis.analyze(unwrap(norm(inv(Xk))), M)
+    @test r.curvature == SymbolicAnalysis.Convex
+    @test r.gcurvature == SymbolicAnalysis.GConvex
+end

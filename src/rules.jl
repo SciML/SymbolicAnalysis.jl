@@ -116,7 +116,9 @@ end
 
 function increasing_if_positive(x)
     sign = getsign(x)
-    return sign == AnySign ? AnyMono : sign == Positive ? Increasing : Decreasing
+    sign == AnySign && return AnyMono
+    array_sign_kind(x) in (nothing, :entrywise) || return AnyMono
+    return sign == Positive ? Increasing : Decreasing
 end
 
 """
@@ -313,10 +315,47 @@ hassign(ex) = ex isa Real
 hassign(ex::typeof(Base.broadcast)) = true
 getsign(ex::typeof(Base.broadcast))::Sign = Positive
 
+# An array sign is entrywise (element domains, broadcasts, constants) or Loewner
+# (matrix atoms, SPD points); a sum mixing the two is neither. `nothing` for scalars;
+# a vector sign is always entrywise.
+function array_sign_kind(x)
+    T = SymbolicUtils.symtype(x)
+    T <: AbstractArray || return nothing
+    T <: AbstractVector && return :entrywise
+    (isconstarg(x) || _has_vardomain(x) || known_nonnegative(x)) && return :entrywise
+    iscall(x) || return :loewner
+    f = operation(x)
+    f === SymbolicUtils.array_literal && return :entrywise
+    if f === broadcast
+        g = constval(first(arguments(x)))
+        g === (+) || g === (*) || g === (-) || return :entrywise
+        return combine_sign_kinds(@view arguments(x)[2:end])
+    elseif f === (+) || f === (*) || f === (-)
+        return combine_sign_kinds(arguments(x))
+    end
+    return :loewner
+end
+
+function combine_sign_kinds(args)
+    kind = nothing
+    for a in args
+        k = array_sign_kind(a)
+        k === nothing && continue
+        k === :mixed && return :mixed
+        if kind === nothing
+            kind = k
+        elseif kind !== k
+            return :mixed
+        end
+    end
+    return kind
+end
+
 function add_sign(args)
     if hassign(args)
         return getsign(args)
     end
+    combine_sign_kinds(args) === :mixed && return AnySign
     # Check signs without allocating intermediate arrays
     has_anysign = false
     all_negative = true
@@ -349,8 +388,15 @@ function add_sign(args)
     end
 end
 
-function mul_sign(args)
-    # Avoid allocating intermediate arrays
+# A matrix product of PSD factors need not be PSD; a Hadamard product
+# (`elementwise`) of them is (Schur product theorem).
+function mul_sign(args; elementwise::Bool = false)
+    kind = combine_sign_kinds(args)
+    kind === :mixed && return AnySign
+    if !elementwise && kind === :loewner &&
+            count(a -> SymbolicUtils.symtype(a) <: AbstractArray, args) > 1
+        return AnySign
+    end
     neg_count = 0
     for arg in args
         v = constval(arg)
