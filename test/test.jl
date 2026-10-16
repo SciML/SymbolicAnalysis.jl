@@ -977,3 +977,5 @@ let rule = SymbolicAnalysis.dcprule(SymbolicAnalysis.StatsBase.harmmean, hmv_pos
     @test rule.sign == SymbolicAnalysis.Positive
 end
 
+@test SymbolicAnalysis.sum_log_eigmax([2.0 0.0; 0.0 3.0], 1) ≈ log(3.0)
+@test SymbolicAnalysis.sum_log_eigmax(exp, [2.0 0.0; 0.0 3.0], 2) ≈ 5.0
