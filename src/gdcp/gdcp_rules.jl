@@ -298,6 +298,16 @@ function hasgcurvature(ex::Union{Symbolic, Num})
 end
 hasgcurvature(ex) = ex isa Real
 
+# A non-constant matrix that the walk calls `GLinear` on SPD is a positive
+# combination of points, and `X ↦ X` is geodesically convex but not concave in
+# the Loewner order (`P # Q ⪯ (P + Q) / 2`). Scaling and summing must see it as
+# `GConvex`, so `-X` comes out `GConcave` and `-X + Φ(X)` unknown.
+function loewner_gcurvature(ex, curv, M)
+    curv == GLinear && M isa SymmetricPositiveDefinite && !isconstarg(ex) &&
+        (issym(ex) || iscall(ex)) && SymbolicUtils.symtype(ex) <: AbstractArray || return curv
+    return GConvex
+end
+
 function mul_gcurvature(args, M = nothing)
     # Avoid allocations by not using findall
     non_constant_expr = nothing
@@ -312,13 +322,15 @@ function mul_gcurvature(args, M = nothing)
                 return GUnknownCurvature
             end
         else
-            constant_prod *= constval(arg)
+            c = constval(arg)
+            c isa Number || return GUnknownCurvature
+            constant_prod *= c
         end
     end
     if non_constant_expr !== nothing
         curv = find_gcurvature(non_constant_expr, M)
         return if constant_prod < 0
-            # flip
+            curv = loewner_gcurvature(non_constant_expr, curv, M)
             curv == GConvex ? GConcave : curv == GConcave ? GConvex : curv
         else
             curv
@@ -332,7 +344,7 @@ function add_gcurvature(args, M = nothing)
     has_gconvex = false
     has_gconcave = false
     for arg in args
-        curv = find_gcurvature(arg, M)
+        curv = loewner_gcurvature(arg, find_gcurvature(arg, M), M)
         if curv == GLinear
             continue
         elseif curv == GConvex
@@ -392,6 +404,21 @@ function logdet_gconvex_arg(a, M = nothing)
     ) && positive_image(a, M)
 end
 
+# `sum_log_eigmax(f, X, k) = Σᵢ₌₁ᵏ f(log λᵢ(X))` is geodesically convex when `f`
+# is convex and nondecreasing on ℝ: `log λ(P #ₜ Q)` is majorized by
+# `(1 - t) log λ(P) + t log λ(Q)`, and the top-`k` sum of such an `f` is convex
+# and Schur-convex. Without monotonicity it fails: `f = abs`, `k = 1` between
+# `diag(e^0.1, e^-4.1)` and `diag(e^-4.1, e^0.1)` gives 2 at the midpoint
+# `e^-2 I` against a chord of 0.1.
+function convex_nondecreasing(f)
+    f === identity && return true
+    f isa Function && haskey(dcprules_dict, f) || return false
+    return any(dcprules_dict[f]) do rule
+        rule.domain isa RealLine && rule.curvature in (Convex, Affine) &&
+            rule.monotonicity == (Increasing,)
+    end
+end
+
 function geodesic_rule_arg(f, a, M = nothing)
     isometric_point(a, M) && return true
     g = operation(a)
@@ -425,7 +452,10 @@ function find_gcurvature(ex, M = nothing)
         f_curvature = GUnknownCurvature
         f_monotonicity = (GAnyMono,)
 
-        if gdcp_rule_applies(f, M) && !any(iscall, args) && all(a -> bare_arg_ok(a, M), args)
+        if f === sum_log_eigmax && length(args) == 3
+            return convex_nondecreasing(constval(args[1])) && spd_point(args[2], M) &&
+                consts_from(args, 3) ? GConvex : GUnknownCurvature
+        elseif gdcp_rule_applies(f, M) && !any(iscall, args) && all(a -> bare_arg_ok(a, M), args)
             rule, args = gdcprule(f, args...)
             f_curvature = rule.gcurvature
             f_monotonicity = rule.gmonotonicity
@@ -449,12 +479,6 @@ function find_gcurvature(ex, M = nothing)
                 operation(args[1]) == log && spd_point(arguments(args[1])[1], M) &&
                 consts_from(args, 2)
             return GConvex
-        elseif f == sum_log_eigmax && hasdcprule(args[1])
-            if dcprule(operation(args[1])) == Convex && spd_point(args[2], M) && consts_from(args, 3)
-                return GConvex
-            else
-                return GUnknownCurvature
-            end
         elseif f == affine_map
             if (args[1] == tr || args[1] == conjugation || args[1] == diag) &&
                     spd_point(args[2], M) && consts_from(args, 3)
@@ -469,22 +493,7 @@ function find_gcurvature(ex, M = nothing)
             f_monotonicity = rule.gmonotonicity
             knowngcurv = true
         elseif f === (*)
-            a1 = constval(args[1])
-            if a1 isa Number && a1 > 0
-                return find_gcurvature(args[2], M)
-            elseif a1 isa Number && a1 < 0
-                argscurv = find_gcurvature(args[2], M)
-                if argscurv == GConvex
-                    return GConcave
-                elseif argscurv == GConcave
-                    return GConvex
-                else
-                    return argscurv
-                end
-            else
-                @warn "Disciplined Programming does not support multiple non-constant arguments in multiplication"
-                return GUnknownCurvature
-            end
+            return mul_gcurvature(args, M)
         end
 
         # A Euclidean rule may supply the *composition* over an argument that already

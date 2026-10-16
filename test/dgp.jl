@@ -407,3 +407,63 @@ end
         @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
     end
 end
+
+# Witnesses use commuting endpoints, whose geodesic midpoint is the entrywise
+# geometric mean, so every value is exact in BigFloat.
+@testset "SPD scalar multiples, sum_log_eigmax and constant factors" begin
+    @variables X2[1:2, 1:2]
+    M2 = SymmetricPositiveDefinite(2)
+    gmid(P, Q) = Diagonal(sqrt.(diag(P) .* diag(Q)))
+
+    # Σᵢ₌₁ᵏ f(log λᵢ) needs f convex and nondecreasing.
+    P = Diagonal(exp.(big.([1 // 10, -41 // 10])))
+    Q = Diagonal(exp.(big.([-41 // 10, 1 // 10])))
+    slem(f, A) = f(log(maximum(diag(A))))
+    for f in (abs, x -> x^2, -, log)
+        @test analyze(SymbolicAnalysis.sum_log_eigmax(f, X2, 1), M2).gcurvature ==
+            SymbolicAnalysis.GUnknownCurvature
+    end
+    for f in (abs, x -> x^2, -)
+        @test slem(f, gmid(P, Q)) > (slem(f, P) + slem(f, Q)) / 2
+    end
+    for f in (exp, expm1, identity)
+        @test analyze(SymbolicAnalysis.sum_log_eigmax(f, X2, 1), M2).gcurvature ==
+            SymbolicAnalysis.GConvex
+    end
+    @test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 1), M2).gcurvature ==
+        SymbolicAnalysis.GConvex
+
+    # `X` is Loewner geodesically convex, so a negative multiple is concave and
+    # `-X + Φ(X)` has no certificate: `tr(-X + X ∘ I/2) = -tr(X)/2`.
+    H = [0.5 0.0; 0.0 0.5]
+    @test analyze(-1.0 * X2, M2).gcurvature == SymbolicAnalysis.GConcave
+    @test analyze(-(X2 + X2), M2).gcurvature == SymbolicAnalysis.GConcave
+    E = -1.0 * X2 + SymbolicAnalysis.hadamard_product(X2, H)
+    for ex in (E, tr(E), sum(E))
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    fE(A) = -tr(A) + tr(H .* A)
+    P = Diagonal(exp.(big.([-1, 0])))
+    Q = Diagonal(exp.(big.([1, 0])))
+    @test fE(gmid(P, Q)) > (fE(P) + fE(Q)) / 2
+    for ex in (tr(2.0 * X2), tr(X2), tr(inv(X2)), tr(X2 + X2))
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
+    end
+
+    # Non-scalar constant factors do not commute with the point: `e₁ᵀ X⁻¹ e₂`
+    # is not the constant `e₁ᵀe₂ = 0` times `X⁻¹`. Between `I` and
+    # `[2 -1; -1 2]` the midpoint gives (1 - 1/√3)/2 against a chord of 1/6.
+    r = analyze([1, 0]' * inv(X2) * [0, 1], M2)
+    @test r.gcurvature == SymbolicAnalysis.GUnknownCurvature
+    @test (1 - 1 / sqrt(big(3))) / 2 > (0 + 1 // 3) / 2
+    Q = [2.0 -1.0; -1.0 2.0]
+    @test inv(Manifolds.shortest_geodesic(M2, Matrix(1.0I, 2, 2), Q, 0.5))[1, 2] ≈
+        (1 - 1 / sqrt(3)) / 2
+    for ex in (
+            tr(SymbolicAnalysis.conjugation(-1.0 * X2, [1.0 0; 0 1])),
+            tr([1.0 2; 0 1] * inv(X2) * [1.0 0; 3 1]), tr([1.0 2; 0 1] * X2 * [1.0 0; 3 1]),
+            tr(-1.0 * X2 * [2.0 0; 0 1]),
+        )
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+end
