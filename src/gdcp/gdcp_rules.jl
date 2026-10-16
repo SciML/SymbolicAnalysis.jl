@@ -161,10 +161,27 @@ function symmetric_const(x)
     return v isa AbstractMatrix && ishermitian(v)
 end
 
+# Exact test: every finite float is a rational, so converting to
+# `Rational{BigInt}` and running a pivoted LDLᵀ decides PSD without rounding.
 function psd_const(x)
     isconstarg(x) || return false
     v = map(constval, constval(x))
-    return v isa AbstractMatrix && issymmetric(v) && eigmin(Symmetric(float.(v))) >= 0
+    v isa AbstractMatrix && size(v, 1) == size(v, 2) || return false
+    all(y -> y isa Union{Integer, Rational, AbstractFloat} && isfinite(y), v) || return false
+    A = Matrix{Rational{BigInt}}(v)
+    A == transpose(A) || return false
+    while !isempty(A)
+        d = diag(A)
+        any(<(0), d) && return false
+        k = argmax(d)
+        p = A[k, k]
+        # A PSD matrix with a zero diagonal entry has a zero row there.
+        iszero(p) && return iszero(A)
+        r = [1:(k - 1); (k + 1):size(A, 1)]
+        a = A[r, k]
+        A = A[r, r] - a * transpose(a) / p
+    end
+    return true
 end
 
 function nonsingular_const(x)
@@ -194,6 +211,8 @@ function manifold_point(ex, M = nothing; shifts::Bool = true)
 end
 
 isometric_point(ex, M = nothing) = manifold_point(ex, M; shifts = false)
+
+spd_point(ex, M) = (M === nothing || M isa SymmetricPositiveDefinite) && isometric_point(ex, M)
 
 gdcp_args_on_manifold(args, M) =
     all(a -> !(issym(a) || iscall(a)) || manifold_point(a, M), args)
@@ -289,14 +308,14 @@ end
 # `tr(inv(X + I))` is `1/(1 + eᵗ)` along a scalar geodesic, which is not convex.
 const SHIFT_INVARIANT_GATOMS = (LinearAlgebra.tr, sum, LinearAlgebra.diag, eigmax, eigsummax)
 
-function positive_image(ex)
-    isometric_point(ex) && return true
+function positive_image(ex, M = nothing)
+    spd_point(ex, M) && return true
     iscall(ex) || return false
     g, gargs = operation(ex), arguments(ex)
     if g === conjugation || g === LinearAlgebra.diag || g === hadamard_product
-        return isometric_point(gargs[1])
+        return spd_point(gargs[1], M)
     elseif g === affine_map
-        return isometric_point(gargs[2])
+        return spd_point(gargs[2], M)
     end
     return false
 end
@@ -304,36 +323,36 @@ end
 # `logdet(B + Φ(X))` is geodesically convex for PSD `B` and positive linear `Φ`.
 # Only these positive images qualify; isometric constructors (`inv`, `adjoint`,
 # `transpose`, `*`) are absent so bare `logdet(X)` stays `GLinear` via its table rule.
-function logdet_gconvex_arg(a)
+function logdet_gconvex_arg(a, M = nothing)
     iscall(a) || return false
     g = operation(a)
     if g === (+)
         return count(!isconstarg, arguments(a)) == 1 &&
-            all(x -> isconstarg(x) ? psd_const(x) : positive_image(x), arguments(a))
+            all(x -> isconstarg(x) ? psd_const(x) : positive_image(x, M), arguments(a))
     end
     return (
         g === conjugation || g === LinearAlgebra.diag || g === affine_map ||
             g === hadamard_product
-    ) && positive_image(a)
+    ) && positive_image(a, M)
 end
 
-function geodesic_rule_arg(f, a)
-    isometric_point(a) && return true
+function geodesic_rule_arg(f, a, M = nothing)
+    isometric_point(a, M) && return true
     g = operation(a)
     any(h -> h === f, SHIFT_INVARIANT_GATOMS) || return false
     eig_shift = f === eigmax || f === eigsummax
     if g === affine_map
-        return isometric_point(arguments(a)[2])
+        return isometric_point(arguments(a)[2], M)
     elseif g === (+)
         args = arguments(a)
         nonconst = filter(!isconstarg, args)
-        return length(nonconst) == 1 && isometric_point(only(nonconst)) &&
+        return length(nonconst) == 1 && isometric_point(only(nonconst), M) &&
             (!eig_shift || all(x -> !isconstarg(x) || symmetric_const(x), args))
     elseif g === broadcast
         bargs = arguments(a)
         op = constval(bargs[1])
         return length(bargs) == 3 && (op === (+) || op === (-)) &&
-            isometric_point(bargs[2]) && isconstarg(bargs[3]) &&
+            isometric_point(bargs[2], M) && isconstarg(bargs[3]) &&
             (!eig_shift || symmetric_const(bargs[3]))
     end
     return false
@@ -349,40 +368,40 @@ function find_gcurvature(ex, M = nothing)
         f_curvature = GUnknownCurvature
         f_monotonicity = (GAnyMono,)
 
-        if gdcp_rule_applies(f, M) && !any(iscall.(args))
+        if gdcp_rule_applies(f, M) && !any(iscall, args) && gdcp_args_on_manifold(args, M)
             rule, args = gdcprule(f, args...)
             f_curvature = rule.gcurvature
             f_monotonicity = rule.gmonotonicity
             knowngcurv = true
         elseif f == LinearAlgebra.logdet
-            if logdet_gconvex_arg(args[1])
+            if logdet_gconvex_arg(args[1], M)
                 return GConvex
             end
         elseif f == log &&
                 iscall(args[1]) &&
                 (
-                (operation(args[1]) == LinearAlgebra.tr && positive_image(arguments(args[1])[1])) ||
-                    (operation(args[1]) == quad_form && positive_image(arguments(args[1])[2]))
+                (operation(args[1]) == LinearAlgebra.tr && positive_image(arguments(args[1])[1], M)) ||
+                    (operation(args[1]) == quad_form && positive_image(arguments(args[1])[2], M))
             )
             return GConvex
         elseif (f == schatten_norm || f == eigsummax) && iscall(args[1]) &&
-                operation(args[1]) == log && isometric_point(arguments(args[1])[1])
+                operation(args[1]) == log && spd_point(arguments(args[1])[1], M)
             return GConvex
         elseif f == sum_log_eigmax && hasdcprule(args[1])
-            if dcprule(operation(args[1])) == Convex && isometric_point(args[2])
+            if dcprule(operation(args[1])) == Convex && spd_point(args[2], M)
                 return GConvex
             else
                 return GUnknownCurvature
             end
         elseif f == affine_map
             if (args[1] == tr || args[1] == conjugation || args[1] == diag) &&
-                    isometric_point(args[2])
+                    spd_point(args[2], M)
                 return GConvex
             else
                 return GUnknownCurvature
             end
         elseif gdcp_rule_applies(f, M) && any(iscall, args) &&
-                all(a -> !iscall(a) || geodesic_rule_arg(f, a), args)
+                all(a -> !iscall(a) || geodesic_rule_arg(f, a, M), args)
             rule, args = gdcprule(f, args...)
             f_curvature = rule.gcurvature
             f_monotonicity = rule.gmonotonicity

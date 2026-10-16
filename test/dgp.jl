@@ -357,4 +357,25 @@ end
     @test tr(-γ) > (tr(-A) + tr(-B)) / 2
     xe = P -> (t = tr(P .- 5); t * exp(t))
     @test xe((A + B) / 2) > (xe(A) + xe(B)) / 2
+
+    # det(Cind) = -1//10^18 but float.(Cind) rounds to the singular PSD ones(2, 2).
+    Cind = [1 // 1 1 // 1; 1 // 1 (10^18 - 1) // 10^18]
+    @test analyze(tr(inv(X2 + Cind)), M2).sign != SymbolicAnalysis.Positive
+    P = Matrix{Rational{BigInt}}(I, 2, 2) / (big(4) * 10^18)
+    @test tr(inv(P + Cind)) < 0
+    @test analyze(tr(inv(X2 + [1 // 1 1 // 2; 1 // 2 1 // 1])), M2).sign ==
+        SymbolicAnalysis.Positive
+    @test !SymbolicAnalysis.psd_const([1.0 1.0; 1.0 1 - eps() / 2])
+    @test !SymbolicAnalysis.psd_const([Inf 0.0; 0.0 1.0])
+    @test SymbolicAnalysis.psd_const([1 0; 0 0])
+
+    # Curvature, like sign, needs each symbolic argument to be a point of `M`.
+    @variables Y3[1:3, 1:3] p3[1:3]
+    for (ex, M) in [
+            (tr(Y3), M2), (tr(inv(Y3)), M2), (logdet(Y3 + I(3)), M2),
+            (logdet(X2 + I(2)), Lorentz(2)), (log(tr(p3)), Lorentz(2)),
+        ]
+        @test analyze(ex, M).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    @test analyze(tr(Y3), SymmetricPositiveDefinite(3)).gcurvature == SymbolicAnalysis.GConvex
 end
