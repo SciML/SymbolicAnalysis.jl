@@ -359,9 +359,9 @@ end
     @test xe((A + B) / 2) > (xe(A) + xe(B)) / 2
 
     # det(Cind) = -1//10^18 but float.(Cind) rounds to the singular PSD ones(2, 2).
-    Cind = [1 // 1 1 // 1; 1 // 1 (10^18 - 1) // 10^18]
+    Cind = [1 // 1 1 // 1; 1 // 1 (big(10)^18 - 1) // big(10)^18]
     @test analyze(tr(inv(X2 + Cind)), M2).sign != SymbolicAnalysis.Positive
-    P = Matrix{Rational{BigInt}}(I, 2, 2) / (big(4) * 10^18)
+    P = Matrix{Rational{BigInt}}(I, 2, 2) / (4 * big(10)^18)
     @test tr(inv(P + Cind)) < 0
     @test analyze(tr(inv(X2 + [1 // 1 1 // 2; 1 // 2 1 // 1])), M2).sign ==
         SymbolicAnalysis.Positive
@@ -378,4 +378,17 @@ end
         @test analyze(ex, M).gcurvature == SymbolicAnalysis.GUnknownCurvature
     end
     @test analyze(tr(Y3), SymmetricPositiveDefinite(3)).gcurvature == SymbolicAnalysis.GConvex
+    for ex in [SymbolicAnalysis.sdivergence(inv(X2), Y3), SymbolicAnalysis.sdivergence(Y3, inv(X2))]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+
+    # Non-point arguments of the SPD special cases must be constants.
+    v = [sin(X2[1, 1]), 0]
+    @test analyze(log(SymbolicAnalysis.quad_form(v, X2)), M2).gcurvature ==
+        SymbolicAnalysis.GUnknownCurvature
+    lq = P -> (w = [sin(P[1, 1]), 0]; log(dot(w, P * w)))
+    I2 = Matrix(1.0I, 2, 2)
+    @test lq(Manifolds.shortest_geodesic(M2, I2, 2I2, 0.5)) > (lq(I2) + lq(2I2)) / 2
+    @test analyze(log(SymbolicAnalysis.quad_form([1.0, 2.0], X2)), M2).gcurvature ==
+        SymbolicAnalysis.GConvex
 end

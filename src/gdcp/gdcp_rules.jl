@@ -214,6 +214,25 @@ isometric_point(ex, M = nothing) = manifold_point(ex, M; shifts = false)
 
 spd_point(ex, M) = (M === nothing || M isa SymmetricPositiveDefinite) && isometric_point(ex, M)
 
+# The SPD special cases treat every argument but the manifold point as a fixed
+# parameter; one that depends on the point (`quad_form([sin(X[1,1]), 0], X)`)
+# voids the rule.
+consts_from(args, i) = all(isconstarg, args[i:end])
+
+# Fixed data beside the point: a constant, or a free symbol of another kind than
+# the points of `M` (the vector `y` of `log_quad_form(y, X)`). A symbol of the
+# point's kind but the wrong shape (3×3 `Y` on SPD(2)) is neither.
+function fixed_param(a, M)
+    isconstarg(a) && return true
+    issym(a) || return false
+    T = SymbolicUtils.symtype(a)
+    M isa SymmetricPositiveDefinite && return !(T <: AbstractMatrix)
+    M isa Lorentz && return !(T <: AbstractVector)
+    return M === nothing
+end
+
+bare_arg_ok(a, M) = !issym(a) || fits_manifold(a, M) || fixed_param(a, M)
+
 gdcp_args_on_manifold(args, M) =
     all(a -> !(issym(a) || iscall(a)) || manifold_point(a, M), args)
 
@@ -313,9 +332,9 @@ function positive_image(ex, M = nothing)
     iscall(ex) || return false
     g, gargs = operation(ex), arguments(ex)
     if g === conjugation || g === LinearAlgebra.diag || g === hadamard_product
-        return spd_point(gargs[1], M)
+        return spd_point(gargs[1], M) && consts_from(gargs, 2)
     elseif g === affine_map
-        return spd_point(gargs[2], M)
+        return spd_point(gargs[2], M) && consts_from(gargs, 3)
     end
     return false
 end
@@ -342,7 +361,7 @@ function geodesic_rule_arg(f, a, M = nothing)
     any(h -> h === f, SHIFT_INVARIANT_GATOMS) || return false
     eig_shift = f === eigmax || f === eigsummax
     if g === affine_map
-        return isometric_point(arguments(a)[2], M)
+        return isometric_point(arguments(a)[2], M) && consts_from(arguments(a), 3)
     elseif g === (+)
         args = arguments(a)
         nonconst = filter(!isconstarg, args)
@@ -368,7 +387,7 @@ function find_gcurvature(ex, M = nothing)
         f_curvature = GUnknownCurvature
         f_monotonicity = (GAnyMono,)
 
-        if gdcp_rule_applies(f, M) && !any(iscall, args) && gdcp_args_on_manifold(args, M)
+        if gdcp_rule_applies(f, M) && !any(iscall, args) && all(a -> bare_arg_ok(a, M), args)
             rule, args = gdcprule(f, args...)
             f_curvature = rule.gcurvature
             f_monotonicity = rule.gmonotonicity
@@ -381,27 +400,31 @@ function find_gcurvature(ex, M = nothing)
                 iscall(args[1]) &&
                 (
                 (operation(args[1]) == LinearAlgebra.tr && positive_image(arguments(args[1])[1], M)) ||
-                    (operation(args[1]) == quad_form && positive_image(arguments(args[1])[2], M))
+                    (
+                    operation(args[1]) == quad_form && fixed_param(arguments(args[1])[1], M) &&
+                        positive_image(arguments(args[1])[2], M)
+                )
             )
             return GConvex
         elseif (f == schatten_norm || f == eigsummax) && iscall(args[1]) &&
-                operation(args[1]) == log && spd_point(arguments(args[1])[1], M)
+                operation(args[1]) == log && spd_point(arguments(args[1])[1], M) &&
+                consts_from(args, 2)
             return GConvex
         elseif f == sum_log_eigmax && hasdcprule(args[1])
-            if dcprule(operation(args[1])) == Convex && spd_point(args[2], M)
+            if dcprule(operation(args[1])) == Convex && spd_point(args[2], M) && consts_from(args, 3)
                 return GConvex
             else
                 return GUnknownCurvature
             end
         elseif f == affine_map
             if (args[1] == tr || args[1] == conjugation || args[1] == diag) &&
-                    spd_point(args[2], M)
+                    spd_point(args[2], M) && consts_from(args, 3)
                 return GConvex
             else
                 return GUnknownCurvature
             end
         elseif gdcp_rule_applies(f, M) && any(iscall, args) &&
-                all(a -> !iscall(a) || geodesic_rule_arg(f, a, M), args)
+                all(a -> iscall(a) ? geodesic_rule_arg(f, a, M) : bare_arg_ok(a, M), args)
             rule, args = gdcprule(f, args...)
             f_curvature = rule.gcurvature
             f_monotonicity = rule.gmonotonicity
