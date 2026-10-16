@@ -245,26 +245,52 @@ function known_size(a)
     return Tuple(map(length, sh))
 end
 
-# Whether the known dimensions of an atom's parameters agree with its point
-# argument; a parameter of unknown size is admitted.
+# Whether `a` has shape `want`, where a `nothing` entry is any length. The rank
+# must match whenever the shape is known; an unknown shape is admitted.
+function shape_fits(a, want)
+    s = known_size(a)
+    s === nothing && return true
+    return length(s) == length(want) && all(((x, w),) -> w === nothing || x == w, zip(s, want))
+end
+
+# A constant vector of numeric vectors, each of length `n` (any length if `nothing`).
+function vector_collection_fits(a, n)
+    (issym(a) || iscall(a) || isconstarg(a)) && return false
+    v = constval(a)
+    v isa AbstractVector && !isempty(v) || return false
+    return all(v) do y
+        y isa AbstractVector && all(e -> constval(e) isa Number, y) &&
+            (n === nothing || length(y) == n)
+    end
+end
+
+# Whether each argument's known rank and dimensions fit its role in the atom,
+# relative to the point argument.
 function atom_dims_ok(f, args)
-    sz = map(known_size, args)
-    dim(i, k) = (s = sz[i]; s === nothing || length(s) < k ? nothing : s[k])
-    agree(x, y) = x === nothing || y === nothing || x == y
+    lead(a) = (s = known_size(a); s === nothing || isempty(s) ? nothing : s[1])
     if f === quad_form || f === log_quad_form
         length(args) == 2 || return true
-        return agree(dim(1, 1), dim(2, 1)) && agree(dim(1, 1), dim(2, 2))
+        y, X = args
+        n = lead(X)
+        shape_fits(X, (n, n)) || return false
+        (issym(y) || iscall(y) || isconstarg(y)) && return shape_fits(y, (n,))
+        return f === log_quad_form && vector_collection_fits(y, n)
     elseif f === lorentz_homogeneous_quadratic || f === lorentz_homogeneous_diagonal ||
             f === lorentz_nonhomogeneous_quadratic || f === lorentz_least_squares
-        d = dim(length(args), 1)
+        p = args[end]
+        d = lead(p)
+        shape_fits(p, (d,)) || return false
         if f === lorentz_homogeneous_quadratic
-            return agree(dim(1, 1), d) && agree(dim(1, 2), d)
+            return length(args) == 2 && shape_fits(args[1], (d, d))
         elseif f === lorentz_homogeneous_diagonal
-            return agree(dim(1, 1), d)
+            return length(args) == 2 && shape_fits(args[1], (d,))
         elseif f === lorentz_nonhomogeneous_quadratic
-            return agree(dim(1, 1), d) && agree(dim(1, 2), d) && agree(dim(2, 1), d)
+            return length(args) == 4 && shape_fits(args[1], (d, d)) &&
+                shape_fits(args[2], (d,)) && shape_fits(args[3], ())
         else
-            return agree(dim(1, 2), d) && agree(dim(1, 1), dim(2, 1))
+            length(args) == 3 || return false
+            m = lead(args[1])
+            return shape_fits(args[1], (m, d)) && shape_fits(args[2], (m,))
         end
     end
     return true

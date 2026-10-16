@@ -406,4 +406,13 @@ end
         ]
         @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
     end
+    @variables z0[fill(1:1, 0)...]
+    for y in [z0, X2, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]]
+        @test analyze(SymbolicAnalysis.log_quad_form(y, X2), M2).gcurvature ==
+            SymbolicAnalysis.GUnknownCurvature
+    end
+    for ys in ([[1.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+        @test analyze(SymbolicAnalysis.log_quad_form(ys, X2), M2).gcurvature ==
+            SymbolicAnalysis.GConvex
+    end
 end
