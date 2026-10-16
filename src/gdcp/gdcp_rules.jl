@@ -258,14 +258,45 @@ function add_gcurvature(args)
 end
 
 # A matrix argument's `Positive` sign and geodesic curvature on the SPD cone are
-# in the Loewner order. Of the entrywise `norm(A, p)`, only the Frobenius norm
-# (p = 2) is treated as monotone there; the 1-norm is not (see test/dgp.jl).
+# in the Loewner order, so a Euclidean rule over a matrix argument keeps its
+# monotonicity only when the atom is monotone in that order. `tr`, a full `sum`,
+# `diag` and `quad_form`'s matrix slot are PSD-weighted linear functionals.
+# On the PSD cone `|A[i,j]| ≤ √(A[i,i]·A[j,j])`, so `maximum` and `norm(A, Inf)`
+# read only the diagonal; for an even integer `p` the gradient of `Σ A[i,j]^p` is
+# a Hadamard power of `A`, PSD by the Schur product theorem. The entrywise 1-norm,
+# `minimum`, `sum_largest`, column sums and nonlinear broadcasts are not monotone
+# there (see test/dgp.jl).
+const LOEWNER_LINEAR_READERS = (
+    LinearAlgebra.tr, sum, LinearAlgebra.diag, adjoint, transpose, +, -, quad_form,
+)
+
 function loewner_monotonicity(f, args, monotonicity)
-    if f === LinearAlgebra.norm && length(args) == 2 &&
-            SymbolicUtils.symtype(args[1]) <: AbstractMatrix && !isequal(constval(args[2]), 2)
+    mats = filter(a -> SymbolicUtils.symtype(a) <: AbstractMatrix, collect(args))
+    isempty(mats) && return monotonicity
+    signs_are(s) = all(a -> getsign(a) == s, mats)
+    f in LOEWNER_LINEAR_READERS && return monotonicity
+    if f isa SymbolicUtils.Mapreducer{typeof(identity)}
+        f.dims isa Colon || return AnyMono
+        f.reduce === Base.add_sum && return monotonicity
+        f.reduce === max && return signs_are(Positive) ? monotonicity : AnyMono
+        f.reduce === min && return signs_are(Negative) ? monotonicity : AnyMono
         return AnyMono
     end
-    return monotonicity
+    f === maximum && return signs_are(Positive) ? monotonicity : AnyMono
+    f === minimum && return signs_are(Negative) ? monotonicity : AnyMono
+    if f === LinearAlgebra.norm
+        length(args) == 1 && return monotonicity
+        p = constval(args[2])
+        p isa Number && (p == Inf || (isinteger(p) && iseven(p) && p > 0)) &&
+            return monotonicity
+        return AnyMono
+    end
+    if f === broadcast
+        g, xs = constval(args[1]), args[2:end]
+        g in (+, -) && return monotonicity
+        g === (*) && count(a -> !(constval(a) isa Number), xs) == 1 && return monotonicity
+    end
+    return AnyMono
 end
 
 function find_gcurvature(ex)

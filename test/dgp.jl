@@ -448,4 +448,57 @@ Base.getindex(C::CountingMatrix, i::Int, j::Int) = (C.reads[] += 1; C.A[i, j])
             end
         end
     end
+
+    # Over a matrix argument the Euclidean fallback keeps only Loewner-monotone
+    # readers. Each pair below is a geodesic midpoint above the chord.
+    let M3 = SymmetricPositiveDefinite(3), I3 = Matrix(1.0I, 3, 3)
+        @variables X3m[1:3, 1:3]
+        top2(A) = sum(sort(vec(A); rev = true)[1:2])
+        colmax(A) = maximum(sum(A; dims = 1))
+        witnesses = (
+            (
+                SymbolicAnalysis.sum_largest(cj(X3m, I3), 2), top2,
+                [2.5 -2.1 -0.4; -2.1 3.2 3.2; -0.4 3.2 11.3],
+                [0.5 -0.4 -1.1; -0.4 1.7 3.7; -1.1 3.7 10.8],
+            ),
+            (
+                SymbolicAnalysis.sum_largest(inv(X3m), 2), A -> top2(inv(A)),
+                [2.2 -5.7 -0.2; -5.7 17.0 0.5; -0.2 0.5 5.6],
+                [0.4 -0.5 0.1; -0.5 1.7 -0.6; 0.1 -0.6 7.5],
+            ),
+            (
+                maximum(sum(cj(X3m, I3); dims = 1)), colmax,
+                [214.9 -170.3 116.1; -170.3 364.9 -33.5; 116.1 -33.5 78.2],
+                [0.6 -8.7 2.6; -8.7 255.3 -53.7; 2.6 -53.7 236.4],
+            ),
+            (
+                maximum(sum(inv(X3m); dims = 1)), A -> colmax(inv(A)),
+                [2.2 -7.3 1.9; -7.3 29.7 -7.6; 1.9 -7.6 2.3],
+                [0.7 1.2 -3.1; 1.2 3.5 -8.5; -3.1 -8.5 23.6],
+            ),
+            (
+                sum(abs.(inv(X3m))), A -> sum(abs.(inv(A))),
+                [2.1 -2.2 3.8; -2.2 3.0 -4.7; 3.8 -4.7 8.8],
+                [0.3 0.0 0.0; 0.0 0.3 0.0; 0.0 0.0 0.6],
+            ),
+        )
+        J3 = ones(3, 3)
+        P, Q, H = 4I3 - (7 / 6) * J3, 4I3 - (2 / 3) * J3, J3 + I3 / 2
+        witnesses = (
+            witnesses...,
+            (sum(map(abs, cj(X3m, I3))), A -> sum(abs.(A)), P, Q),
+            (sum(map(abs, had(X3m, H))), A -> sum(abs.(had(A, H))), P, Q),
+        )
+        for (ex, f, P, Q) in witnesses
+            G = Manifolds.shortest_geodesic(M3, P, Q, 0.5)
+            @test f(G) > (f(P) + f(Q)) / 2 + 1.0e-3
+            @test analyze(ex, M3).gcurvature != SymbolicAnalysis.GConvex
+        end
+        for ex in (
+                maximum(cj(X3m, I3)), norm(cj(X3m, I3), Inf), norm(cj(X3m, I3), 4),
+                sum(cj(X3m, I3)), tr(inv(X3m)), maximum(inv(X3m)), norm(inv(X3m), Inf),
+            )
+            @test analyze(ex, M3).gcurvature == SymbolicAnalysis.GConvex
+        end
+    end
 end
