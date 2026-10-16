@@ -554,12 +554,28 @@ function const_factor_sign(args)
     return getsign(constant_prod)
 end
 
-function mul_curvature(args)
-    # Avoid allocations by not using findall
-    # All but one arg must be constant
+sign_times(a::Sign, b::Sign) = a == AnySign || b == AnySign ? AnySign : a == b ? Positive : Negative
+
+# A congruence `C * M * C'` (or no matrix factor at all) is monotone in the
+# Loewner order of `M`; any other constant matrix factor reads entries of `M`.
+is_congruence(left, right) = left === right === nothing ||
+    left !== nothing && right !== nothing && left == adjoint(right)
+
+"""
+    mul_curvature(args; elementwise = false)
+
+Curvature of the product of `args`, at most one of which is non-constant. A
+matrix product `L * M * R` has entries `Σ L[i,k] M[k,l] R[l,j]`, so an entrywise
+curvature of `M` survives only when every `L[i,k] * R[l,j]` shares a sign; a
+Loewner-curved `M` survives only a scalar factor times a congruence `C * M * C'`.
+With `elementwise`, the product is a broadcast `.*` and positions do not matter.
+"""
+function mul_curvature(args; elementwise = false)
     non_constant_expr = nothing
     non_constant_count = 0
-    constant_prod = one(Float64)
+    scalar = one(Float64)
+    left = nothing
+    right = nothing
     for arg in args
         if issym(arg) || iscall(arg)
             non_constant_count += 1
@@ -569,29 +585,35 @@ function mul_curvature(args)
                 return UnknownCurvature
             end
         else
-            constant_prod *= constval(arg)
+            c = constval(arg)
+            if c isa Number || elementwise
+                scalar = scalar .* c
+            elseif non_constant_expr === nothing
+                left = left === nothing ? c : left * c
+            else
+                right = right === nothing ? c : right * c
+            end
         end
     end
+    non_constant_expr === nothing && return Affine
 
-    if non_constant_expr !== nothing
-        constant_prod isa Number || !loewner_curved(non_constant_expr) ||
-            return UnknownCurvature
-        curv = find_curvature(non_constant_expr)
-        # A linear map keeps an affine argument affine whatever the coefficients
-        # are, but it preserves a curvature only when every coefficient shares a
-        # sign: a mixed-sign constant matrix sums convex and concave terms.
-        curv == Affine && return Affine
-        constant_sign = getsign(constant_prod)
-        return if constant_sign == Negative
-            # flip
-            curv == Convex ? Concave : curv == Concave ? Convex : curv
-        elseif constant_sign == Positive
-            curv
-        else
-            UnknownCurvature
-        end
+    if loewner_curved(non_constant_expr)
+        scalar isa Number && is_congruence(left, right) || return UnknownCurvature
+        coeff_sign = getsign(scalar)
+    else
+        coeff_sign = getsign(scalar)
+        left === nothing || (coeff_sign = sign_times(coeff_sign, getsign(left)))
+        right === nothing || (coeff_sign = sign_times(coeff_sign, getsign(right)))
     end
-    return Affine
+    curv = find_curvature(non_constant_expr)
+    curv == Affine && return Affine
+    return if coeff_sign == Negative
+        curv == Convex ? Concave : curv == Concave ? Convex : curv
+    elseif coeff_sign == Positive
+        curv
+    else
+        UnknownCurvature
+    end
 end
 
 function add_curvature(args)

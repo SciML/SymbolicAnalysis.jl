@@ -1017,6 +1017,39 @@ end
 @test curv_of(sum(2sqrt(PXd))) == SymbolicAnalysis.Concave
 @test curv_of(tr(3 .* log(PXd) + PXd)) == SymbolicAnalysis.Concave
 
+# A bilinear form `c' * M * d` weights entry `M[k,l]` by `c[k] * d[l]`: a
+# Loewner-curved `M` keeps its curvature only under a congruence, an entrywise
+# one only when every weight shares a sign.
+let A = Rational{BigInt}[1 0; 0 1], B = Rational{BigInt}[2 -1; -1 2],
+        f(Z) = inv(Z)[1, 2], g(Z) = [1, -1]' * (Z .^ 2) * [1, 1]
+    @test f((A + B) / 2) > (f(A) + f(B)) / 2
+    P, Q = zeros(Int, 2, 2), [0 0; 2 0]
+    @test g((P + Q) / 2) > (g(P) + g(Q)) / 2
+    h(Z) = sum([1 -1; 1 -1] * (Z .^ 2) * [1 1; 1 1])
+    @test h((P + Q) / 2) > (h(P) + h(Q)) / 2
+end
+let h(Z) = sqrt(Z)[1, 2], A = [1.0 0; 0 1], B = [2.0 -1; -1 2]
+    @test h((A + B) / 2) < (h(A) + h(B)) / 2
+end
+@variables BU[1:2, 1:2]
+for ex in (
+        [1, 0]' * inv(PXd) * [0, 1], [1, 0]' * log(PXd) * [0, 1],
+        [1, 0]' * sqrt(PXd) * [0, 1], [1, 1]' * sqrt(PXd) * [1, -2],
+        [1, -1]' * (BU .^ 2) * [1, 1], [1, -1]' * exp.(BU) * [1, 1],
+        [1, 2]' * (BU .^ 2) * [1, -1], sum([1 -1; 1 -1] * (BU .^ 2) * [1 1; 1 1]),
+    )
+    @test curv_of(ex) == SymbolicAnalysis.UnknownCurvature
+end
+for (ex, c) in (
+        ([1, -1]' * inv(PXd) * [1, -1], SymbolicAnalysis.Convex),
+        ([1, 2]' * log(PXd) * [1, 2], SymbolicAnalysis.Concave),
+        (tr([1 2; 3 4] * inv(PXd) * [1 2; 3 4]'), SymbolicAnalysis.Convex),
+        ([1, 2]' * (BU .^ 2) * [3, 1], SymbolicAnalysis.Convex),
+        ([1, 2]' * (BU .^ 2) * [-3, -1], SymbolicAnalysis.Concave),
+    )
+    @test curv_of(ex) == c
+end
+
 # Floating-point Cholesky is not a PD proof: this matrix has determinant -2⁻⁴⁸.
 let A = [5.0 11; 11 24.2]
     @test isposdef(A) && det(Rational{BigInt}.(A)) < 0

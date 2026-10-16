@@ -1152,7 +1152,7 @@ function dcprule(::typeof(broadcast), f, x...)
         # flip `mul_curvature` has already applied.
         s = const_factor_sign(x)
         mono = s == Negative ? Decreasing : s == Positive ? Increasing : AnyMono
-        return makerule(array_domain(RealLine()), mul_sign(x), mul_curvature(x), mono), x
+        return makerule(array_domain(RealLine()), mul_sign(x), mul_curvature(x; elementwise = true), mono), x
     end
     hasdcprule(g) || return no_rule(array_domain(RealLine()), x)
     return elementwise_dcprule(g, x...)
