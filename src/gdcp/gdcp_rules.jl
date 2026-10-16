@@ -257,6 +257,17 @@ function add_gcurvature(args)
     end
 end
 
+# A matrix argument's `Positive` sign and geodesic curvature on the SPD cone are
+# in the Loewner order. Of the entrywise `norm(A, p)`, only the Frobenius norm
+# (p = 2) is treated as monotone there; the 1-norm is not (see test/dgp.jl).
+function loewner_monotonicity(f, args, monotonicity)
+    if f === LinearAlgebra.norm && length(args) == 2 &&
+            SymbolicUtils.symtype(args[1]) <: AbstractMatrix && !isequal(constval(args[2]), 2)
+        return AnyMono
+    end
+    return monotonicity
+end
+
 function find_gcurvature(ex)
     # Checked before any stored curvature: a constant factor is a mutable matrix,
     # so metadata from an earlier analysis can certify a factor that is now invalid.
@@ -371,7 +382,7 @@ function find_gcurvature(ex)
                 return GUnknownCurvature
             rule, args = dcprule(f, args...)
             f_curvature = rule.curvature
-            f_monotonicity = rule.monotonicity
+            f_monotonicity = loewner_monotonicity(f, args, rule.monotonicity)
         end
 
         if f_curvature == Convex || f_curvature == Affine
@@ -394,7 +405,7 @@ function find_gcurvature(ex)
         elseif f_curvature == Concave
             if all(enumerate(args)) do (i, arg)
                     arg_curv = find_gcurvature(arg)
-                    m = f_monotonicity[i]
+                    m = get_arg_property(f_monotonicity, i, args)
                     if arg_curv == GConcave
                         m == Increasing
                     elseif arg_curv == GConvex

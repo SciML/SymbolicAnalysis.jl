@@ -424,4 +424,28 @@ Base.getindex(C::CountingMatrix, i::Int, j::Int) = (C.reads[] += 1; C.A[i, j])
         @test SymbolicAnalysis.getsign(w) == r.sign
         @test SymbolicAnalysis.getgcurvature(w) == r.gcurvature
     end
+
+    # Matrix `norm(A, p)` is entrywise; only p = 2 is monotone in the Loewner order.
+    let J3 = ones(3, 3), I3 = Matrix(1.0I, 3, 3), M3 = SymmetricPositiveDefinite(3)
+        @variables X3n[1:3, 1:3]
+        P, Q = 4I3 - (7 / 6) * J3, 4I3 - (2 / 3) * J3
+        G = Manifolds.shortest_geodesic(M3, P, Q, 0.5)
+        H = J3 + I3 / 2
+        for (atom, h) in (
+                (A -> cj(A, I3), cj(X3n, I3)),
+                (A -> had(A, H), had(X3n, H)),
+            )
+            @test norm(atom(G), 1) > (norm(atom(P), 1) + norm(atom(Q), 1)) / 2
+            for ex in (norm(h, 1), norm(h, 3), norm(h, 0.5))
+                @test analyze(ex, M3).gcurvature != SymbolicAnalysis.GConvex
+                w = SymbolicAnalysis.propagate_gcurvature(ex, M3)
+                @test SymbolicAnalysis.getgcurvature(w) != SymbolicAnalysis.GConvex
+            end
+            for ex in (norm(h), norm(h, 2))
+                @test analyze(ex, M3).gcurvature == SymbolicAnalysis.GConvex
+                w = SymbolicAnalysis.propagate_gcurvature(ex, M3)
+                @test SymbolicAnalysis.getgcurvature(w) == SymbolicAnalysis.GConvex
+            end
+        end
+    end
 end
