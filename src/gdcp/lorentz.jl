@@ -275,6 +275,88 @@ function lorentz_least_squares(X::AbstractMatrix, y::AbstractVector, p::Symbolic
 end
 add_gdcprule(lorentz_least_squares, Manifolds.Lorentz, Positive, GConvex, AnyMono)
 
+# Exact checks of the atoms' geodesic-convexity conditions on constant data, used
+# by the symbolic rules. Data that is not a finite real constant fails them.
+exact_real(x) = x isa Union{Integer, Rational, AbstractFloat} && isfinite(x) ?
+    Rational{BigInt}(x) : nothing
+
+function exact_data(a)
+    isconstarg(a) || return nothing
+    v = constval(a)
+    if v isa AbstractArray
+        w = map(y -> exact_real(constval(y)), v)
+        return any(isnothing, w) ? nothing : Array{Rational{BigInt}}(w)
+    end
+    return exact_real(v)
+end
+
+# Positive (semi)definiteness of a symmetric rational matrix by exact elimination.
+function exact_psd(M::AbstractMatrix{Rational{BigInt}}; strict::Bool)
+    M = copy(M)
+    n = size(M, 1)
+    for k in 1:n
+        piv = M[k, k]
+        if piv < 0 || (strict && piv == 0)
+            return false
+        elseif piv == 0
+            all(iszero, @view M[k, (k + 1):n]) || return false
+            continue
+        end
+        for i in (k + 1):n, j in (k + 1):n
+            M[i, j] -= M[i, k] * M[k, j] / piv
+        end
+    end
+    return true
+end
+
+# A rational `r ≥ sqrt(s)` for rational `s ≥ 0`.
+function sqrt_upper(s::Rational{BigInt})
+    r = Rational{BigInt}(sqrt(BigFloat(s; precision = 256)))
+    while r^2 < s
+        r += max(r, 1) // big(2)^200
+    end
+    return r
+end
+
+# The conditions of `lorentz_homogeneous_quadratic` for the symmetric part of `A`:
+# `a = 0` and `Ā + σI ⪰ 0`, or `Ā + (σ - 2‖a‖)I ≻ 0`.
+function lorentz_quadratic_ok(A)
+    (A isa AbstractMatrix && size(A, 1) == size(A, 2) && size(A, 1) >= 2) || return false
+    S = (A + transpose(A)) / 2
+    d = size(S, 1) - 1
+    Abar, avec, sigma = S[1:d, 1:d], S[1:d, d + 1], S[d + 1, d + 1]
+    if all(iszero, avec)
+        return exact_psd(Abar + sigma * I; strict = false)
+    end
+    return exact_psd(Abar + (sigma - 2 * sqrt_upper(dot(avec, avec))) * I; strict = true)
+end
+
+lorentz_cone_ok(b) = b isa AbstractVector && !isempty(b) && b[end] >= 0 &&
+    sum(abs2, b[1:(end - 1)]; init = zero(eltype(b))) <= b[end]^2
+
+# Whether the data of a Lorentz quadratic atom are constants satisfying the atom's
+# geodesic-convexity condition; `true` for every other function.
+function lorentz_data_ok(f, args)
+    if f === lorentz_homogeneous_quadratic
+        return lorentz_quadratic_ok(exact_data(args[1]))
+    elseif f === lorentz_homogeneous_diagonal
+        a = exact_data(args[1])
+        return a isa AbstractVector && length(a) >= 2 &&
+            minimum(a[1:(end - 1)]) + a[end] >= 0
+    elseif f === lorentz_nonhomogeneous_quadratic
+        exact_data(args[3]) isa Rational || return false
+        return lorentz_quadratic_ok(exact_data(args[1])) &&
+            lorentz_cone_ok(exact_data(args[2]))
+    elseif f === lorentz_least_squares
+        X, y = exact_data(args[1]), exact_data(args[2])
+        (X isa AbstractMatrix && y isa AbstractVector && size(X, 1) == length(y)) ||
+            return false
+        return lorentz_quadratic_ok(transpose(X) * X) &&
+            lorentz_cone_ok(-2 * transpose(X) * y)
+    end
+    return true
+end
+
 """
     lorentz_transform(O, p) -> AbstractVector
 

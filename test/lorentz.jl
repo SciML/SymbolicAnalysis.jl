@@ -144,5 +144,76 @@ end
     @test analyze(SymbolicAnalysis.lorentz_homogeneous_quadratic(A4, p), M).gcurvature ==
         SymbolicAnalysis.GUnknownCurvature
     @test analyze(SymbolicAnalysis.lorentz_homogeneous_quadratic(A3, p), M).gcurvature ==
+        SymbolicAnalysis.GUnknownCurvature
+end
+
+@testset "Lorentz quadratic atoms need data satisfying their conditions" begin
+    @variables p[1:3] A3[1:3, 1:3] a3[1:3] b3[1:3]
+    M = Lorentz(2)
+    gc(ex) = analyze(ex, M).gcurvature
+    unknown = SymbolicAnalysis.GUnknownCurvature
+    mink(u, v) = u[1] * v[1] + u[2] * v[2] - u[3] * v[3]
+    function geodesic_mid(P, Q)
+        d = acosh(-mink(P, Q))
+        return (P .+ Q) ./ (2 * cosh(d / 2))
+    end
+    # Each `f` violates geodesic midpoint convexity between `P` and `Q`.
+    s1, c1 = sinh(big(1)), cosh(big(1))
+    pt(x1, x2) = BigFloat[x1, x2, sqrt(1 + big(x1)^2 + big(x2)^2)]
+    p0, e2 = BigFloat[2.5, 0, sqrt(big(7.25))], BigFloat[0, 1, 0]
+    cases = [
+        (
+            SymbolicAnalysis.lorentz_homogeneous_diagonal([1.0, 1.0, -3.0], p),
+            x -> x[1]^2 + x[2]^2 - 3x[3]^2, pt(-1, 0), pt(1, 0),
+        ),
+        (
+            SymbolicAnalysis.lorentz_homogeneous_quadratic([1.0 0 0; 0 1 0; 0 0 -3], p),
+            x -> x[1]^2 + x[2]^2 - 3x[3]^2, pt(-1, 0), pt(1, 0),
+        ),
+        (
+            SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(
+                [1.0 0 0; 0 1 0; 0 0 -1], [-1.0, 0, 0], 0.0, p
+            ),
+            x -> x[1]^2 + x[2]^2 - x[3]^2 - x[1], BigFloat[0, 0, 1],
+            BigFloat[sinh(big(2)), 0, cosh(big(2))],
+        ),
+        (
+            SymbolicAnalysis.lorentz_least_squares([1.0 0 0], [5.0], p),
+            x -> (5 - x[1])^2, c1 .* p0 .- s1 .* e2, c1 .* p0 .+ s1 .* e2,
+        ),
+        (
+            SymbolicAnalysis.lorentz_least_squares(Matrix(1.0I(3)), [0, 0, 5.0], p),
+            x -> x[1]^2 + x[2]^2 + (5 - x[3])^2, BigFloat[s1, 0, c1],
+            BigFloat[-s1, 0, c1],
+        ),
+    ]
+    for (ex, f, P, Q) in cases
+        @test f(geodesic_mid(P, Q)) > (f(P) + f(Q)) / 2
+        @test gc(ex) == unknown
+    end
+    @test analyze(SymbolicAnalysis.lorentz_least_squares([1.0 0 0], [5.0], p), M).sign ==
+        SymbolicAnalysis.Positive
+
+    @test gc(SymbolicAnalysis.lorentz_homogeneous_quadratic(A3, p)) == unknown
+    @test gc(SymbolicAnalysis.lorentz_homogeneous_diagonal(a3, p)) == unknown
+    @test gc(SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(Matrix(1.0I(3)), b3, 0.0, p)) ==
+        unknown
+
+    # Boundary data: `σ = -λ_min(Ā)` is admitted, one ulp below is not.
+    @test gc(SymbolicAnalysis.lorentz_homogeneous_diagonal([1.0, 1.0, -1.0], p)) ==
         SymbolicAnalysis.GConvex
+    @test gc(SymbolicAnalysis.lorentz_homogeneous_diagonal([1.0, 1.0, prevfloat(-1.0)], p)) ==
+        unknown
+    @test gc(SymbolicAnalysis.lorentz_homogeneous_quadratic([1.0 0 0; 0 1 0; 0 0 -1], p)) ==
+        SymbolicAnalysis.GConvex
+    @test gc(
+        SymbolicAnalysis.lorentz_homogeneous_quadratic(
+            [1.0 0 0; 0 1 0; 0 0 prevfloat(-1.0)], p
+        )
+    ) == unknown
+    # `a ≠ 0` branch: σ + λ_min(Ā) > 2‖a‖ with `a = (0, 1)`, `Ā = I`.
+    @test gc(SymbolicAnalysis.lorentz_homogeneous_quadratic([1.0 0 0; 0 1 1; 0 1 1.5], p)) ==
+        SymbolicAnalysis.GConvex
+    @test gc(SymbolicAnalysis.lorentz_homogeneous_quadratic([1.0 0 0; 0 1 1; 0 1 1], p)) ==
+        unknown
 end

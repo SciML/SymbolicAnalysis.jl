@@ -421,6 +421,7 @@ function find_gcurvature(ex, M = nothing)
     if iscall(ex)
         f, args = operation(ex), arguments(ex)
         atom_dims_ok(f, args) || return GUnknownCurvature
+        lorentz_data_ok(f, args) || return GUnknownCurvature
         knowngcurv = false
         f_curvature = GUnknownCurvature
         f_monotonicity = (GAnyMono,)
@@ -545,6 +546,7 @@ function find_gcurvature(ex, M = nothing)
     elseif hasfield(typeof(ex), :val) && haskey(gdcprules_dict, operation(ex.val))
         f, args = operation(ex.val), arguments(ex.val)
         gdcp_rule_applies(f, M) || return GLinear
+        lorentz_data_ok(f, args) || return GUnknownCurvature
         rule, args = gdcprule(f, args...)
         return rule.gcurvature
     else
