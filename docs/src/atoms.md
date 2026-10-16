@@ -22,7 +22,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | maximum                   | array_domain(ℝ)                                                                | AnySign   | Convex    | Increasing                                  |
 | minimum                   | array_domain(ℝ)                                                                | AnySign   | Concave   | Increasing                                  |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(1, Inf))                            | Positive  | Convex    | increasing_if_positive                      |
-| norm                      | (array_domain(ℝ), Interval{:closed, :open}(0, 1))                              | Positive  | Convex    | increasing_if_positive                      |
+| norm                      | (array_domain(HalfLine()), Interval{:open, :open}(0, 1))                       | Positive  | See below | See below                                   |
 | perspective(f, x, s)      | See below                                                                      | See below | See below | See below                                   |
 | quad_form                 | (array_domain(ℝ, 1), semidefinite_domain())                                    | See below | See below | See below                                   |
 | quad_over_lin             | (array_domain(ℝ), HalfLine{Real,:open}())                                      | Positive  | Convex    | (increasing_if_positive, Decreasing)        |
@@ -66,14 +66,35 @@ This page is intended to be a reference for the atoms that are currently impleme
 | rel_entr                  | (HalfLine{Real,:open}(), HalfLine{Real,:open}())                               | AnySign   | Convex    | (AnyMono, Decreasing)                       |
 | sqrt                      | HalfLine()                                                                     | Positive  | Concave   | Increasing                                  |
 | xexpx                     | HalfLine()                                                                     | Positive  | Convex    | Increasing                                  |
-| conv                      | (array_domain(ℝ, 1), array_domain(ℝ, 1))                                       | AnySign   | Affine    | AnyMono                                     |
+| conv                      | (array_domain(ℝ, 1), array_domain(ℝ, 1))                                       | AnySign   | See below | See below                                   |
 | cumsum                    | array_domain(ℝ)                                                                | AnySign   | Affine    | Increasing                                  |
 | diagm                     | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                                  |
 | diag                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
 | diff                      | array_domain(ℝ)                                                                | AnySign   | Affine    | Increasing                                  |
-| kron                      | (array_domain(ℝ, 2), array_domain(ℝ, 2))                                       | AnySign   | Affine    | Increasing                                  |
+| kron                      | (array_domain(ℝ, 2), array_domain(ℝ, 2))                                       | AnySign   | See below | See below                                   |
 | tril                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
+| triu                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
+| vec                       | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
+| reshape                   | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
+| hcat                      | array_domain(array_domain(ℝ, 1), 1)                                            | AnySign   | Affine    | Increasing                                  |
+| vcat                      | array_domain(array_domain(ℝ, 1), 1)                                            | AnySign   | Affine    | Increasing                                  |
 | transpose                 | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                                  |
+| adjoint                   | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                                  |
+| getindex                  | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | AnyMono                                     |
+
+### Norm
+
+`norm(x, p)` is a norm, hence convex, only for `p ≥ 1`. For `0 < p < 1`,
+`(Σ|xᵢ|ᵖ)^(1/p)` is concave on the nonnegative orthant and indefinite elsewhere,
+so the concave certificate requires a known-positive argument. A symbolic `p`
+or `p ≤ 0` gets no curvature.
+
+| Atom       | Condition                         | Sign     | Curvature        | Monotonicity           |
+|:---------- |:--------------------------------- |:-------- |:---------------- |:---------------------- |
+| norm(x)    | (`p = 2`)                         | Positive | Convex           | increasing_if_positive |
+| norm(x, p) | constant `p ≥ 1`                  | Positive | Convex           | increasing_if_positive |
+| norm(x, p) | constant `0 < p < 1`, `x` known positive | Positive | Concave   | Increasing             |
+| norm(x, p) | otherwise                         | Positive | UnknownCurvature | AnyMono                |
 
 ### Perspective
 
@@ -112,18 +133,24 @@ known positive.
 
 ### Bilinear atoms
 
-`dot`, `dotsort`, `quad_form` and `huber`'s threshold slot are bilinear: each is
-a convex (or affine) atom only when the argument it is linear in is a constant.
+`dot`, `conv`, `kron`, `dotsort`, `quad_form` and `huber`'s threshold slot are
+bilinear: each is a convex (or affine) atom only when the argument it is linear
+in is a constant.
 With every argument symbolic the expression is indefinite, so the curvature
 depends on the arguments and there is no single table entry.
 
 | Atom                 | Condition                        | Sign     | Curvature | Monotonicity                                |
 |:-------------------- |:-------------------------------- |:-------- |:--------- |:------------------------------------------- |
-| dot(x, y)            | `x` or `y` constant              | AnySign  | Affine    | Increasing                                  |
+| dot(x, y)            | `x` or `y` constant              | AnySign  | Affine    | AnyMono                                     |
 | dot(x, y)            | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
+| conv(x, y)           | `x` or `y` constant              | AnySign  | Affine    | AnyMono                                     |
+| conv(x, y)           | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
+| kron(X, Y)           | `X` or `Y` constant              | AnySign  | Affine    | AnyMono                                     |
+| kron(X, Y)           | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
 | dotsort(x, y)        | `x` or `y` constant              | AnySign  | Convex    | (AnyMono, increasing_if_positive ∘ minimum) |
 | dotsort(x, y)        | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
-| quad_form(x, P)      | `P` a constant `isposdef` matrix | Positive | Convex    | (increasing_if_positive, Increasing)        |
+| quad_form(x, P)      | `P` a constant `isposdef` matrix, entrywise ≥ 0 | Positive | Convex | (increasing_if_positive, Increasing) |
+| quad_form(x, P)      | `P` a constant `isposdef` matrix with a negative entry | Positive | Convex | (AnyMono, Increasing)      |
 | quad_form(x, P)      | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
 | huber(x, M)          | `M` constant                     | Positive | Convex    | increasing_if_positive                      |
 | huber(x, M)          | otherwise                        | AnySign  | UnknownCurvature | AnyMono                              |
@@ -131,7 +158,12 @@ depends on the arguments and there is no single table entry.
 `quad_form` is *linear* in `P`, so a non-constant `P` makes `x'Px` indefinite;
 a constant but indefinite `P` does too (`quad_form(x, [1 0; 0 -1])` is
 `x[1]^2 - x[2]^2`). `isposdef` matches the `semidefinite_domain()` the rule
-declares, so a singular positive semidefinite `P` gets no certificate.
+declares, so a singular positive semidefinite `P` gets no certificate. The `x`
+slot is `increasing_if_positive` only for an entrywise nonnegative `P`: with
+`P = [1 -0.9; -0.9 1]`, `x'Px` decreases in `x[1]` near `x = [0.5, 1]`.
+
+The constant side of `dot`, `conv` and `kron` holds the coefficients of the
+linear map, which may have either sign, so the affine case is `AnyMono`.
 
 ### Special Cases for ^(x, i)
 
@@ -161,7 +193,6 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 | LinearAlgebra.eigmax       | Positive | GConvex            | GIncreasing  |
 | log_quad_form              | AnySign  | GConvex            | GIncreasing  |
 | inv                        | Positive | GConvex            | GDecreasing  |
-| diag                       | Positive | GConvex            | GIncreasing  |
 | eigsummax                  | Positive | GConvex            | GIncreasing  |
 | schatten_norm              | Positive | GConvex            | GIncreasing  |
 | sum_log_eigmax             | AnySign  | GConvex            | GIncreasing  |
@@ -176,6 +207,7 @@ declares, so a singular positive semidefinite `P` gets no certificate.
 | lorentz_log_barrier           | AnySign  | GConvex            | GIncreasing  |
 | lorentz_homogeneous_quadratic | AnySign  | GConvex            | GAnyMono     |
 | lorentz_homogeneous_diagonal  | AnySign  | GConvex            | GAnyMono     |
+| lorentz_nonhomogeneous_quadratic | AnySign | GConvex          | GAnyMono     |
 | lorentz_least_squares         | Positive | GConvex            | GAnyMono     |
 | lorentz_transform             | -        | -                  | -            |
 
