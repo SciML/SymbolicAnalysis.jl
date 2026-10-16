@@ -953,3 +953,5 @@ ipv_pos = Symbolics.wrap(
 @test SymbolicAnalysis.StatsBase.kldivergence([1.0, 1.0], [2.0, 2.0]) < 0
 @test SymbolicAnalysis.dcprules_dict[SymbolicAnalysis.StatsBase.kldivergence][1].sign ==
     SymbolicAnalysis.AnySign
+# diff([a, b]) = b − a is increasing in b and decreasing in a.
+@test SymbolicAnalysis.dcprules_dict[diff][1].monotonicity == (SymbolicAnalysis.AnyMono,)

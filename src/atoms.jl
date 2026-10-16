@@ -936,7 +936,7 @@ add_dcprule(diagm, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
 
 add_dcprule(diag, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 
-add_dcprule(diff, array_domain(RealLine()), AnySign, Affine, Increasing)
+add_dcprule(diff, array_domain(RealLine()), AnySign, Affine, AnyMono)
 
 add_dcprule(hcat, array_domain(array_domain(RealLine(), 1), 1), AnySign, Affine, Increasing)
 
