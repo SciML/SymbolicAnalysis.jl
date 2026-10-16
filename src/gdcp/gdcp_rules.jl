@@ -258,11 +258,13 @@ function add_gcurvature(args)
 end
 
 function find_gcurvature(ex)
+    # Checked before any stored curvature: a constant factor is a mutable matrix,
+    # so metadata from an earlier analysis can certify a factor that is now invalid.
+    iscall(ex) && !valid_constant_factors(ex) && return GUnknownCurvature
     if hasgcurvature(ex)
         return getgcurvature(ex)
     end
     if iscall(ex)
-        valid_constant_factors(ex) || return GUnknownCurvature
         f, args = operation(ex), arguments(ex)
         knowngcurv = false
         f_curvature = GUnknownCurvature

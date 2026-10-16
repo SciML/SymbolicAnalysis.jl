@@ -399,4 +399,29 @@ Base.getindex(C::CountingMatrix, i::Int, j::Int) = (C.reads[] += 1; C.A[i, j])
         end
         @test analyze(exp(exp(tr(had(X3, C)))), M3).gcurvature == SymbolicAnalysis.GConvex
     end
+
+    # Curvature stored by an earlier analysis must not outlive a factor that has
+    # since been mutated into an indefinite matrix.
+    let B = [2.0 1.0; 1.0 2.0]
+        raw = tr(had(X2, B))
+        annotated = SymbolicAnalysis.propagate_gcurvature(raw, M2)
+        @test SymbolicAnalysis.getgcurvature(annotated) == SymbolicAnalysis.GConvex
+        B .= D
+        @test !gconvex(raw)
+        @test !gconvex(annotated)
+        rewalked = SymbolicAnalysis.propagate_gcurvature(annotated, M2)
+        @test SymbolicAnalysis.getgcurvature(rewalked) != SymbolicAnalysis.GConvex
+        @test SymbolicAnalysis.getsign(rewalked) != SymbolicAnalysis.Positive
+    end
+
+    # The metadata walks rebuild terms, which must keep matrix atoms matrix-typed.
+    for ex in (
+            norm(had(X2, D)), norm(had(X2, Hpsd)), norm(cj(X2, A0)),
+            norm(aff(cj, X2, I2, A0)),
+        )
+        w = SymbolicAnalysis.propagate_gcurvature(ex, M2)
+        r = analyze(ex, M2)
+        @test SymbolicAnalysis.getsign(w) == r.sign
+        @test SymbolicAnalysis.getgcurvature(w) == r.gcurvature
+    end
 end

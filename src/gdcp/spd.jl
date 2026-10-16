@@ -40,6 +40,10 @@ end
 
 conjugation(X::Symbolics.Arr, B::AbstractMatrix) = array_atom_term(conjugation, X, B)
 
+# `maketerm` re-derives a rebuilt term's type from `promote_symtype`, so the
+# metadata walks need these to keep matrix atoms matrix-typed under `norm` etc.
+SymbolicUtils.promote_symtype(::typeof(conjugation), Ts...) = Matrix{Real}
+
 add_gdcprule(conjugation, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
 # Symbolics v7 builds a `tr` term natively for symbolic matrices, so no
@@ -348,6 +352,7 @@ function affine_map(f::Union{typeof(diag), typeof(tr)}, X::AbstractMatrix, B::Ab
 end
 
 add_gdcprule(affine_map, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+SymbolicUtils.promote_symtype(::typeof(affine_map), Ts...) = Matrix{Real}
 
 function constant_factors_ok(::typeof(affine_map), args)
     g = constval(args[1])
@@ -394,6 +399,7 @@ function hadamard_product(X::Symbolics.Arr, B::AbstractMatrix)
 end
 
 add_gdcprule(hadamard_product, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
+SymbolicUtils.promote_symtype(::typeof(hadamard_product), Ts...) = Matrix{Real}
 
 constant_factors_ok(::typeof(hadamard_product), args) = psd_constant(args[2])
 
