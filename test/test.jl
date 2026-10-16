@@ -946,3 +946,10 @@ ipv_pos = Symbolics.wrap(
     )
 )
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos)) == SymbolicAnalysis.Convex
+
+# Registered rules checked against numeric witnesses.
+# SymbolicAnalysis.StatsBase.kldivergence is Σ pᵢ log(pᵢ/qᵢ) without the −p + q terms, so it is
+# negative for unnormalised inputs: kldivergence([1, 1], [2, 2]) = −2 log 2.
+@test SymbolicAnalysis.StatsBase.kldivergence([1.0, 1.0], [2.0, 2.0]) < 0
+@test SymbolicAnalysis.dcprules_dict[SymbolicAnalysis.StatsBase.kldivergence][1].sign ==
+    SymbolicAnalysis.AnySign

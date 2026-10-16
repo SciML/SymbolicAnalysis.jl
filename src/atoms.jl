@@ -730,7 +730,7 @@ add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
 add_dcprule(
     kldivergence,
     (array_domain(HalfLine{Real, :open}(), 1), array_domain(HalfLine{Real, :open}(), 1)),
-    Positive,
+    AnySign,
     Convex,
     AnyMono
 )
