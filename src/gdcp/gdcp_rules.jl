@@ -300,8 +300,9 @@ hasgcurvature(ex) = ex isa Real
 
 # A non-constant matrix that the walk calls `GLinear` on SPD is a positive
 # combination of points, and `X ↦ X` is geodesically convex but not concave in
-# the Loewner order (`P # Q ⪯ (P + Q) / 2`). Scaling and summing must see it as
-# `GConvex`, so `-X` comes out `GConcave` and `-X + Φ(X)` unknown.
+# the Loewner order (`P # Q ⪯ (P + Q) / 2`). Scaling, summing and Euclidean
+# composition must see it as `GConvex`, so `-X` comes out `GConcave` and
+# `-X + Φ(X)` and `inv(X) - X` unknown.
 function loewner_gcurvature(ex, curv, M)
     curv == GLinear && M isa SymmetricPositiveDefinite && !isconstarg(ex) &&
         (issym(ex) || iscall(ex)) && SymbolicUtils.symtype(ex) <: AbstractArray || return curv
@@ -522,6 +523,8 @@ function find_gcurvature(ex, M = nothing)
                         m == Increasing
                     elseif arg_curv == GConcave
                         m == Decreasing
+                    elseif loewner_gcurvature(arg, arg_curv, M) == GConvex
+                        m == Increasing
                     else
                         arg_curv == GLinear
                     end
@@ -537,6 +540,8 @@ function find_gcurvature(ex, M = nothing)
                     if arg_curv == GConcave
                         m == Increasing
                     elseif arg_curv == GConvex
+                        m == Decreasing
+                    elseif loewner_gcurvature(arg, arg_curv, M) == GConvex
                         m == Decreasing
                     else
                         arg_curv == GLinear

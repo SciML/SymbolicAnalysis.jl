@@ -266,7 +266,18 @@ anres = analyze(ex, M)
     P = Diagonal(exp.(big.([-1, 0])))
     Q = Diagonal(exp.(big.([1, 0])))
     @test fE(gmid(P, Q)) > (fE(P) + fE(Q)) / 2
-    for ex in (tr(2.0 * X2), tr(X2), tr(inv(X2)), tr(X2 + X2))
+    # Subtraction of arrays is `broadcast(-, A, B)`, decreasing in `B`.
+    # `tr(inv(X)) - tr(X)` between `I` and `4I` gives -3 at `2I` against -3.75.
+    D = inv(X2) - X2
+    for ex in (D, tr(D), sum(D), tr(inv(X2) .- X2))
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    fD(A) = tr(inv(A)) - tr(A)
+    @test fD(gmid(big(1) * I(2), big(4) * I(2))) > (fD(big(1) * I(2)) + fD(big(4) * I(2))) / 2
+    C2 = [1.0 0.2; 0.2 1.0]
+    for ex in (
+            tr(2.0 * X2), tr(X2), tr(inv(X2)), tr(X2 + X2), tr(X2 - C2), tr(inv(X2) .+ X2),
+        )
         @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
     end
 
