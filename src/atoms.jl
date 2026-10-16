@@ -490,7 +490,7 @@ Returns the sum of the `k` largest elements of `x`.
     - `k::Int`: The number of largest elements to sum.
 """
 function sum_largest(x::AbstractMatrix, k::Integer)
-    return sum(sort(vec(x))[(end - k):end])
+    return sum(sort(vec(x))[(end - k + 1):end])
 end
 Symbolics.@register_symbolic sum_largest(x::AbstractMatrix, k::Integer)
 add_dcprule(sum_largest, (array_domain(RealLine(), 2), ℤ), AnySign, Convex, Increasing)
