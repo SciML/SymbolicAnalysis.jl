@@ -98,8 +98,8 @@ Symmetric divergence of two symmetric positive definite matrices `X` and `Y` is 
     - `Y::Matrix`: A symmetric positive definite matrix.
 
 The gDCP rule (`Positive`, `GConvex`) applies only when every constant argument is
-a numeric positive definite matrix (see `pd_constant`); otherwise the analysis
-returns `AnySign` and `GUnknownCurvature` for it and every expression containing it.
+a numeric positive definite matrix (see `pd_constant`); otherwise it provides no
+gDCP sign or curvature premise (see `hadamard_product`).
 """
 function sdivergence(X, Y)
     return logdet((X + Y) / 2) - 1 / 2 * logdet(X * Y)
@@ -269,6 +269,12 @@ psd_constant(B) = exact_semidefinite(B, false)
 pd_constant(B) = exact_semidefinite(B, true)
 
 function exact_semidefinite(B, strict::Bool)
+    cache = current_factor_cache()
+    cache === nothing && return exact_semidefinite_uncached(B, strict)
+    return get!(() -> exact_semidefinite_uncached(B, strict), cache.semidefinite, (constval(B), strict))
+end
+
+function exact_semidefinite_uncached(B, strict::Bool)
     real_constant_matrix(B) || return false
     Bv = map(constval, constval(B))
     all(x -> x isa Union{Integer, Rational, AbstractFloat}, Bv) || return false
@@ -309,8 +315,8 @@ positive semidefinite for `hadamard_product`. Then `X ↦ B + f(X, Y)` maps the 
 into the PSD cone and is geodesically convex in the Löwner order, and
 `logdet(B + f(X, Y))` is geodesically convex (Sra and Hosseini, "Conic geometric
 optimization on the manifold of positive definite matrices", SIAM J. Optim. 2015).
-Otherwise, including for symbolic factors, the analysis returns `AnySign` and
-`GUnknownCurvature` for the map and for every expression containing it.
+Otherwise, including for symbolic factors, the map provides no gDCP sign or
+curvature premise (see `hadamard_product`).
 
 # Arguments
 
@@ -370,8 +376,10 @@ numeric positive semidefinite matrix (see `psd_constant`). Then `B ∘ X` is
 positive semidefinite (Schur product theorem), `X ↦ B ∘ X` is a positive linear map
 and hence geodesically convex in the Löwner order, and `logdet(B ∘ X)` is
 geodesically convex (Sra and Hosseini 2015). For an indefinite, non-symmetric or
-symbolic `B` none of this holds, and the analysis returns `AnySign` and
-`GUnknownCurvature` for the product and for every expression containing it.
+symbolic `B` none of this holds: the product gets `AnySign` and `GUnknownCurvature`,
+and no geodesic curvature is derived for expressions containing it. Outer operations
+may still establish a sign independently, e.g. `abs(tr(hadamard_product(X, B)))` is
+`Positive`.
 """
 function hadamard_product(X::AbstractMatrix, B::AbstractMatrix)
     if (!(LinearAlgebra.isposdef(B)) || !(eigvals(Symmetric(B), 1:1)[1] >= 0.0)) &&

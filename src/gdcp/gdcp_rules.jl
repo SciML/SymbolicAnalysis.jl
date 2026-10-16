@@ -121,21 +121,51 @@ methods.
 """
 constant_factors_ok(f, args) = true
 
+# Per-analysis memo of constant-factor checks. `valid` maps a call node to its
+# `valid_constant_factors` result; `semidefinite` maps `(matrix, strict)` to the
+# exact (semi)definiteness proof, keyed on the constant matrix's identity so
+# trees rebuilt by the `propagate_*` walks still share it.
+struct FactorCache
+    valid::IdDict{Any, Bool}
+    semidefinite::IdDict{Any, Bool}
+end
+FactorCache() = FactorCache(IdDict{Any, Bool}(), IdDict{Any, Bool}())
+
+const FACTOR_CACHE_KEY = :SymbolicAnalysis_factor_cache
+
+current_factor_cache() = get(task_local_storage(), FACTOR_CACHE_KEY, nothing)
+
+function with_factor_cache(f)
+    current_factor_cache() === nothing || return f()
+    tls = task_local_storage()
+    tls[FACTOR_CACHE_KEY] = FactorCache()
+    try
+        return f()
+    finally
+        delete!(tls, FACTOR_CACHE_KEY)
+    end
+end
+
 """
     valid_constant_factors(ex)
 
 `false` when some call in `ex` (including `ex` itself) fails
 `constant_factors_ok`. Such a node may not be a point of the manifold,
 so no geodesic sign or curvature is derived for anything that contains it.
+Within an analysis each node's result is computed once and reused by its
+ancestors.
 """
-function valid_constant_factors(ex)
+function valid_constant_factors(ex, cache = current_factor_cache())
     iscall(ex) || return true
-    args = arguments(ex)
-    constant_factors_ok(operation(ex), args) || return false
-    for a in args
-        valid_constant_factors(a) || return false
+    if cache !== nothing
+        hit = get(cache.valid, ex, nothing)
+        hit === nothing || return hit
     end
-    return true
+    args = arguments(ex)
+    ok = constant_factors_ok(operation(ex), args) &&
+        all(a -> valid_constant_factors(a, cache), args)
+    cache === nothing || (cache.valid[ex] = ok)
+    return ok
 end
 
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
@@ -415,6 +445,8 @@ function propagate_gcurvature(ex, M::AbstractManifold)
     # `propagate_sign` leaves behind. `find_gcurvature` falls back to the Euclidean
     # rule table for atoms with no geodesic rule and picks up `increasing_if_positive`
     # with it, so `distance(M, A, X)^2` needs `distance`'s manifold sign to compose.
-    ex = propagate_sign(ex, M)
-    return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
+    return with_factor_cache() do
+        ex = propagate_sign(ex, M)
+        Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
+    end
 end

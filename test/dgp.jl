@@ -304,6 +304,13 @@ end
 
 # Hadamard and affine-map rules hold only for PSD constant factors (Schur product
 # theorem; a PSD additive constant). Each claim below was refuted on random SPD pairs.
+struct CountingMatrix <: AbstractMatrix{Float64}
+    A::Matrix{Float64}
+    reads::Base.RefValue{Int}
+end
+Base.size(C::CountingMatrix) = size(C.A)
+Base.getindex(C::CountingMatrix, i::Int, j::Int) = (C.reads[] += 1; C.A[i, j])
+
 @testset "gDCP constant factors" begin
     had, aff, cj = SymbolicAnalysis.hadamard_product, SymbolicAnalysis.affine_map,
         SymbolicAnalysis.conjugation
@@ -370,5 +377,26 @@ end
         @test eigmin([0.1 0.0; 0.0 1.0] - 0.5I) < 0
         γ = Manifolds.shortest_geodesic(M2, P, Q, 0.5)
         @test tr(D .* γ) > (tr(D .* P) + tr(D .* Q)) / 2
+    end
+
+    # The exact factor proof is computed once per analysis, however many ancestors
+    # the factor has.
+    let C = CountingMatrix([2.0 1.0 0.0; 1.0 2.0 1.0; 0.0 1.0 2.0], Ref(0))
+        @variables X3[1:3, 1:3]
+        M3 = SymmetricPositiveDefinite(3)
+        function reads(f, depth)
+            ex = tr(had(X3, C))
+            for _ in 1:depth
+                ex = exp(ex)
+            end
+            C.reads[] = 0
+            f(ex)
+            return C.reads[]
+        end
+        for f in (ex -> analyze(ex, M3), ex -> SymbolicAnalysis.propagate_gcurvature(ex, M3))
+            @test reads(f, 0) > 0
+            @test reads(f, 10) == reads(f, 0)
+        end
+        @test analyze(exp(exp(tr(had(X3, C)))), M3).gcurvature == SymbolicAnalysis.GConvex
     end
 end

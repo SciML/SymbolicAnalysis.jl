@@ -410,7 +410,9 @@ function propagate_sign(ex, M = nothing)
     # computed exactly once. Only symbols and calls are annotated — wrapped
     # constants can't carry metadata on older SymbolicUtils v4 releases, and
     # every getter already falls back correctly for them.
-    return Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x, M)) : x)(ex)
+    return with_factor_cache() do
+        Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x, M)) : x)(ex)
+    end
 end
 
 ### Curvature ###
