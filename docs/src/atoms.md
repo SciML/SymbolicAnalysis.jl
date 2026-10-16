@@ -191,3 +191,18 @@ but `eigmax(X + [0 3; 0 0])` is not.
 | lorentz_transform             | -        | -                  | -            |
 
 Note: `lorentz_transform` does not have specific geodesic curvature properties by itself, but it preserves geodesic convexity when applied to geodesically convex functions.
+
+## Manifold variable and fixed parameters
+
+Geodesic curvature is reported with respect to the manifold variable: the symbolic
+arguments that are points of `M`, an `n×n` matrix on `SymmetricPositiveDefinite(n)`
+or a vector on `Lorentz`. Every other free symbol is a parameter held fixed. For
+example, with `@variables y[1:2] X[1:2, 1:2]`, `log_quad_form(y, X)` is `GConvex` on
+`SymmetricPositiveDefinite(2)` because ``X \mapsto \log(y^\top X y)`` is
+geodesically convex for each fixed `y`. A parameter's known size must match its role
+(`y` needs length 2 here), and an argument built from the point, such as
+`[sin(X[1, 1]), 0]`, is not a parameter.
+
+This is not joint convexity in the point and the parameters. A certificate also
+does not transfer to the expression obtained by substituting something for a
+parameter; analyze that expression again.

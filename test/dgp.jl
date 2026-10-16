@@ -391,4 +391,19 @@ end
     @test lq(Manifolds.shortest_geodesic(M2, I2, 2I2, 0.5)) > (lq(I2) + lq(2I2)) / 2
     @test analyze(log(SymbolicAnalysis.quad_form([1.0, 2.0], X2)), M2).gcurvature ==
         SymbolicAnalysis.GConvex
+
+    # A free parameter is admitted only if its known size fits its role.
+    @variables v2[1:2] v3[1:3]
+    for ex in [
+            SymbolicAnalysis.log_quad_form(v3, X2), SymbolicAnalysis.quad_form(v3, X2),
+            log(SymbolicAnalysis.quad_form(v3, X2)), SymbolicAnalysis.log_quad_form(v3, inv(X2)),
+        ]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    for ex in [
+            SymbolicAnalysis.log_quad_form(v2, X2), SymbolicAnalysis.quad_form(v2, X2),
+            log(SymbolicAnalysis.quad_form(v2, X2)),
+        ]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
+    end
 end

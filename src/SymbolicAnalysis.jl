@@ -132,6 +132,17 @@ An `AnalysisResult` with the fields:
 - `gcurvature::Union{SymbolicAnalysis.GCurvature, Nothing}`: geodesic curvature
   when `M` is supplied, or `nothing` otherwise.
 
+# Geodesic curvature and free parameters
+
+`gcurvature` is the curvature along geodesics of `M` in the manifold variable: a
+symbolic argument that is a point of `M` (an `n×n` matrix for
+`SymmetricPositiveDefinite(n)`, a vector for `Lorentz`). Any other free symbol,
+such as the vector `y` in `log_quad_form(y, X)`, is a parameter held fixed, and it
+must have a size compatible with its role when that size is known. The result is
+therefore not a statement of joint convexity in the point and the parameters, and
+it does not carry over when an expression is substituted for a parameter: analyze
+the substituted expression again.
+
 # Throws
 
 - `AssertionError`: if `M` is not a supported manifold.

@@ -233,6 +233,43 @@ end
 
 bare_arg_ok(a, M) = !issym(a) || fits_manifold(a, M) || fixed_param(a, M)
 
+# Size of an argument when it is known, else `nothing`.
+function known_size(a)
+    if isconstarg(a)
+        v = constval(a)
+        return v isa AbstractArray ? size(v) : ()
+    end
+    issym(a) || iscall(a) || return nothing
+    sh = SymbolicUtils.shape(a)
+    sh isa AbstractVector || return nothing
+    return Tuple(map(length, sh))
+end
+
+# Whether the known dimensions of an atom's parameters agree with its point
+# argument; a parameter of unknown size is admitted.
+function atom_dims_ok(f, args)
+    sz = map(known_size, args)
+    dim(i, k) = (s = sz[i]; s === nothing || length(s) < k ? nothing : s[k])
+    agree(x, y) = x === nothing || y === nothing || x == y
+    if f === quad_form || f === log_quad_form
+        length(args) == 2 || return true
+        return agree(dim(1, 1), dim(2, 1)) && agree(dim(1, 1), dim(2, 2))
+    elseif f === lorentz_homogeneous_quadratic || f === lorentz_homogeneous_diagonal ||
+            f === lorentz_nonhomogeneous_quadratic || f === lorentz_least_squares
+        d = dim(length(args), 1)
+        if f === lorentz_homogeneous_quadratic
+            return agree(dim(1, 1), d) && agree(dim(1, 2), d)
+        elseif f === lorentz_homogeneous_diagonal
+            return agree(dim(1, 1), d)
+        elseif f === lorentz_nonhomogeneous_quadratic
+            return agree(dim(1, 1), d) && agree(dim(1, 2), d) && agree(dim(2, 1), d)
+        else
+            return agree(dim(1, 2), d) && agree(dim(1, 1), dim(2, 1))
+        end
+    end
+    return true
+end
+
 gdcp_args_on_manifold(args, M) =
     all(a -> !(issym(a) || iscall(a)) || manifold_point(a, M), args)
 
@@ -383,6 +420,7 @@ function find_gcurvature(ex, M = nothing)
     end
     if iscall(ex)
         f, args = operation(ex), arguments(ex)
+        atom_dims_ok(f, args) || return GUnknownCurvature
         knowngcurv = false
         f_curvature = GUnknownCurvature
         f_monotonicity = (GAnyMono,)
@@ -402,6 +440,7 @@ function find_gcurvature(ex, M = nothing)
                 (operation(args[1]) == LinearAlgebra.tr && positive_image(arguments(args[1])[1], M)) ||
                     (
                     operation(args[1]) == quad_form && fixed_param(arguments(args[1])[1], M) &&
+                        atom_dims_ok(quad_form, arguments(args[1])) &&
                         positive_image(arguments(args[1])[2], M)
                 )
             )

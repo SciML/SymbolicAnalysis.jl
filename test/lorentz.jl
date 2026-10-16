@@ -137,3 +137,12 @@ end
     e3 = [0.0, 0.0, 1.0]
     @test SymbolicAnalysis.quad_form(e3, Matrix(Cind)) < 0
 end
+
+@testset "Lorentz parameters must match the point's dimension" begin
+    @variables p[1:3] A3[1:3, 1:3] A4[1:4, 1:4]
+    M = Lorentz(2)
+    @test analyze(SymbolicAnalysis.lorentz_homogeneous_quadratic(A4, p), M).gcurvature ==
+        SymbolicAnalysis.GUnknownCurvature
+    @test analyze(SymbolicAnalysis.lorentz_homogeneous_quadratic(A3, p), M).gcurvature ==
+        SymbolicAnalysis.GConvex
+end
