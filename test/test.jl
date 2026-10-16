@@ -1133,7 +1133,7 @@ s_closed = Symbolics.wrap(
 @test !SymbolicAnalysis.known_positive(unwrap(inv(s_closed)))
 @test curv_of(inv(ipv_pos[1] + (-2))) == SymbolicAnalysis.UnknownCurvature
 
-# Reviewer false-certificate reproducers (elem-sign-delta): reductions ignore
+# False-certificate reproducers: reductions ignore
 # `init` / emptiness, and memoized nonnegative `Sign.Positive` must not prove
 # open-half-line preconditions.
 let T(f, args...) = Symbolics.term(
@@ -1223,6 +1223,29 @@ let T(f, args...; type = Real) = Symbolics.term(f, unwrap.(args)...; type)
     @test SymbolicAnalysis.analyze(T(LogExpFunctions.xexpx, abs.(vg)[1])).curvature ==
         SymbolicAnalysis.Convex
     @test SymbolicAnalysis.analyze(unwrap(exp.(vg)[1])).sign == SymbolicAnalysis.Positive
+end
+
+# `tr(X .- 5)` has no sign on SPD (it is -8 at `X = I`), so element proofs on a
+# positive `vp` must not certify `invprod(vp .+ tr(X .- 5))` or `inv(vp[1] + tr(X .- 5))`.
+let
+    @variables Xm[1:2, 1:2] vm[1:3]
+    vp = Symbolics.wrap(
+        setmetadata(
+            unwrap(vm), SymbolicAnalysis.VarDomain,
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1)
+        )
+    )
+    M = SymmetricPositiveDefinite(2)
+    a = tr(Xm .- 5)
+    for e in (
+            SymbolicAnalysis.invprod(vp .+ a), SymbolicAnalysis.invprod(vp .+ a .+ 1),
+            inv((vp .+ a)[1]), inv(vp[1] + a),
+        )
+        r = SymbolicAnalysis.analyze(unwrap(e), M)
+        @test r.curvature != SymbolicAnalysis.Convex
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    @test SymbolicAnalysis.analyze(unwrap((vp .+ a)[1]), M).sign == SymbolicAnalysis.AnySign
 end
 
 # `c/x` on a nonnegative concave `x` is convex (cvxpy's `inv_pos`), with `+∞` at 0.

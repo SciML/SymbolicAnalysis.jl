@@ -939,7 +939,7 @@ function known_nonnegative(x)
     return g === abs || g === abs2 || g === sqrt || g === norm
 end
 
-# `Positive` means nonnegative, so strict positivity (needed by `inv`, `/`,
+# `Positive` means nonnegative, so strict positivity (needed by `invprod`,
 # `perspective`, …) is derived only from open-half-line domains and operations
 # that preserve it. This is elementwise for arrays.
 function known_positive(x)
