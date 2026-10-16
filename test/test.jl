@@ -962,3 +962,18 @@ end
 @test SymbolicAnalysis.gdcprules_dict[SymbolicAnalysis.sdivergence].gmonotonicity ==
     (SymbolicAnalysis.GAnyMono,)
 
+# harmmean exists for negative inputs, where it is not concave:
+# h(−1, −3) = h(−3, −1) = −1.5 > h(−2, −2) = −2.
+@test SymbolicAnalysis.StatsBase.harmmean([-2.0, -2.0]) < SymbolicAnalysis.StatsBase.harmmean([-1.0, -3.0])
+@variables hmv[1:2]
+@test SymbolicAnalysis.dcprule(SymbolicAnalysis.StatsBase.harmmean, unwrap(hmv))[1].curvature ==
+    SymbolicAnalysis.UnknownCurvature
+hmv_pos = setmetadata(
+    unwrap(hmv), SymbolicAnalysis.VarDomain,
+    SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1)
+)
+let rule = SymbolicAnalysis.dcprule(SymbolicAnalysis.StatsBase.harmmean, hmv_pos)[1]
+    @test rule.curvature == SymbolicAnalysis.Concave
+    @test rule.sign == SymbolicAnalysis.Positive
+end
+

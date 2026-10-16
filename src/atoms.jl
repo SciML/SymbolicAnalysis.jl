@@ -94,13 +94,37 @@ add_dcprule(
     Concave,
     Increasing
 )
-add_dcprule(
-    StatsBase.harmmean,
-    array_domain(HalfLine{Real, :open}(), 1),
-    Positive,
-    Concave,
-    Increasing
-)
+
+# Known-positive vector argument: a propagated `Positive` sign, or an array
+# `VarDomain` whose element domain lies in `(0, ∞)`.
+function known_positive_array(x)
+    getsign(x) == Positive && return true
+    _has_vardomain(x) || return false
+    d = getmetadata(x, VarDomain)
+    return try
+        f = d.in
+        hasproperty(f, :element_domain) &&
+            issubset(f.element_domain, HalfLine{Real, :open}())
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
+"""
+    dcprule(::typeof(harmmean), x)
+
+`harmmean` is concave-increasing on the positive orthant but also evaluates for
+negative entries, where it is not concave: `h(-1,-3) = h(-3,-1) = -1.5` while the
+midpoint `h(-2,-2) = -2`. Require a known-positive argument.
+"""
+function dcprule(::typeof(StatsBase.harmmean), x)
+    args = (x,)
+    known_positive_array(x) ||
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
+    return makerule(array_domain(HalfLine{Real, :open}(), 1), Positive, Concave, Increasing),
+        args
+end
+hasdcprule(::typeof(StatsBase.harmmean)) = true
 
 """
     invprod(x::AbstractVector)
@@ -130,19 +154,8 @@ array `VarDomain` whose element domain lies in `(0, ∞)`).
 """
 function dcprule(::typeof(invprod), x)
     args = (x,)
-    unknown = makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono)
-    ok = getsign(x) == Positive
-    if !ok && _has_vardomain(x)
-        d = getmetadata(x, VarDomain)
-        ok = try
-            f = d.in
-            hasproperty(f, :element_domain) &&
-                issubset(f.element_domain, HalfLine{Real, :open}())
-        catch e
-            e isa MethodError ? false : rethrow()
-        end
-    end
-    ok || return unknown, args
+    known_positive_array(x) ||
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
     return makerule(array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing),
         args
 end
