@@ -955,3 +955,10 @@ ipv_pos = Symbolics.wrap(
     SymbolicAnalysis.AnySign
 # diff([a, b]) = b − a is increasing in b and decreasing in a.
 @test SymbolicAnalysis.dcprules_dict[diff][1].monotonicity == (SymbolicAnalysis.AnyMono,)
+# S(X, B) is minimised at X = B, so adding a PSD matrix to X can decrease it.
+let B = [2.0 0.0; 0.0 2.0], P = [1.0 0.0; 0.0 1.0], X = B - P
+    @test SymbolicAnalysis.sdivergence(X, B) > SymbolicAnalysis.sdivergence(X + P, B)
+end
+@test SymbolicAnalysis.gdcprules_dict[SymbolicAnalysis.sdivergence].gmonotonicity ==
+    (SymbolicAnalysis.GAnyMono,)
+
