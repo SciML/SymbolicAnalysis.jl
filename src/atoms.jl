@@ -431,7 +431,7 @@ end
 hasdcprule(::typeof(quad_form)) = true
 
 function quad_over_lin(x::AbstractVector{<:Real}, y::Real)
-    if getsign(y) == Negative
+    if signbit(y)
         throw(DomainError(y, "y must be positive"))
     end
     return sum(x .^ 2) / y
@@ -453,7 +453,7 @@ Returns the quadratic over linear form `x^2 / y`.
     - `y::Real`: A positive Real.
 """
 function quad_over_lin(x::Real, y::Real)
-    if getsign(y) == Negative
+    if signbit(y)
         throw(DomainError(y, "y must be positive"))
     end
     return x^2 / y
@@ -629,12 +629,13 @@ Symbolics.@register_symbolic huber(x::Real, M::Real)
 
 Huber is convex in `x`, but for `abs(x) > M` it equals `2M*abs(x) - M^2`, which
 is **concave** in `M` (`d²/dM² = -2`). The threshold must therefore be a
-constant for the `Convex` certificate to hold.
+nonnegative constant for the `Convex` certificate to hold.
 """
 function dcprule(::typeof(huber), x, M)
     args = (x, M)
     dom = (RealLine(), HalfLine())
-    isconstarg(M) ||
+    Mv = constval(M)
+    Mv isa Real && Mv >= 0 ||
         return makerule(dom, AnySign, UnknownCurvature, AnyMono), args
     return makerule(dom, Positive, Convex, increasing_if_positive), args
 end
@@ -794,6 +795,9 @@ function power_rule(x, i)
         end
         return unknown, args
     end
+    # Julia's `x^±Inf` is finite for negative `x` (`(-1)^Inf == 1`), so no
+    # power law holds; `NaN` has none either.
+    isfinite(i) || return unknown, args
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
     elseif iszero(i)
@@ -810,21 +814,19 @@ function power_rule(x, i)
         known_nonnegative(x) || return unknown, args
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i >= 1
-        # Non-integer `i ≥ 1` throws `DomainError` for x < 0, so the domain is
-        # where the real function exists (log / sqrt convention).
+        # Non-integer `i > 1` is undefined for a negative base. The natural domain
+        # `{g ≥ 0}` is convex for an affine `g` but not for a convex one
+        # (`(x^2 - 1)^1.5`), which must be established nonnegative.
+        known_nonnegative(x) || find_curvature(x) == Affine || return unknown, args
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing), args
     elseif i < 0
         # Convex-decreasing on `(0, ∞)`. Integer exponents also exist for x < 0,
-        # where `x^-1` is concave and `x^-2` is not convex across 0, so they need
-        # an established-positive base; non-integer ones throw `DomainError` there.
-        if isinteger(i)
-            known_positive(x) || return unknown, args
-            return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
-        else
-            return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Decreasing), args
-        end
+        # where `x^-1` is concave and `x^-2` is not convex across 0, so the base
+        # must be established positive.
+        known_positive(x) || return unknown, args
+        return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
     end
     return unknown, args
 end

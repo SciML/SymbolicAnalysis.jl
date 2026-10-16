@@ -436,6 +436,11 @@ bxs = Symbolics.scalarize(bx)
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.huber(bh, 1.0))).curvature ==
     SymbolicAnalysis.Convex
+# `huber` with a negative threshold is the concave `2M*abs(x) - M^2`.
+let r = SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.huber(bh, -1.0)))
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
 
 
 # `exp(X)` on a matrix is the matrix exponential, not the scalar law applied
@@ -624,6 +629,32 @@ bnneg = setmetadata(
 @test SymbolicAnalysis.analyze(unwrap(u^2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(u^1.5)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(u^0.5)).curvature == SymbolicAnalysis.Concave
+# Julia's `x^±Inf` is finite on negative bases: h(t) = (t^2 - 2)^Inf has
+# h(-1.2) = h(1.2) = 0 but h(1.0) = (-1)^Inf = 1 above the chord.
+# A non-integer `p > 1` of a convex AnySign base has the non-convex natural domain
+# `{x^2 ≥ 1}`, so it needs an established-nonnegative base; an affine base keeps
+# the half-space domain.
+let upos = Symbolics.wrap(
+        setmetadata(unwrap(u), SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine{Number, :open}())
+    )
+    for e in (
+            (u^2 - 2)^Inf, Symbolics.term(^, unwrap(u), Inf), Symbolics.term(^, unwrap(u), -Inf),
+            Symbolics.term(^, unwrap(u), NaN), (u^2 - 1)^1.5, (u^2 - 1)^2.5, (u^2 - 1)^(7 // 2),
+            (abs(u) - 1)^1.5, (exp(u) + bh)^2.5, Symbolics.term(^, unwrap(u), -0.5),
+        )
+        r = SymbolicAnalysis.analyze(unwrap(e))
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    for e in (
+            (2 - u)^1.5, exp(u)^1.5, abs(u)^2.5, upos^1.5, Symbolics.term(^, unwrap(upos), -0.5),
+            Symbolics.term(^, sqrt(unwrap(u)), -1.5),
+        )
+        r = SymbolicAnalysis.analyze(unwrap(e))
+        @test r.curvature == SymbolicAnalysis.Convex
+        @test r.sign == SymbolicAnalysis.Positive
+    end
+end
 # Huge integer exponents are outside the range Julia's `Float64^Integer`
 # evaluates exactly (clamped to `Int64`), so even BigInt/UInt64 powers must not
 # certify: at runtime `(-1.0)^n` is negative when the clamp turns an even `n`
