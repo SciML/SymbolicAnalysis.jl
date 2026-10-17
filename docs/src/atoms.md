@@ -86,15 +86,17 @@ This page is intended to be a reference for the atoms that are currently impleme
 
 `norm(x, p)` is a norm, hence convex, only for `p ≥ 1`. For `0 < p < 1`,
 `(Σ|xᵢ|ᵖ)^(1/p)` is concave on the nonnegative orthant and indefinite elsewhere,
-so the concave certificate requires a known-positive argument. A symbolic `p`
-or `p ≤ 0` gets no curvature.
+so the concave certificate requires an argument whose propagated sign is
+`Positive` (e.g. `norm(sqrt.(u), 0.5)`). A symbolic `p` or `p ≤ 0` gets no
+curvature.
 
 | Atom       | Condition                         | Sign     | Curvature        | Monotonicity           |
 |:---------- |:--------------------------------- |:-------- |:---------------- |:---------------------- |
 | norm(x)    | (`p = 2`)                         | Positive | Convex           | increasing_if_positive |
 | norm(x, p) | constant `p ≥ 1`                  | Positive | Convex           | increasing_if_positive |
-| norm(x, p) | constant `0 < p < 1`, `x` known positive | Positive | Concave   | Increasing             |
-| norm(x, p) | otherwise                         | Positive | UnknownCurvature | AnyMono                |
+| norm(x, p) | constant `0 < p < 1`, `x` sign `Positive` | Positive | Concave | Increasing           |
+| norm(x, p) | constant `0 < p < 1`, other sign of `x` | Positive | UnknownCurvature | Increasing     |
+| norm(x, p) | symbolic `p`, or constant `p ≤ 0` | Positive | UnknownCurvature | AnyMono                |
 
 ### Perspective
 
@@ -207,8 +209,7 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 | lorentz_log_barrier           | AnySign  | GConvex            | GIncreasing  |
 | lorentz_homogeneous_quadratic | AnySign  | GConvex            | GAnyMono     |
 | lorentz_homogeneous_diagonal  | AnySign  | GConvex            | GAnyMono     |
-| lorentz_nonhomogeneous_quadratic | AnySign | GConvex          | GAnyMono     |
-| lorentz_least_squares         | Positive | GConvex            | GAnyMono     |
+| lorentz_least_squares         | Positive | GConvex            | AnyMono      |
 | lorentz_transform             | -        | -                  | -            |
 
 Note: `lorentz_transform` does not have specific geodesic curvature properties by itself, but it preserves geodesic convexity when applied to geodesically convex functions.
