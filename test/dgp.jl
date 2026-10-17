@@ -453,19 +453,25 @@ Base.getindex(C::CountingMatrix, i::Int, j::Int) = (C.reads[] += 1; C.A[i, j])
     # readers. Each pair below is a geodesic midpoint above the chord.
     let M3 = SymmetricPositiveDefinite(3), I3 = Matrix(1.0I, 3, 3)
         @variables X3m[1:3, 1:3]
-        top2(A) = sum(sort(vec(A); rev = true)[1:2])
+        # `sum_largest(A, 2)` is refuted for the two and the three largest
+        # entries alike, so the witness does not depend on which it sums.
+        largest(A, k) = sum(partialsort(vec(A), 1:k; rev = true))
         colmax(A) = maximum(sum(A; dims = 1))
         witnesses = (
             (
-                SymbolicAnalysis.sum_largest(cj(X3m, I3), 2), top2,
-                [2.5 -2.1 -0.4; -2.1 3.2 3.2; -0.4 3.2 11.3],
-                [0.5 -0.4 -1.1; -0.4 1.7 3.7; -1.1 3.7 10.8],
-            ),
+                (
+                    SymbolicAnalysis.sum_largest(cj(X3m, I3), 2), A -> largest(A, k),
+                    [2.5 -2.1 -0.4; -2.1 3.2 3.2; -0.4 3.2 11.3],
+                    [0.5 -0.4 -1.1; -0.4 1.7 3.7; -1.1 3.7 10.8],
+                ) for k in (2, 3)
+            )...,
             (
-                SymbolicAnalysis.sum_largest(inv(X3m), 2), A -> top2(inv(A)),
-                [2.2 -5.7 -0.2; -5.7 17.0 0.5; -0.2 0.5 5.6],
-                [0.4 -0.5 0.1; -0.5 1.7 -0.6; 0.1 -0.6 7.5],
-            ),
+                (
+                    SymbolicAnalysis.sum_largest(inv(X3m), 2), A -> largest(inv(A), k),
+                    [2.2 -5.7 -0.2; -5.7 17.0 0.5; -0.2 0.5 5.6],
+                    [0.4 -0.5 0.1; -0.5 1.7 -0.6; 0.1 -0.6 7.5],
+                ) for k in (2, 3)
+            )...,
             (
                 maximum(sum(cj(X3m, I3); dims = 1)), colmax,
                 [214.9 -170.3 116.1; -170.3 364.9 -33.5; 116.1 -33.5 78.2],
@@ -500,5 +506,46 @@ Base.getindex(C::CountingMatrix, i::Int, j::Int) = (C.reads[] += 1; C.A[i, j])
             )
             @test analyze(ex, M3).gcurvature == SymbolicAnalysis.GConvex
         end
+    end
+
+    # Only the main diagonal is Loewner-monotone. `P` and `Q` commute, so their
+    # geodesic midpoint is `4I - U`, where `sum(diag(⋅, 1))` lies 1/6 above the chord.
+    let M3 = SymmetricPositiveDefinite(3), I3 = Matrix(1.0I, 3, 3)
+        @variables X3o[1:3, 1:3]
+        H = ones(3, 3) + I3 / 2
+        u = [1.0, -1.0, 1.0]
+        P, Q = 4I3 - (7 / 6) * u * u', 4I3 - (2 / 3) * u * u'
+        G = Manifolds.shortest_geodesic(M3, P, Q, 0.5)
+        dg(A, k) = Symbolics.wrap(
+            Symbolics.term(diag, Symbolics.unwrap(A), k; type = Vector{Real})
+        )
+        for (h, f) in (
+                (X3o, identity), (cj(X3o, I3), identity),
+                (had(X3o, H), A -> had(A, H)), (inv(X3o), inv),
+            )
+            fn = A -> sum(diag(f(A), 1))
+            @test fn(G) > (fn(P) + fn(Q)) / 2 + 0.1
+            for ex in (dg(h, 1), sum(dg(h, 1)))
+                @test analyze(ex, M3).gcurvature != SymbolicAnalysis.GConvex
+                w = SymbolicAnalysis.propagate_gcurvature(ex, M3)
+                @test SymbolicAnalysis.getgcurvature(w) != SymbolicAnalysis.GConvex
+            end
+            @test analyze(dg(h, 1), M3).sign != SymbolicAnalysis.Positive
+            @test analyze(sum(dg(h, 0)), M3).gcurvature == SymbolicAnalysis.GConvex
+        end
+
+        # A broadcast by a scalar constant is Loewner-linear; by a constant matrix
+        # it is a Hadamard product, which is refused without a PSD factor.
+        Xi = inv(X3o)
+        for ex in (
+                sum(2 .* Xi), sum(Xi .* 2), sum(Xi .+ 1), maximum(2 .* Xi),
+                norm(-2 .* Xi, Inf),
+            )
+            @test analyze(ex, M3).gcurvature == SymbolicAnalysis.GConvex
+            w = SymbolicAnalysis.propagate_gcurvature(ex, M3)
+            @test SymbolicAnalysis.getgcurvature(w) == SymbolicAnalysis.GConvex
+        end
+        @test analyze(sum([1.0 2 0; 2 1 0; 0 0 1] .* Xi), M3).gcurvature !=
+            SymbolicAnalysis.GConvex
     end
 end

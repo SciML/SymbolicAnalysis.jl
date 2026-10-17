@@ -260,21 +260,35 @@ end
 # A matrix argument's `Positive` sign and geodesic curvature on the SPD cone are
 # in the Loewner order, so a Euclidean rule over a matrix argument keeps its
 # monotonicity only when the atom is monotone in that order. `tr`, a full `sum`,
-# `diag` and `quad_form`'s matrix slot are PSD-weighted linear functionals.
+# the main `diag` and `quad_form`'s matrix slot are PSD-weighted linear functionals.
 # On the PSD cone `|A[i,j]| ≤ √(A[i,i]·A[j,j])`, so `maximum` and `norm(A, Inf)`
 # read only the diagonal; for an even integer `p` the gradient of `Σ A[i,j]^p` is
 # a Hadamard power of `A`, PSD by the Schur product theorem. The entrywise 1-norm,
 # `minimum`, `sum_largest`, column sums and nonlinear broadcasts are not monotone
 # there (see test/dgp.jl).
 const LOEWNER_LINEAR_READERS = (
-    LinearAlgebra.tr, sum, LinearAlgebra.diag, adjoint, transpose, +, -, quad_form,
+    LinearAlgebra.tr, sum, adjoint, transpose, +, -, quad_form,
 )
+
+# `diag(A, k)` for `k ≠ 0` reads off-diagonal entries, which are neither signed
+# nor geodesically convex on the SPD cone.
+function main_diagonal(args)
+    length(args) == 1 && return true
+    k = constval(args[2])
+    return k isa Integer && iszero(k)
+end
+
+function gdcprule(f::typeof(LinearAlgebra.diag), args...)
+    main_diagonal(args) && return gdcprules_dict[f], args
+    return makegrule(SymmetricPositiveDefinite, AnySign, GUnknownCurvature, (GAnyMono,)), args
+end
 
 function loewner_monotonicity(f, args, monotonicity)
     mats = filter(a -> SymbolicUtils.symtype(a) <: AbstractMatrix, collect(args))
     isempty(mats) && return monotonicity
     signs_are(s) = all(a -> getsign(a) == s, mats)
     f in LOEWNER_LINEAR_READERS && return monotonicity
+    f === LinearAlgebra.diag && return main_diagonal(args) ? monotonicity : AnyMono
     if f isa SymbolicUtils.Mapreducer{typeof(identity)}
         f.dims isa Colon || return AnyMono
         f.reduce === Base.add_sum && return monotonicity
@@ -411,9 +425,11 @@ function find_gcurvature(ex)
         if !knowngcurv
             (hasdcprule(f) && any(a -> find_gcurvature(a) in (GConvex, GConcave), args)) ||
                 return GUnknownCurvature
+            # `dcprule(broadcast, g, xs...)` drops `g`, which the Loewner check needs.
+            call_args = args
             rule, args = dcprule(f, args...)
             f_curvature = rule.curvature
-            f_monotonicity = loewner_monotonicity(f, args, rule.monotonicity)
+            f_monotonicity = loewner_monotonicity(f, call_args, rule.monotonicity)
         end
 
         if f_curvature == Convex || f_curvature == Affine
