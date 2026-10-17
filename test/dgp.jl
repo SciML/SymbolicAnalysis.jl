@@ -428,3 +428,19 @@ end
     @test analyze(tr(A * X3), SymmetricPositiveDefinite(3)).gcurvature ==
         SymbolicAnalysis.GUnknownCurvature
 end
+
+@testset "GDCP conjugation with arbitrary-precision constants" begin
+    @variables X2[1:2, 1:2]
+    M2 = SymmetricPositiveDefinite(2)
+    @testset "Element type $T" for T in (BigFloat, Rational{BigInt})
+        for B in (Matrix{T}(I, 2, 2), T[0 1; 1 0], T(2)^(-2000) * Matrix{T}(I, 2, 2))
+            result = analyze(tr(SymbolicAnalysis.conjugation(X2, B)), M2)
+            @test result.sign == SymbolicAnalysis.Positive
+            @test result.gcurvature == SymbolicAnalysis.GConvex
+        end
+        for B in (zeros(T, 2, 2), T[1 2; 2 4])
+            result = analyze(tr(inv(SymbolicAnalysis.conjugation(X2, B))), M2)
+            @test result.gcurvature == SymbolicAnalysis.GUnknownCurvature
+        end
+    end
+end
