@@ -196,7 +196,7 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 | log_quad_form              | AnySign  | GConvex            | GIncreasing  |
 | inv                        | Positive | GConvex            | GDecreasing  |
 | eigsummax                  | Positive | GConvex            | GIncreasing  |
-| schatten_norm              | Positive | GConvex            | GIncreasing  |
+| schatten_norm (p ≥ 1)      | Positive | GConvex            | GIncreasing  |
 | sum_log_eigmax             | AnySign  | GConvex            | GIncreasing  |
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |

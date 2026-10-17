@@ -228,6 +228,12 @@ function find_gcurvature(ex)
                 (operation(args[1]) == LinearAlgebra.tr || operation(args[1]) == quad_form)
             return GConvex
         elseif (f == schatten_norm || f == eigsummax) && operation(args[1]) == log
+            # `schatten_norm(log(X), p)` is only certified for literal p ≥ 1,
+            # matching the atom's own gDCP rule; p ≤ 0 must not get GConvex.
+            if f == schatten_norm
+                pv = constval(args[2])
+                (pv isa Integer && pv >= 1) || return GUnknownCurvature
+            end
             return GConvex
         elseif f == sum_log_eigmax && hasdcprule(args[1])
             if dcprule(operation(args[1])) == Convex
