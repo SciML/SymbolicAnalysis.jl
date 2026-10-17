@@ -1,6 +1,9 @@
 ### DCP atom rules
 
-add_dcprule(+, RealLine(), AnySign, Affine, Increasing)
+function dcprule(::typeof(+), args...)
+    return makerule(RealLine(), add_sign(args), Affine, Increasing), args
+end
+hasdcprule(::typeof(+)) = true
 
 """
     dcprule(::typeof(-), x[, y])
@@ -125,24 +128,13 @@ Symbolics.@register_symbolic invprod(x::AbstractVector)
 `inv(prod(x))` is convex-decreasing on the positive orthant, but the product of
 a mixed-sign vector can be negative, and `1/t` is concave there — e.g.
 `g(-1,2) = -1/2`, `g(-3,4) = -1/12`, midpoint `g(-2,3) = -1/6` above the chord
-`-7/24`. Require a known-positive argument (propagated `Positive` sign, or an
-array `VarDomain` whose element domain lies in `(0, ∞)`).
+`-7/24`. Require a strictly known-positive argument (open `VarDomain` on the
+array or a structural proof — not a memoized `Sign.Positive`).
 """
 function dcprule(::typeof(invprod), x)
     args = (x,)
     unknown = makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono)
-    ok = getsign(x) == Positive
-    if !ok && _has_vardomain(x)
-        d = getmetadata(x, VarDomain)
-        ok = try
-            f = d.in
-            hasproperty(f, :element_domain) &&
-                issubset(f.element_domain, HalfLine{Real, :open}())
-        catch e
-            e isa MethodError ? false : rethrow()
-        end
-    end
-    ok || return unknown, args
+    known_positive(x) || return unknown, args
     return makerule(array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing),
         args
 end
@@ -298,7 +290,7 @@ end
 
 # `norm(x, p)` is only a norm (hence convex) for p >= 1. For 0 < p < 1 the
 # generalized "norm" (sum |x_i|^p)^(1/p) is concave on the nonnegative orthant
-# and has no DCP curvature for sign-unknown arguments; for p <= 0 it is not
+# and has no DCP curvature for sign-unknown or PSD (Loewner-signed) arguments; for p <= 0 it is not
 # DCP-representable. The rule depends on the value of `p`, so it is a
 # specialized `dcprule` method like `^` rather than a static table entry.
 function dcprule(::typeof(norm), x, p)
@@ -306,17 +298,25 @@ function dcprule(::typeof(norm), x, p)
     args = (x, p)
     if !(pv isa Number)
         return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
+    elseif pv == 2
+        return makerule(array_domain(RealLine()), Positive, Convex, frobenius_monotonicity), args
     elseif pv >= 1
         return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), args
     elseif pv > 0
-        curv = getsign(x) == Positive ? Concave : UnknownCurvature
+        curv = increasing_if_positive(x) == Increasing ? Concave : UnknownCurvature
         return makerule(array_domain(HalfLine()), Positive, curv, Increasing), args
     else
         return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
     end
 end
 function dcprule(::typeof(norm), x)
-    return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), (x,)
+    return makerule(array_domain(RealLine()), Positive, Convex, frobenius_monotonicity), (x,)
+end
+
+# The Frobenius norm is also increasing in the Loewner order on PSD matrices.
+function frobenius_monotonicity(x)
+    getsign(x) == Positive && array_sign_kind(x) === :loewner && return Increasing
+    return increasing_if_positive(x)
 end
 hasdcprule(::typeof(norm)) = true
 
@@ -648,10 +648,12 @@ add_dcprule(imag, ℂ, AnySign, Affine, AnyMono)
 `1/x` is convex-decreasing and positive on `(0, ∞)`, but it **exists** for every
 nonzero `x` and is concave (and negative) on `(-∞, 0)` — e.g. `f(-1) = -1`,
 `f(-3) = -1/3`, and the midpoint `f(-2) = -1/2` lies above the chord `-2/3`.
-Certifying `Convex`/`Positive` for a sign-unknown argument is therefore a false
-certificate over the function's own real domain. The same house rule that guards
-`/` and `xexpx` applies; `log`/`sqrt` escape it only because they are undefined
-outside their declared domain.
+The rule therefore needs `x` proved nonnegative (a scalar `Positive` sign or a
+domain inside `[0, ∞)`). Where `x` can reach `0`, `1/x` is `+∞` there, which is
+the extended-value convex-decreasing function cvxpy's `inv_pos` uses, so
+`inv(sqrt(t))` is convex for `t ≥ 0`. Without that proof the result is
+`UnknownCurvature`/`AnySign`. `log` and `sqrt` need no such proof because they
+are undefined outside their declared domains.
 
 Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually
 covers rewritten forms; this method covers the bare `inv` term (as built by
@@ -663,9 +665,25 @@ function dcprule(::typeof(inv), x)
     if SymbolicUtils.symtype(x) <: AbstractArray
         return @invoke dcprule(inv::Any, x)
     end
-    known_positive(x) ||
-        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
-    return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
+    rule = _reciprocal_rule(1, x)
+    isnothing(rule) && return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return makerule(rule...), args
+end
+
+# The law of `c/x` (`c ≠ 0`) in `x`. On `x ≥ 0` it is the extended-value
+# `c/x` (`+∞`·sign(c) at 0), still convex-decreasing (`c > 0`) or
+# concave-increasing (`c < 0`), as cvxpy's `inv_pos`.
+function _reciprocal_rule(c, x)
+    _is_real_scalar(x) || return nothing
+    domain = if known_positive(x)
+        HalfLine{Real, :open}()
+    elseif known_nonnegative(x) && !_const_satisfies(x, iszero)
+        HalfLine()
+    else
+        return nothing
+    end
+    return c > 0 ? (domain, Positive, Convex, Decreasing) :
+        (domain, Negative, Concave, Increasing)
 end
 # Matrix Loewner-order rule registered below; keeps `hasdcprule(inv)`.
 add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
@@ -776,8 +794,13 @@ add_dcprule(min, (RealLine(), RealLine()), AnySign, Concave, Increasing)
 # special cases which depend on arguments:
 
 # The scalar power laws, applied to a scalar base or elementwise to an array one.
+# Julia's `^(::Float64, ::Integer)` clamps the exponent to `Int64`, so an even
+# `BigInt`/`UInt64` exponent outside that range can evaluate as an odd power.
+_integer_power_runtime_exact(i) = typemin(Int64) <= i <= typemax(Int64)
+
 function power_rule(x, i)
     args = (x, i)
+    unknown = makerule(RealLine(), AnySign, UnknownCurvature, AnyMono)
     if !(i isa Real)
         # The power laws below all need a numeric exponent. The remaining case
         # with a DCP curvature is a constant base: `c^g == exp(g*log(c))` is
@@ -787,22 +810,41 @@ function power_rule(x, i)
             mono = base > 1 ? Increasing : base < 1 ? Decreasing : AnyMono
             return makerule(RealLine(), Positive, Convex, (AnyMono, mono)), args
         end
-        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+        return unknown, args
     end
     if isone(i)
         return makerule(RealLine(), AnySign, Affine, Increasing), args
-    elseif isinteger(i) && iseven(i)
+    elseif iszero(i)
+        # `x^0 == 1` for every real `x` in Julia, including `0^0`.
+        return makerule(RealLine(), Positive, Affine, AnyMono), args
+    elseif isinteger(i) && !_integer_power_runtime_exact(i)
+        return unknown, args
+    elseif isinteger(i) && iseven(i) && i > 0
+        # Even positive powers are convex on all of R.
         return makerule(RealLine(), Positive, Convex, increasing_if_positive), args
-    elseif isinteger(i) && isodd(i)
+    elseif isinteger(i) && isodd(i) && i > 0
+        # Odd powers are convex only on `[0, ∞)` but also exist for x < 0, so
+        # the domain cannot be assumed; require an established-nonnegative base.
+        known_nonnegative(x) || return unknown, args
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i >= 1
+        # Non-integer `i ≥ 1` throws `DomainError` for x < 0, so the domain is
+        # where the real function exists (log / sqrt convention).
         return makerule(HalfLine(), Positive, Convex, Increasing), args
     elseif i > 0 && i < 1
         return makerule(HalfLine(), Positive, Concave, Increasing), args
     elseif i < 0
-        return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Increasing), args
+        # Convex-decreasing on `(0, ∞)`. Integer exponents also exist for x < 0,
+        # where `x^-1` is concave and `x^-2` is not convex across 0, so they need
+        # an established-positive base; non-integer ones throw `DomainError` there.
+        if isinteger(i)
+            known_positive(x) || return unknown, args
+            return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
+        else
+            return makerule(HalfLine{Float64, :closed}(), Positive, Convex, Decreasing), args
+        end
     end
-    return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
+    return unknown, args
 end
 
 function dcprule(::typeof(^), x::Symbolic, i)
@@ -831,14 +873,10 @@ constant. A nonzero constant denominator is an affine rescaling, flipping
 curvature and sign when it is negative.
 
 A constant numerator is the `inv` atom: `c/x` is convex-decreasing for `c > 0`
-and concave-increasing for `c < 0` — but **only on `x > 0`**, and the
-denominator must be *known* positive for the rule to fire. That is deliberately
-stricter than the unchecked-precondition convention `log`, `sqrt` and `geomean`
-use, and the asymmetry is the point: those are only wrong where the function
-does not exist, whereas `1/x` exists for every nonzero `x` and is *concave*
-below zero. Certifying it `Convex` for a sign-unknown argument would be a false
-certificate over the function's own real domain — `f(-1) = -1`, `f(2) = 0.5`,
-and the midpoint `f(0.5) = 2` is far above the chord `-0.25`.
+and concave-increasing for `c < 0` on `x ≥ 0` (see the `inv` rule), so the
+scalar denominator must be proved nonnegative. `1/x` exists for every nonzero
+`x` and is concave below zero: `f(-1) = -1`, `f(2) = 0.5`, and the midpoint
+`f(0.5) = 2` lies above the chord `-0.25`.
 
 Symbolics rewrites `inv(x)` to `/(1, x)` and `x^-n` to `/(1, x)^n`, so this rule
 is also what gives those their curvature.
@@ -853,30 +891,136 @@ function dcprule(::typeof(/), num, den)
         mono = dv > 0 ? Increasing : Decreasing
         return makerule((RealLine(), RealLine()), mul_sign(args), Affine, (mono, AnyMono)),
             args
-    elseif nv isa Number && !iszero(nv) && known_positive(den)
-        domain = (RealLine(), HalfLine{Real, :open}())
-        return if nv > 0
-            makerule(domain, Positive, Convex, (AnyMono, Decreasing)), args
-        else
-            makerule(domain, Negative, Concave, (AnyMono, Increasing)), args
-        end
     end
-    return unknown, args
+    nv isa Real && !iszero(nv) || return unknown, args
+    rule = _reciprocal_rule(nv, den)
+    isnothing(rule) && return unknown, args
+    domain, sign, curv, mono = rule
+    return makerule((RealLine(), domain), sign, curv, (AnyMono, mono)), args
 end
 hasdcprule(::typeof(/)) = true
 
-# Positivity established rather than assumed: either a propagated sign says so, or
-# the argument was declared on a domain inside the positive half line. `analyze`
-# overwrites `Sign` metadata during propagation, so a `VarDomain` declaration is
-# how a caller states the precondition durably.
-function known_positive(x)
-    getsign(x) == Positive && return true
-    _has_vardomain(x) || return false
+# `array_domain(d, …)` closures capture `element_domain`; a plain scalar domain is
+# used as-is.
+function _domain_inside_halfline(d, halfline)
+    ed = d
+    if d isa CustomDomain
+        f = d.in
+        hasproperty(f, :element_domain) || return false
+        ed = getproperty(f, :element_domain)
+    end
     return try
-        issubset(getmetadata(x, VarDomain), HalfLine{Real, :open}())
+        issubset(ed, halfline)
     catch e
         e isa MethodError ? false : rethrow()
     end
+end
+
+_vardomain_inside(x, halfline) =
+    _has_vardomain(x) && _domain_inside_halfline(getmetadata(x, VarDomain), halfline)
+
+_is_real_scalar(x::Real) = true
+function _is_real_scalar(x)
+    return try
+        SymbolicUtils.symtype(x isa Num ? unwrap(x) : x) <: Real
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
+function _const_satisfies(x, pred)
+    v = constval(x)
+    return v isa Real && pred(v)
+end
+
+# Elementwise `x ≥ 0`. A `Positive` sign proves this only for scalars: on a
+# matrix it can mean Loewner PSD (`sqrt(X)`, or `inv(X)`/`X'` under
+# `SymmetricPositiveDefinite`), whose off-diagonal entries may be negative.
+function known_nonnegative(x)
+    _const_satisfies(x, >=(0)) && return true
+    _is_real_scalar(x) && getsign(x) == Positive && return true
+    known_positive(x) && return true
+    _vardomain_inside(x, HalfLine()) && return true
+    iscall(x) && SymbolicUtils.symtype(x) <: AbstractArray{<:Real} || return false
+    f, args = operation(x), arguments(x)
+    g = if f === broadcast && length(args) == 2
+        constval(first(args))
+    elseif f isa SymbolicUtils.Mapper && length(args) == 1
+        f.f
+    else
+        return false
+    end
+    return g === abs || g === abs2 || g === sqrt || g === norm
+end
+
+# `Positive` means nonnegative, so strict positivity (needed by `invprod`,
+# `perspective`, …) is derived only from open-half-line domains and operations
+# that preserve it. This is elementwise for arrays.
+function known_positive(x)
+    _has_vardomain(x) && return _vardomain_inside(x, HalfLine{Real, :open}())
+    iscall(x) || return false
+    f = operation(x)
+    args = arguments(x)
+    if f === getindex
+        return !isempty(args) && known_positive(first(args))
+    elseif f === (*)
+        # A matrix contraction may sum zero terms even when both inputs are positive.
+        any(a -> SymbolicUtils.symtype(a) <: AbstractArray, args) && return false
+        return _positive_product(args)
+    elseif f === broadcast && !isempty(args)
+        return _positive_elementwise(constval(first(args)), args[2:end], true)
+    elseif f === invprod
+        return length(args) == 1 && known_positive(first(args))
+    elseif f === (/) && length(args) == 2
+        return all(_is_real_scalar, args) && all(known_positive, args)
+    end
+    return _positive_elementwise(f, args)
+end
+
+function _affine_nneg_shift_positive(args)
+    saw_pos = false
+    for a in args
+        if _const_satisfies(a, >(0)) || known_positive(a)
+            saw_pos = true
+        elseif !known_nonnegative(a)
+            return false
+        end
+    end
+    return saw_pos
+end
+
+function _positive_product(args)
+    saw_pos = false
+    for a in args
+        if _const_satisfies(a, >(0))
+            continue
+        elseif known_positive(a)
+            saw_pos = true
+        else
+            return false
+        end
+    end
+    return saw_pos
+end
+
+function _positive_elementwise(f, args, broadcasted = false)
+    f === (+) && return _affine_nneg_shift_positive(args)
+    f === (*) && return _positive_product(args)
+    f === min && return !isempty(args) && all(known_positive, args)
+    f === max && return any(known_positive, args)
+    isempty(args) && return false
+    x = first(args)
+    # Unbroadcast, these names are matrix functions on an array argument.
+    T = SymbolicUtils.symtype(x)
+    (T <: Real || broadcasted && T <: AbstractArray{<:Real}) || return false
+    if f === exp || f === exp2 || f === exp10 || f === LogExpFunctions.log1pexp
+        return length(args) == 1
+    elseif f === sqrt || f === inv
+        return length(args) == 1 && known_positive(x)
+    elseif f === (^)
+        return length(args) == 2 && constval(args[2]) isa Real && known_positive(x)
+    end
+    return false
 end
 
 hasdcprule(::typeof(^)) = true
@@ -921,7 +1065,7 @@ which is the only reason the unenforced domain never bit.
 """
 function dcprule(::typeof(xexpx), x)
     args = (x,)
-    known_positive(x) ||
+    known_nonnegative(x) ||
         return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
     return makerule(HalfLine(), Positive, Convex, Increasing), args
 end
@@ -986,7 +1130,7 @@ function dcprule(::typeof(broadcast), f, x...)
         # flip `mul_curvature` has already applied.
         s = const_factor_sign(x)
         mono = s == Negative ? Decreasing : s == Positive ? Increasing : AnyMono
-        return makerule(array_domain(RealLine()), mul_sign(x), mul_curvature(x), mono), x
+        return makerule(array_domain(RealLine()), mul_sign(x; elementwise = true), mul_curvature(x), mono), x
     end
     hasdcprule(g) || return no_rule(array_domain(RealLine()), x)
     return elementwise_dcprule(g, x...)
@@ -1000,7 +1144,13 @@ add_dcprule(Base.adjoint, array_domain(RealLine(), 1), AnySign, Affine, Increasi
 # `Base` and the name is no longer public in `LinearAlgebra`, exactly as for
 # `adjoint` just above. They are the same function on every supported version.
 add_dcprule(Base.transpose, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
-add_dcprule(Base.getindex, array_domain(RealLine(), 1), AnySign, Affine, AnyMono)
+
+function dcprule(::typeof(Base.getindex), x, idxs...)
+    args = (x, idxs...)
+    s = known_nonnegative(x) ? Positive : AnySign
+    return makerule(array_domain(RealLine(), 1), s, Affine, AnyMono), args
+end
+hasdcprule(::typeof(Base.getindex)) = true
 
 # On Symbolics v7 / SymbolicUtils v4, reductions and maps over symbolic arrays
 # trace to `SymbolicUtils.Mapreducer`/`SymbolicUtils.Mapper` operations rather

@@ -291,10 +291,16 @@ ws = Symbolics.scalarize(w)
 
 # The elementwise `x .^ i` traces to `broadcast(^, x, i)` with an array base too,
 # but applies the power pointwise, so the scalar laws do hold there and the
-# matrix-power guard above must not reject it.
+# matrix-power guard above must not reject it. Odd integer powers still need a
+# nonnegative base (they exist and are nonconvex on R); even powers do not.
 @test SymbolicAnalysis.analyze(unwrap(w .^ 2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 2))).curvature == SymbolicAnalysis.Convex
-@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# `Positive` on an array is not an entrywise-nonnegativity proof (matrix atoms
+# reuse it for Loewner PSD), so elementwise cubes need an elementwise proof.
+@test SymbolicAnalysis.analyze(unwrap(sum(exp.(w) .^ 3))).curvature ==
+    SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 0.5))).curvature ==
     SymbolicAnalysis.Concave
 @test SymbolicAnalysis.analyze(unwrap(sum(Xm .^ 2))).curvature == SymbolicAnalysis.Convex
@@ -568,6 +574,93 @@ lAmix = [1.0 -2.0; 3.0 -4.0]
 # though the base is an array.
 @test SymbolicAnalysis.analyze(unwrap(bx .^ 2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(bx .^ 2))).curvature == SymbolicAnalysis.Convex
+
+# Odd positive powers and integer negative powers exist outside their DCP
+# domain with the wrong curvature, so an undeclared real base must not certify.
+# (At u=-1, u^3=-1 lies above the chord -4 between -2 and 0; u.^-1 is concave
+# on (-∞, 0).) Even powers and DomainError-guarded non-integer powers are unchanged.
+@variables u
+@test SymbolicAnalysis.analyze(unwrap(u^3)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^3)).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(u^5)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u .^ 3)).curvature == SymbolicAnalysis.UnknownCurvature
+# Array broadcast keeps `broadcast(^, …)` (scalar `u^-n` rewrites through `/`),
+# so this is the path that hits `power_rule` for negative integer exponents.
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 3)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ (-1))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ (-2))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Declared-positive / established-nonnegative bases still certify, as does the
+# even-power law on R and a base that already carries a Positive sign.
+@test SymbolicAnalysis.analyze(unwrap(exp(u)^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp(u)^3)).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(abs(u)^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(dpos^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(dpos^(-1))).curvature == SymbolicAnalysis.Convex
+bpos = setmetadata(
+    unwrap(bx), SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine{Number, :open}()
+)
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bpos) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bpos) .^ (-1))).curvature ==
+    SymbolicAnalysis.Convex
+# Element-domain nonnegative array: `array_domain(HalfLine(), 1)` recovers the cube.
+bnneg = setmetadata(
+    unwrap(bx),
+    SymbolicAnalysis.VarDomain,
+    SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine(), 1)
+)
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bnneg) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bnneg) .^ 3)).sign ==
+    SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(exp.(bx) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(abs.(bx) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^2)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^1.5)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^0.5)).curvature == SymbolicAnalysis.Concave
+# Huge integer exponents are outside the range Julia's `Float64^Integer`
+# evaluates exactly (clamped to `Int64`), so even BigInt/UInt64 powers must not
+# certify: at runtime `(-1.0)^n` is negative when the clamp turns an even `n`
+# into an odd Int64.
+n_huge = big(2)^64
+n_uint = UInt64(1) << 63
+@test SymbolicAnalysis.analyze(unwrap(u^n_huge)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^n_huge)).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(bx .^ n_huge)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^n_uint)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ n_uint)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Zeroth power is the constant 1 (Affine/Positive), including broadcast.
+# Scalar `u^0` constant-folds; `bx.^0` reaches `power_rule` via the elementwise path.
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).sign == SymbolicAnalysis.Positive
+
+# Matrix `Positive` under SPD / Euclidean matrix atoms is Loewner PSD, not
+# entrywise ≥ 0. Entries of `inv(X)` and `X'` can be negative, so elementwise
+# cubes must not certify (t^3 is concave for t < 0).
+using Manifolds: SymmetricPositiveDefinite
+@variables Xpsd[1:2, 1:2]
+Mpsd_cube = SymmetricPositiveDefinite(2)
+let r = SymbolicAnalysis.analyze(unwrap(inv(Xpsd) .^ 3), Mpsd_cube)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
+let r = SymbolicAnalysis.analyze(unwrap(Xpsd' .^ 3), Mpsd_cube)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
+@test SymbolicAnalysis.analyze(unwrap(sum(inv(Xpsd) .^ 3)), Mpsd_cube).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Euclidean matrix sqrt is likewise PSD-not-entrywise; refuse the elementwise cube.
+@test SymbolicAnalysis.analyze(unwrap(sqrt(Xpsd) .^ 3)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
 
 # Symbolics folds `-c/2` into `(-1//2)*c`, so a coefficient can be a `Rational`.
 @variables c d
@@ -946,3 +1039,293 @@ ipv_pos = Symbolics.wrap(
     )
 )
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos)) == SymbolicAnalysis.Convex
+
+# Array domain / sign must reach `getindex` and a nonnegative affine shift.
+@test curv_of(inv(ipv_pos[1])) == SymbolicAnalysis.Convex
+@test curv_of(Symbolics.term(inv, unwrap(ipv_pos[1]))) == SymbolicAnalysis.Convex
+@test curv_of(SymbolicAnalysis.invprod(ipv_pos .+ 1)) == SymbolicAnalysis.Convex
+@test curv_of(inv(s_pos + 1)) == SymbolicAnalysis.Convex
+@test curv_of(inv(2 * s_pos + 1)) == SymbolicAnalysis.Convex
+@test curv_of(inv(sqrt(s_pos))) == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(inv(sqrt(s_pos)))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(exp(x)))).sign == SymbolicAnalysis.Positive
+@test curv_of(inv(abs(x))) == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(inv(abs(x)))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(x^2))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(norm(ipv)))).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(inv(sum(ipv_pos)^2))).sign ==
+    SymbolicAnalysis.Positive
+@test !SymbolicAnalysis.known_positive(unwrap(sum(ipv_pos)^2))
+@test SymbolicAnalysis.analyze(unwrap(inv(1 + abs(x) + exp(y)))).sign ==
+    SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.perspective(exp, px, exp(s)))
+).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(
+    unwrap(SymbolicAnalysis.invprod(exp.(ipv)))
+).sign == SymbolicAnalysis.Positive
+# `sum` / Mapreducer positivity is not trusted (`init` / empty arrays).
+@test curv_of(inv(sum(ipv_pos))) == SymbolicAnalysis.UnknownCurvature
+let r = SymbolicAnalysis.analyze(unwrap(inv(ipv_pos[1])))
+    @test r.curvature == SymbolicAnalysis.Convex
+    @test r.sign == SymbolicAnalysis.Positive
+end
+
+let
+    @variables A[1:2, 1:0] B[1:0, 1:2] C[1:2, 1:2] v0[1:0]
+    matrix_domain = SymbolicAnalysis.array_domain(
+        Symbolics.DomainSets.HalfLine{Real, :open}(), 2
+    )
+    vector_domain = SymbolicAnalysis.array_domain(
+        Symbolics.DomainSets.HalfLine{Real, :open}(), 1
+    )
+    Ap = Symbolics.wrap(setmetadata(unwrap(A), SymbolicAnalysis.VarDomain, matrix_domain))
+    Bp = Symbolics.wrap(setmetadata(unwrap(B), SymbolicAnalysis.VarDomain, matrix_domain))
+    Cp = Symbolics.wrap(setmetadata(unwrap(C), SymbolicAnalysis.VarDomain, matrix_domain))
+    vp = Symbolics.wrap(setmetadata(unwrap(v0), SymbolicAnalysis.VarDomain, vector_domain))
+    e = unwrap((Ap * Bp)[1, 1])
+    @test !SymbolicAnalysis.known_positive(e)
+    @test !SymbolicAnalysis.known_positive(
+        Symbolics.term(exp, unwrap(Cp); type = Matrix{Real})
+    )
+    @test SymbolicAnalysis.dcprule(/, 1, unwrap(Cp))[1].curvature ==
+        SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(inv, e)[1].curvature == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(/, 1, e)[1].curvature == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(
+        SymbolicAnalysis.perspective, exp, unwrap(x), e
+    )[1].curvature == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.dcprule(
+        SymbolicAnalysis.invprod, unwrap(Ap * vp)
+    )[1].curvature == SymbolicAnalysis.UnknownCurvature
+end
+# undeclared / mixed-sign arrays, and domains that include negatives, must not
+# certify `inv`; on `[0, ∞)` it is the extended-value reciprocal.
+@variables ipv_free[1:2]
+@test curv_of(inv(ipv_free[1])) == SymbolicAnalysis.UnknownCurvature
+@test curv_of(SymbolicAnalysis.invprod(ipv_free .+ 1)) ==
+    SymbolicAnalysis.UnknownCurvature
+ipv_closed = Symbolics.wrap(
+    setmetadata(
+        unwrap(ipv), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :closed}(), 1)
+    )
+)
+@test curv_of(inv(ipv_closed[1])) == SymbolicAnalysis.Convex
+@test curv_of(SymbolicAnalysis.invprod(ipv_closed)) ==
+    SymbolicAnalysis.UnknownCurvature
+ipv_real = Symbolics.wrap(
+    setmetadata(
+        unwrap(ipv), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.RealLine(), 1)
+    )
+)
+@test curv_of(inv(ipv_real[1])) == SymbolicAnalysis.UnknownCurvature
+s_closed = Symbolics.wrap(
+    setmetadata(
+        unwrap(s), SymbolicAnalysis.VarDomain,
+        Symbolics.DomainSets.HalfLine{Real, :closed}()
+    )
+)
+@test curv_of(Symbolics.term(inv, unwrap(s_closed))) == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(inv(inv(s_closed)^3))).sign ==
+    SymbolicAnalysis.Positive
+@test !SymbolicAnalysis.known_positive(unwrap(inv(s_closed)))
+@test curv_of(inv(ipv_pos[1] + (-2))) == SymbolicAnalysis.UnknownCurvature
+
+# False-certificate reproducers: reductions ignore
+# `init` / emptiness, and memoized nonnegative `Sign.Positive` must not prove
+# open-half-line preconditions.
+let T(f, args...) = Symbolics.term(
+        f, unwrap.(args)...;
+        type = f === broadcast ? Vector{Real} : Real
+    )
+    @variables zv0[1:0]
+    zp0 = Symbolics.wrap(
+        setmetadata(
+            unwrap(zv0), SymbolicAnalysis.VarDomain,
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1)
+        )
+    )
+    # negative / empty reductions
+    @test curv_of(inv(sum(ipv_pos; init = -10))) == SymbolicAnalysis.UnknownCurvature
+    @test SymbolicAnalysis.analyze(unwrap(inv(sum(ipv_pos; init = -10)))).sign ==
+        SymbolicAnalysis.AnySign
+    let e = T(getindex, sum(ipv_pos; dims = 1, init = -10), 1)
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature != SymbolicAnalysis.Convex
+        @test r.sign != SymbolicAnalysis.Positive
+    end
+    let e = T(inv, T(getindex, sum(ipv_pos; dims = 1, init = -10), 1))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    @test curv_of(inv(sum(zp0; init = -10))) == SymbolicAnalysis.UnknownCurvature
+    @test curv_of(inv(sum(zp0))) == SymbolicAnalysis.UnknownCurvature
+    @test curv_of(SymbolicAnalysis.invprod(sum(ipv_pos; dims = 1, init = -10.0))) ==
+        SymbolicAnalysis.UnknownCurvature
+    let e = T(inv, unwrap(s_pos) + T(getindex, sum(ipv_pos; dims = 1, init = -10.0), 1))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    # zero products: Sign.Positive is nonnegative, not a strict-positivity proof
+    let e = T(*, 0, s_pos)
+        r = SymbolicAnalysis.analyze(e)
+        @test r.sign == SymbolicAnalysis.Positive # nonnegative is fine
+        @test !SymbolicAnalysis.known_positive(unwrap(e))
+    end
+    # `1/(0*s)` is `+∞` everywhere: the extended-value reciprocal, as `inv(t)` on `t ≥ 0`.
+    let e = T(inv, T(*, 0, s_pos))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.Convex
+        @test r.sign == SymbolicAnalysis.Positive
+    end
+    let e = T(inv, T(getindex, T(broadcast, *, 0, ipv_pos), 1))
+        r = SymbolicAnalysis.analyze(e)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+end
+
+# A matrix `Positive` sign is Loewner order, so its entries inherit no sign:
+# `sqrt([2 -1; -1 2])[1, 2] < 0` and `inv([2 1; 1 2])[1, 2] < 0`.
+let T(f, args...; type = Real) = Symbolics.term(f, unwrap.(args)...; type)
+    @variables Xg[1:2, 1:2] xg
+    M = SymmetricPositiveDefinite(2)
+    Xg_adj = T(adjoint, Xg; type = Matrix{Real})
+    Xg_inv = T(inv, Xg; type = Matrix{Real})
+    entry_cases = [
+        (sqrt(Xg)[1, 2], nothing),
+        (T(getindex, Xg_adj, 1, 2), M),
+        (T(getindex, Xg_inv, 1, 2), M),
+    ]
+    for (e, Mg) in entry_cases
+        @test SymbolicAnalysis.analyze(unwrap(e), Mg).sign == SymbolicAnalysis.AnySign
+        for g in (LogExpFunctions.xexpx, inv)
+            r = SymbolicAnalysis.analyze(T(g, e), Mg)
+            @test r.curvature == SymbolicAnalysis.UnknownCurvature
+            @test r.sign == SymbolicAnalysis.AnySign
+        end
+        @test SymbolicAnalysis.analyze(T(^, e, 3), Mg).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    # GDCP signs describe manifold points; scalar `adjoint`/`inv` keep their DCP sign.
+    for e in (T(adjoint, xg), T(inv, T(getindex, Xg_adj, 1, 2)))
+        @test SymbolicAnalysis.analyze(e, M).sign == SymbolicAnalysis.AnySign
+        @test SymbolicAnalysis.analyze(T(LogExpFunctions.xexpx, e), M).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    @test SymbolicAnalysis.analyze(unwrap(tr(Xg)), M).sign == SymbolicAnalysis.Positive
+    # Elementwise proofs still reach entries.
+    @variables vg[1:2]
+    @test SymbolicAnalysis.analyze(T(LogExpFunctions.xexpx, abs.(vg)[1])).curvature ==
+        SymbolicAnalysis.Convex
+    @test SymbolicAnalysis.analyze(unwrap(exp.(vg)[1])).sign == SymbolicAnalysis.Positive
+end
+
+# `tr(X .- 5)` has no sign on SPD (it is -8 at `X = I`), so element proofs on a
+# positive `vp` must not certify `invprod(vp .+ tr(X .- 5))` or `inv(vp[1] + tr(X .- 5))`.
+let
+    @variables Xm[1:2, 1:2] vm[1:3]
+    vp = Symbolics.wrap(
+        setmetadata(
+            unwrap(vm), SymbolicAnalysis.VarDomain,
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1)
+        )
+    )
+    M = SymmetricPositiveDefinite(2)
+    a = tr(Xm .- 5)
+    for e in (
+            SymbolicAnalysis.invprod(vp .+ a), SymbolicAnalysis.invprod(vp .+ a .+ 1),
+            inv((vp .+ a)[1]), inv(vp[1] + a),
+        )
+        r = SymbolicAnalysis.analyze(unwrap(e), M)
+        @test r.curvature != SymbolicAnalysis.Convex
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    @test SymbolicAnalysis.analyze(unwrap((vp .+ a)[1]), M).sign == SymbolicAnalysis.AnySign
+end
+
+# `c/x` on a nonnegative concave `x` is convex (cvxpy's `inv_pos`), with `+∞` at 0.
+let tg = Symbolics.wrap(
+        setmetadata(unwrap(only(@variables tg)), SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine())
+    )
+    for (e, curv, sgn) in [
+            (inv(sqrt(tg)), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+            (Symbolics.term(inv, unwrap(sqrt(tg))), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+            (1 / sqrt(tg), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+            (-2 / sqrt(tg), SymbolicAnalysis.Concave, SymbolicAnalysis.Negative),
+            (1 / abs(x), SymbolicAnalysis.UnknownCurvature, SymbolicAnalysis.Positive),
+            (1 / x, SymbolicAnalysis.UnknownCurvature, SymbolicAnalysis.AnySign),
+            (Symbolics.term(inv, 0), SymbolicAnalysis.UnknownCurvature, SymbolicAnalysis.AnySign),
+        ]
+        r = SymbolicAnalysis.analyze(unwrap(e))
+        @test r.curvature == curv
+        @test r.sign == sgn
+    end
+end
+
+# Array `Positive` is entrywise for element domains and Loewner PSD for matrix
+# atoms; mixing the two proves neither. At `X = [2 -1; -1 2]`, `sqrt(X)[1, 2] < 0`,
+# so `sqrt(X) + A` with `A = [0 0.1; 0.1 0]` and `sqrt(X) * I` have negative
+# entries, and `norm(sqrt(X), 0.5)` violates concavity along SPD segments.
+let
+    @variables Xk[1:2, 1:2] Yk[1:2, 1:2] Ak[1:2, 1:2] Bk[1:2, 1:2] vk[1:3]
+    nonneg(z, n) = Symbolics.wrap(
+        setmetadata(
+            unwrap(z), SymbolicAnalysis.VarDomain,
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine(), n)
+        )
+    )
+    A, B, v = nonneg(Ak, 2), nonneg(Bk, 2), nonneg(vk, 1)
+    M = SymmetricPositiveDefinite(2)
+    for (e, Mk) in (
+            (sqrt(Xk) + A, nothing), (sqrt(Xk) .+ A, nothing), (2A + sqrt(Xk), nothing),
+            (sqrt(Xk) + A .* B, nothing), (sqrt(Xk) + A * B, nothing),
+            (exp.(Xk) + sqrt(Yk), nothing), (sqrt(Xk) * sqrt(Yk), nothing),
+            (sqrt(Xk) * A, nothing), (Xk' + A, M),
+        )
+        @test SymbolicAnalysis.analyze(unwrap(e), Mk).sign == SymbolicAnalysis.AnySign
+    end
+    for (e, Mk) in (
+            (norm(sqrt(Xk), 0.5), nothing), (norm(sqrt(Xk) + A, 0.5), nothing),
+            (norm(Xk' + A, 0.5), M),
+        )
+        @test SymbolicAnalysis.analyze(unwrap(e), Mk).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    for e in (norm(v, 0.5), norm(A, 0.5), norm(A + B, 0.5))
+        @test SymbolicAnalysis.analyze(unwrap(e)).curvature == SymbolicAnalysis.Concave
+    end
+    @test SymbolicAnalysis.analyze(unwrap(sqrt(Xk) + sqrt(Yk))).sign == SymbolicAnalysis.Positive
+    @test SymbolicAnalysis.analyze(unwrap(A + B)).sign == SymbolicAnalysis.Positive
+    @test SymbolicAnalysis.analyze(unwrap(A * B)).sign == SymbolicAnalysis.Positive
+    # Under SPD `inv(X)` is Loewner-positive, but `abs(inv(X)[1, 2])` is neither
+    # convex nor geodesically convex; the Frobenius norm is Loewner-increasing.
+    r = SymbolicAnalysis.analyze(unwrap(abs.(inv(Xk))), M)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.gcurvature == SymbolicAnalysis.GUnknownCurvature
+    r = SymbolicAnalysis.analyze(unwrap(norm(inv(Xk))), M)
+    @test r.curvature == SymbolicAnalysis.Convex
+    @test r.gcurvature == SymbolicAnalysis.GConvex
+    # Slices and maps are entrywise; at `A = [0 10; 0 0]`, `X = [2 -1; -1 2]`,
+    # `A + sqrt(X)` has a negative entry, and `norm(A + inv(X))` is not convex on SPD.
+    As = A[1:2, 1:2]
+    for (e, Mk) in (
+            (As + sqrt(Xk), nothing), (As .* sqrt(Xk), nothing), (A[:, :] .* sqrt(Xk), nothing),
+            ((As + B[1:2, 1:2]) .* sqrt(Xk), nothing), (As .* inv(Xk), M), (As + inv(Xk), M),
+            (map(abs, Xk) + sqrt(Yk), nothing), (map(abs, Xk) .* sqrt(Yk), nothing),
+            (sqrt(Xk) ./ 2 + A, nothing),
+        )
+        @test SymbolicAnalysis.analyze(unwrap(e), Mk).sign == SymbolicAnalysis.AnySign
+    end
+    for e in (norm(As + inv(Xk)), norm(As + inv(Xk), 2))
+        @test SymbolicAnalysis.analyze(unwrap(e), M).curvature != SymbolicAnalysis.Convex
+    end
+    for e in (As .* A, As * B[1:2, 1:2], As .+ A, map(abs, Xk) + A, sqrt(Xk) ./ 2 + sqrt(Yk))
+        @test SymbolicAnalysis.analyze(unwrap(e)).sign == SymbolicAnalysis.Positive
+    end
+    @test SymbolicAnalysis.analyze(unwrap(norm(As, 0.5))).curvature == SymbolicAnalysis.Concave
+end
