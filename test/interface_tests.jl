@@ -88,6 +88,11 @@ _interface_gdcp_atom(p) = p[1]
         @test result isa BigFloat
     end
 
+    @testset "quad_over_lin negative zero" begin
+        @test_throws DomainError SymbolicAnalysis.quad_over_lin(3.0, -0.0)
+        @test_throws DomainError SymbolicAnalysis.quad_over_lin([1.0, 2.0], -0.0)
+    end
+
     @testset "huber" begin
         result = SymbolicAnalysis.huber(BigFloat(1.5), BigFloat(1.0))
         @test result isa BigFloat
