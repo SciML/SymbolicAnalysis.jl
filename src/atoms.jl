@@ -94,13 +94,39 @@ add_dcprule(
     Concave,
     Increasing
 )
-add_dcprule(
-    StatsBase.harmmean,
-    array_domain(HalfLine{Real, :open}(), 1),
-    Positive,
-    Concave,
-    Increasing
-)
+
+# Known-positive vector argument: a propagated `Positive` sign, or an array
+# `VarDomain` whose element domain lies in `(0, ∞)`. Any other `VarDomain` (e.g. a
+# scalar domain attached to an array) gives no proof.
+function known_positive_array(x)
+    getsign(x) == Positive && return true
+    _has_vardomain(x) || return false
+    d = getmetadata(x, VarDomain)
+    d isa CustomDomain || return false
+    return try
+        f = d.in
+        hasproperty(f, :element_domain) &&
+            issubset(f.element_domain, HalfLine{Real, :open}())
+    catch e
+        e isa MethodError ? false : rethrow()
+    end
+end
+
+"""
+    dcprule(::typeof(harmmean), x)
+
+`harmmean` is concave-increasing on the positive orthant but also evaluates for
+negative entries, where it is not concave: `h(-1,-3) = h(-3,-1) = -1.5` while the
+midpoint `h(-2,-2) = -2`. Require a known-positive argument.
+"""
+function dcprule(::typeof(StatsBase.harmmean), x)
+    args = (x,)
+    known_positive_array(x) ||
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
+    return makerule(array_domain(HalfLine{Real, :open}(), 1), Positive, Concave, Increasing),
+        args
+end
+hasdcprule(::typeof(StatsBase.harmmean)) = true
 
 """
     invprod(x::AbstractVector)
@@ -130,19 +156,8 @@ array `VarDomain` whose element domain lies in `(0, ∞)`).
 """
 function dcprule(::typeof(invprod), x)
     args = (x,)
-    unknown = makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono)
-    ok = getsign(x) == Positive
-    if !ok && _has_vardomain(x)
-        d = getmetadata(x, VarDomain)
-        ok = try
-            f = d.in
-            hasproperty(f, :element_domain) &&
-                issubset(f.element_domain, HalfLine{Real, :open}())
-        catch e
-            e isa MethodError ? false : rethrow()
-        end
-    end
-    ok || return unknown, args
+    known_positive_array(x) ||
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
     return makerule(array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing),
         args
 end
@@ -490,7 +505,7 @@ Returns the sum of the `k` largest elements of `x`.
     - `k::Int`: The number of largest elements to sum.
 """
 function sum_largest(x::AbstractMatrix, k::Integer)
-    return sum(sort(vec(x))[(end - k):end])
+    return sum(sort(vec(x))[(end - k + 1):end])
 end
 Symbolics.@register_symbolic sum_largest(x::AbstractMatrix, k::Integer)
 add_dcprule(sum_largest, (array_domain(RealLine(), 2), ℤ), AnySign, Convex, Increasing)
@@ -730,7 +745,7 @@ add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
 add_dcprule(
     kldivergence,
     (array_domain(HalfLine{Real, :open}(), 1), array_domain(HalfLine{Real, :open}(), 1)),
-    Positive,
+    AnySign,
     Convex,
     AnyMono
 )
@@ -936,7 +951,7 @@ add_dcprule(diagm, array_domain(RealLine(), 1), AnySign, Affine, Increasing)
 
 add_dcprule(diag, array_domain(RealLine(), 2), AnySign, Affine, Increasing)
 
-add_dcprule(diff, array_domain(RealLine()), AnySign, Affine, Increasing)
+add_dcprule(diff, array_domain(RealLine()), AnySign, Affine, AnyMono)
 
 add_dcprule(hcat, array_domain(array_domain(RealLine(), 1), 1), AnySign, Affine, Increasing)
 
