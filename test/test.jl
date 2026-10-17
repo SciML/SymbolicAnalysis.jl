@@ -1310,4 +1310,22 @@ let
     r = SymbolicAnalysis.analyze(unwrap(norm(inv(Xk))), M)
     @test r.curvature == SymbolicAnalysis.Convex
     @test r.gcurvature == SymbolicAnalysis.GConvex
+    # Slices and maps are entrywise; at `A = [0 10; 0 0]`, `X = [2 -1; -1 2]`,
+    # `A + sqrt(X)` has a negative entry, and `norm(A + inv(X))` is not convex on SPD.
+    As = A[1:2, 1:2]
+    for (e, Mk) in (
+            (As + sqrt(Xk), nothing), (As .* sqrt(Xk), nothing), (A[:, :] .* sqrt(Xk), nothing),
+            ((As + B[1:2, 1:2]) .* sqrt(Xk), nothing), (As .* inv(Xk), M), (As + inv(Xk), M),
+            (map(abs, Xk) + sqrt(Yk), nothing), (map(abs, Xk) .* sqrt(Yk), nothing),
+            (sqrt(Xk) ./ 2 + A, nothing),
+        )
+        @test SymbolicAnalysis.analyze(unwrap(e), Mk).sign == SymbolicAnalysis.AnySign
+    end
+    for e in (norm(As + inv(Xk)), norm(As + inv(Xk), 2))
+        @test SymbolicAnalysis.analyze(unwrap(e), M).curvature != SymbolicAnalysis.Convex
+    end
+    for e in (As .* A, As * B[1:2, 1:2], As .+ A, map(abs, Xk) + A, sqrt(Xk) ./ 2 + sqrt(Yk))
+        @test SymbolicAnalysis.analyze(unwrap(e)).sign == SymbolicAnalysis.Positive
+    end
+    @test SymbolicAnalysis.analyze(unwrap(norm(As, 0.5))).curvature == SymbolicAnalysis.Concave
 end

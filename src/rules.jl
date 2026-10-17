@@ -315,37 +315,50 @@ hassign(ex) = ex isa Real
 hassign(ex::typeof(Base.broadcast)) = true
 getsign(ex::typeof(Base.broadcast))::Sign = Positive
 
-# An array sign is entrywise (element domains, broadcasts, constants) or Loewner
-# (matrix atoms, SPD points); a sum mixing the two is neither. `nothing` for scalars;
-# a vector sign is always entrywise.
+# An array sign is entrywise (element domains, constants, slices and elementwise
+# maps of entrywise arrays), Loewner (PSD-valued matrix atoms), or `:unknown`;
+# only signs of one known kind combine. `nothing` for scalars; a vector sign is
+# always entrywise.
 function array_sign_kind(x)
     T = SymbolicUtils.symtype(x)
     T <: AbstractArray || return nothing
     T <: AbstractVector && return :entrywise
     (isconstarg(x) || _has_vardomain(x) || known_nonnegative(x)) && return :entrywise
-    iscall(x) || return :loewner
+    iscall(x) || return :unknown
     f = operation(x)
+    args = arguments(x)
     f === SymbolicUtils.array_literal && return :entrywise
-    if f === broadcast
-        g = constval(first(arguments(x)))
-        g === (+) || g === (*) || g === (-) || return :entrywise
-        return combine_sign_kinds(@view arguments(x)[2:end])
-    elseif f === (+) || f === (*) || f === (-)
-        return combine_sign_kinds(arguments(x))
+    if f === getindex || f === view
+        return array_sign_kind(first(args)) === :entrywise ? :entrywise : :unknown
+    elseif f === broadcast || f isa SymbolicUtils.Mapper
+        g = f === broadcast ? constval(first(args)) : f.f
+        elems = f === broadcast ? (@view args[2:end]) : args
+        kind = combine_sign_kinds(elems)
+        g === (+) || g === (-) || g === (*) || g === (/) || return (
+            kind === nothing || kind === :entrywise ? :entrywise : :unknown
+        )
+        return kind === nothing ? :entrywise : kind
+    elseif f === (+) || f === (-) || f === (*)
+        return combine_sign_kinds(args)
+    elseif loewner_sign_atom(f)
+        return :loewner
     end
-    return :loewner
+    return :unknown
 end
+
+loewner_sign_atom(f) = f === sqrt || f === inv || f === adjoint || f === transpose ||
+    f === conjugation || f === scalar_mat || f === affine_map || f === hadamard_product
 
 function combine_sign_kinds(args)
     kind = nothing
     for a in args
         k = array_sign_kind(a)
         k === nothing && continue
-        k === :mixed && return :mixed
+        k === :unknown && return :unknown
         if kind === nothing
             kind = k
         elseif kind !== k
-            return :mixed
+            return :unknown
         end
     end
     return kind
@@ -355,7 +368,7 @@ function add_sign(args)
     if hassign(args)
         return getsign(args)
     end
-    combine_sign_kinds(args) === :mixed && return AnySign
+    combine_sign_kinds(args) === :unknown && return AnySign
     # Check signs without allocating intermediate arrays
     has_anysign = false
     all_negative = true
@@ -392,7 +405,7 @@ end
 # (`elementwise`) of them is (Schur product theorem).
 function mul_sign(args; elementwise::Bool = false)
     kind = combine_sign_kinds(args)
-    kind === :mixed && return AnySign
+    kind === :unknown && return AnySign
     if !elementwise && kind === :loewner &&
             count(a -> SymbolicUtils.symtype(a) <: AbstractArray, args) > 1
         return AnySign

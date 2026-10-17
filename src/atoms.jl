@@ -941,9 +941,15 @@ function known_nonnegative(x)
     _is_real_scalar(x) && getsign(x) == Positive && return true
     known_positive(x) && return true
     _vardomain_inside(x, HalfLine()) && return true
-    iscall(x) && operation(x) === broadcast && length(arguments(x)) == 2 &&
-        SymbolicUtils.symtype(x) <: AbstractArray{<:Real} || return false
-    g = constval(first(arguments(x)))
+    iscall(x) && SymbolicUtils.symtype(x) <: AbstractArray{<:Real} || return false
+    f, args = operation(x), arguments(x)
+    g = if f === broadcast && length(args) == 2
+        constval(first(args))
+    elseif f isa SymbolicUtils.Mapper && length(args) == 1
+        f.f
+    else
+        return false
+    end
     return g === abs || g === abs2 || g === sqrt || g === norm
 end
 
