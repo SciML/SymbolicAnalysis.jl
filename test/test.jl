@@ -1050,6 +1050,31 @@ for (ex, c) in (
     @test curv_of(ex) == c
 end
 
+# A congruence preserves Loewner curvature, not entrywise curvature: in a factor
+# mixing both it reads mixed-sign weights of the entrywise part.
+let A = Rational{BigInt}[1 -1; 0 1], X0 = Matrix{Rational{BigInt}}(I, 2, 2),
+        U0 = zeros(Rational{BigInt}, 2, 2), U1 = Rational{BigInt}[0 2; 0 0],
+        f(U) = tr(A * (inv(X0) + U .^ 2) * A')
+    @test f(U0) == 3 && f(U1) == -1
+    @test f((U0 + U1) / 2) > (f(U0) + f(U1)) / 2
+end
+let A = [1 -1; 0 1], v = [1, -1]
+    for ex in (
+            tr(A * (inv(PXd) + BU .^ 2) * A'), tr(A * (sqrt(PXd) - BU .^ 2) * A'),
+            v' * (inv(PXd) + BU .^ 2) * v, v' * (inv(PXd) .+ BU .^ 2) * v,
+            v' * (sqrt(PXd) - exp.(BU)) * v,
+        )
+        @test curv_of(ex) == SymbolicAnalysis.UnknownCurvature
+    end
+    for ex in (
+            tr(A * (inv(PXd) + BU) * A'), tr(A * (inv(PXd) - sqrt(PXd)) * A'),
+            v' * (2 * inv(PXd) .+ 1) * v,
+        )
+        @test curv_of(ex) == SymbolicAnalysis.Convex
+    end
+    @test curv_of(v' * sqrt(PXd)' * v) == SymbolicAnalysis.Concave
+end
+
 # Floating-point Cholesky is not a PD proof: this matrix has determinant -2⁻⁴⁸.
 let A = [5.0 11; 11 24.2]
     @test isposdef(A) && det(Rational{BigInt}.(A)) < 0

@@ -561,16 +561,9 @@ sign_times(a::Sign, b::Sign) = a == AnySign || b == AnySign ? AnySign : a == b ?
 is_congruence(left, right) = left === right === nothing ||
     left !== nothing && right !== nothing && left == adjoint(right)
 
-"""
-    mul_curvature(args; elementwise = false)
-
-Curvature of the product of `args`, at most one of which is non-constant. A
-matrix product `L * M * R` has entries `Σ L[i,k] M[k,l] R[l,j]`, so an entrywise
-curvature of `M` survives only when every `L[i,k] * R[l,j]` shares a sign; a
-Loewner-curved `M` survives only a scalar factor times a congruence `C * M * C'`.
-With `elementwise`, the product is a broadcast `.*` and positions do not matter.
-"""
-function mul_curvature(args; elementwise = false)
+# Splits a product into its non-constant factor (with a count of them), the
+# product of its scalar constants, and the constant arrays on either side.
+function split_product(args; elementwise = false)
     non_constant_expr = nothing
     non_constant_count = 0
     scalar = one(Float64)
@@ -580,10 +573,7 @@ function mul_curvature(args; elementwise = false)
         if issym(arg) || iscall(arg)
             non_constant_count += 1
             non_constant_expr = arg
-            if non_constant_count > 1
-                @warn "DCP does not support multiple non-constant arguments in multiplication"
-                return UnknownCurvature
-            end
+            non_constant_count > 1 && break
         else
             c = constval(arg)
             if c isa Number || elementwise
@@ -595,10 +585,54 @@ function mul_curvature(args; elementwise = false)
             end
         end
     end
+    return non_constant_expr, non_constant_count, scalar, left, right
+end
+
+# `loewner_curved` only detects a Loewner atom somewhere inside `x`; this proves
+# that every non-affine part of `x` is one, combined by sums, scalar multiples,
+# transposes and congruences, so that `x` carries a Loewner-order curvature.
+function loewner_proven(x)
+    is_loewner_matrix_term(x) && return true
+    find_curvature(x) == Affine && return true
+    iscall(x) || return false
+    f, args = operation(x), arguments(x)
+    if f === broadcast
+        g, xs = constval(args[1]), args[2:end]
+        g in (+, -) && return all(loewner_proven, xs)
+        g === (*) || return false
+        nc, count, scalar, _, _ = split_product(xs; elementwise = true)
+        return count == 1 && scalar isa Number && loewner_proven(nc)
+    end
+    f in (+, -) && return all(loewner_proven, args)
+    f in (adjoint, transpose) && return loewner_proven(args[1])
+    f === (*) || return false
+    nc, count, scalar, left, right = split_product(args)
+    return count == 1 && scalar isa Number && is_congruence(left, right) && loewner_proven(nc)
+end
+
+"""
+    mul_curvature(args; elementwise = false)
+
+Curvature of the product of `args`, at most one of which is non-constant. A
+matrix product `L * M * R` has entries `Σ L[i,k] M[k,l] R[l,j]`, so an entrywise
+curvature of `M` survives only when every `L[i,k] * R[l,j]` shares a sign; a
+Loewner-curved `M` survives only a scalar factor times a congruence `C * M * C'`,
+and the congruence only when all of `M`'s curvature is Loewner (`loewner_proven`).
+With `elementwise`, the product is a broadcast `.*` and positions do not matter.
+"""
+function mul_curvature(args; elementwise = false)
+    non_constant_expr, non_constant_count, scalar, left, right =
+        split_product(args; elementwise)
+    if non_constant_count > 1
+        @warn "DCP does not support multiple non-constant arguments in multiplication"
+        return UnknownCurvature
+    end
     non_constant_expr === nothing && return Affine
 
     if loewner_curved(non_constant_expr)
         scalar isa Number && is_congruence(left, right) || return UnknownCurvature
+        left === right === nothing || loewner_proven(non_constant_expr) ||
+            return UnknownCurvature
         coeff_sign = getsign(scalar)
     else
         coeff_sign = getsign(scalar)
