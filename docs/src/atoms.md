@@ -201,6 +201,17 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |
 
+These signs and curvatures hold at a point of the manifold, so they apply only when
+the atom's matrix argument provably is one: the variable `X` itself, or `X` passed
+through `inv`, `adjoint`, `transpose`, a positive scalar multiple, or `conjugation` by
+a constant nonsingular matrix. The sign rule also accepts sums of such points and
+constant positive semidefinite matrices (`X + γI`). Any other argument, such as
+`X .- 5`, `-X` or `X - 5I`, falls back to the Euclidean rule, so `tr(X .- 5)` has no
+sign. For `tr`, `sum` and `diag`, geodesic convexity also survives adding any
+constant to the point. For `eigmax` and `eigsummax` the constant must be symmetric
+(a symmetric matrix, or a scalar via `.-` / `.+`), so `eigmax(X .- 5)` is `GConvex`
+but `eigmax(X + [0 3; 0 0])` is not.
+
 ## DGCP Atoms (Lorentz Model)
 
 | Atom                          | Sign     | Geodesic Curvature | Monotonicity |
@@ -213,3 +224,18 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 | lorentz_transform             | -        | -                  | -            |
 
 Note: `lorentz_transform` does not have specific geodesic curvature properties by itself, but it preserves geodesic convexity when applied to geodesically convex functions.
+
+## Manifold variable and fixed parameters
+
+Geodesic curvature is reported with respect to the manifold variable: the symbolic
+arguments that are points of `M`, an `n×n` matrix on `SymmetricPositiveDefinite(n)`
+or a vector on `Lorentz`. Every other free symbol is a parameter held fixed. For
+example, with `@variables y[1:2] X[1:2, 1:2]`, `log_quad_form(y, X)` is `GConvex` on
+`SymmetricPositiveDefinite(2)` because ``X \mapsto \log(y^\top X y)`` is
+geodesically convex for each fixed `y`. A parameter's known size must match its role
+(`y` needs length 2 here), and an argument built from the point, such as
+`[sin(X[1, 1]), 0]`, is not a parameter.
+
+This is not joint convexity in the point and the parameters. A certificate also
+does not transfer to the expression obtained by substituting something for a
+parameter; analyze that expression again.
