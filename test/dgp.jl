@@ -228,6 +228,77 @@ ex = SymbolicAnalysis.sum_log_eigmax(exp, X, 2) |> unwrap
 anres = analyze(ex, M)
 @test anres.gcurvature == SymbolicAnalysis.GConvex
 
+# Witnesses use commuting endpoints, whose geodesic midpoint is the entrywise
+# geometric mean, so every value is exact in BigFloat.
+@testset "SPD scalar multiples, sum_log_eigmax and constant factors" begin
+    @variables X2[1:2, 1:2]
+    M2 = SymmetricPositiveDefinite(2)
+    gmid(P, Q) = Diagonal(sqrt.(diag(P) .* diag(Q)))
+
+    # Σᵢ₌₁ᵏ f(log λᵢ) needs f convex and nondecreasing.
+    P = Diagonal(exp.(big.([1 // 10, -41 // 10])))
+    Q = Diagonal(exp.(big.([-41 // 10, 1 // 10])))
+    slem(f, A) = f(log(maximum(diag(A))))
+    for f in (abs, x -> x^2, -, log)
+        @test analyze(SymbolicAnalysis.sum_log_eigmax(f, X2, 1), M2).gcurvature ==
+            SymbolicAnalysis.GUnknownCurvature
+    end
+    for f in (abs, x -> x^2, -)
+        @test slem(f, gmid(P, Q)) > (slem(f, P) + slem(f, Q)) / 2
+    end
+    for f in (exp, expm1, identity)
+        @test analyze(SymbolicAnalysis.sum_log_eigmax(f, X2, 1), M2).gcurvature ==
+            SymbolicAnalysis.GConvex
+    end
+    @test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 1), M2).gcurvature ==
+        SymbolicAnalysis.GConvex
+
+    # `X` is Loewner geodesically convex, so a negative multiple is concave and
+    # `-X + Φ(X)` has no certificate: `tr(-X + X ∘ I/2) = -tr(X)/2`.
+    H = [0.5 0.0; 0.0 0.5]
+    @test analyze(-1.0 * X2, M2).gcurvature == SymbolicAnalysis.GConcave
+    @test analyze(-(X2 + X2), M2).gcurvature == SymbolicAnalysis.GConcave
+    E = -1.0 * X2 + SymbolicAnalysis.hadamard_product(X2, H)
+    for ex in (E, tr(E), sum(E))
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    fE(A) = -tr(A) + tr(H .* A)
+    P = Diagonal(exp.(big.([-1, 0])))
+    Q = Diagonal(exp.(big.([1, 0])))
+    @test fE(gmid(P, Q)) > (fE(P) + fE(Q)) / 2
+    # Subtraction of arrays is `broadcast(-, A, B)`, decreasing in `B`.
+    # `tr(inv(X)) - tr(X)` between `I` and `4I` gives -3 at `2I` against -3.75.
+    D = inv(X2) - X2
+    for ex in (D, tr(D), sum(D), tr(inv(X2) .- X2))
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    fD(A) = tr(inv(A)) - tr(A)
+    @test fD(gmid(big(1) * I(2), big(4) * I(2))) > (fD(big(1) * I(2)) + fD(big(4) * I(2))) / 2
+    C2 = [1.0 0.2; 0.2 1.0]
+    for ex in (
+            tr(2.0 * X2), tr(X2), tr(inv(X2)), tr(X2 + X2), tr(X2 - C2), tr(inv(X2) .+ X2),
+        )
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
+    end
+
+    # Non-scalar constant factors do not commute with the point: `e₁ᵀ X⁻¹ e₂`
+    # is not the constant `e₁ᵀe₂ = 0` times `X⁻¹`. Between `I` and
+    # `[2 -1; -1 2]` the midpoint gives (1 - 1/√3)/2 against a chord of 1/6.
+    r = analyze([1, 0]' * inv(X2) * [0, 1], M2)
+    @test r.gcurvature == SymbolicAnalysis.GUnknownCurvature
+    @test (1 - 1 / sqrt(big(3))) / 2 > (0 + 1 // 3) / 2
+    Q = [2.0 -1.0; -1.0 2.0]
+    @test inv(Manifolds.shortest_geodesic(M2, Matrix(1.0I, 2, 2), Q, 0.5))[1, 2] ≈
+        (1 - 1 / sqrt(3)) / 2
+    for ex in (
+            tr(SymbolicAnalysis.conjugation(-1.0 * X2, [1.0 0; 0 1])),
+            tr([1.0 2; 0 1] * inv(X2) * [1.0 0; 3 1]), tr([1.0 2; 0 1] * X2 * [1.0 0; 3 1]),
+            tr(-1.0 * X2 * [2.0 0; 0 1]),
+        )
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+end
+
 B = rand(5, 5)
 B = B * B'
 Ys = [rand(5, 5) for i in 1:5]
@@ -301,3 +372,109 @@ end
     SymbolicAnalysis.Positive
 @test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 2), M2).sign !=
     SymbolicAnalysis.Positive
+
+# Geodesic rules hold only at a point of the manifold: `tr(X .- 5)` can be
+# negative on the SPD cone, and `tr(-X) = -tr(X)` is geodesically concave.
+@testset "GDCP rules need a manifold-point argument" begin
+    @variables X2[1:2, 1:2]
+    xexpx = SymbolicAnalysis.LogExpFunctions.xexpx
+    M2 = SymmetricPositiveDefinite(2)
+    not_positive = [
+        tr(X2 .- 5), tr(X2 - 5 * I(2)), tr(-X2), eigmax(-X2), tr(-X2 + I(2)),
+        SymbolicAnalysis.eigsummax(log(X2), 1),
+    ]
+    for ex in not_positive
+        @test analyze(ex, M2).sign != SymbolicAnalysis.Positive
+    end
+    not_convex = [
+        xexpx(tr(X2 .- 5)), inv(tr(X2 .- 5)), xexpx(tr(X2 - 5 * I(2))), xexpx(tr(-X2)),
+        abs(eigmax(-X2)), eigmax(-X2)^2,
+    ]
+    for ex in not_convex
+        @test analyze(ex, M2).curvature != SymbolicAnalysis.Convex
+    end
+    not_gconvex = [
+        tr(-X2), eigmax(-X2), tr(sin.(X2)), tr(-X2 + I(2)), tr(inv(-X2)),
+        tr(inv(X2 .- 5)), tr(inv(X2 + I(2))), xexpx(tr(X2 .- 5)), tr(X2 - 5 * I(2))^2,
+        abs(eigmax(-X2)), SymbolicAnalysis.eigsummax(log(X2), 1)^2,
+        log(tr(X2 - I(2))),
+    ]
+    for ex in not_gconvex
+        @test analyze(ex, M2).gcurvature != SymbolicAnalysis.GConvex
+    end
+    # A point's isometric images and PSD shifts keep the rule.
+    for ex in [tr(X2), tr(inv(X2)), tr(2 * X2), tr(X2 + 0.5 * I(2)), eigmax(inv(X2))]
+        @test analyze(ex, M2).sign == SymbolicAnalysis.Positive
+    end
+    for ex in [tr(inv(X2))^2, tr(2 * X2)^2, tr(X2 + 0.5 * I(2))^2, logdet(X2 + I(2))]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
+    end
+    Cns = [0.0 3.0; 0.0 0.0]
+    for ex in [
+            eigmax(X2 + Cns), eigmax(X2 .+ Cns), eigmax(X2 .- [0.0, 3.0]),
+            SymbolicAnalysis.eigsummax(X2 + Cns, 1),
+        ]
+        @test analyze(ex, M2).gcurvature != SymbolicAnalysis.GConvex
+    end
+    @test analyze(eigmax(X2 .- 5), M2).gcurvature == SymbolicAnalysis.GConvex
+    @test analyze(eigmax(X2 + [1.0 4.0; 4.0 -2.0]), M2).gcurvature ==
+        SymbolicAnalysis.GConvex
+    @test analyze(tr(X2), Lorentz(2)).sign != SymbolicAnalysis.Positive
+
+    A = [0.5 0.1; 0.1 0.3]
+    B = [4.0 -1.0; -1.0 3.0]
+    @test tr(A .- 5) < 0
+    γ = Manifolds.shortest_geodesic(M2, A, B, 0.5)
+    @test tr(-γ) > (tr(-A) + tr(-B)) / 2
+    xe = P -> (t = tr(P .- 5); t * exp(t))
+    @test xe((A + B) / 2) > (xe(A) + xe(B)) / 2
+
+    # det(Cind) = -1//10^18 but float.(Cind) rounds to the singular PSD ones(2, 2).
+    Cind = [1 // 1 1 // 1; 1 // 1 (big(10)^18 - 1) // big(10)^18]
+    @test analyze(tr(inv(X2 + Cind)), M2).sign != SymbolicAnalysis.Positive
+    P = Matrix{Rational{BigInt}}(I, 2, 2) / (4 * big(10)^18)
+    @test tr(inv(P + Cind)) < 0
+    @test analyze(tr(inv(X2 + [1 // 1 1 // 2; 1 // 2 1 // 1])), M2).sign ==
+        SymbolicAnalysis.Positive
+    @test !SymbolicAnalysis.psd_const([1.0 1.0; 1.0 1 - eps() / 2])
+    @test !SymbolicAnalysis.psd_const([Inf 0.0; 0.0 1.0])
+    @test SymbolicAnalysis.psd_const([1 0; 0 0])
+
+    # Curvature, like sign, needs each symbolic argument to be a point of `M`.
+    @variables Y3[1:3, 1:3] p3[1:3]
+    for (ex, M) in [
+            (tr(Y3), M2), (tr(inv(Y3)), M2), (logdet(Y3 + I(3)), M2),
+            (logdet(X2 + I(2)), Lorentz(2)), (log(tr(p3)), Lorentz(2)),
+        ]
+        @test analyze(ex, M).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    @test analyze(tr(Y3), SymmetricPositiveDefinite(3)).gcurvature == SymbolicAnalysis.GConvex
+    for ex in [SymbolicAnalysis.sdivergence(inv(X2), Y3), SymbolicAnalysis.sdivergence(Y3, inv(X2))]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+
+    # Non-point arguments of the SPD special cases must be constants.
+    v = [sin(X2[1, 1]), 0]
+    @test analyze(log(SymbolicAnalysis.quad_form(v, X2)), M2).gcurvature ==
+        SymbolicAnalysis.GUnknownCurvature
+    lq = P -> (w = [sin(P[1, 1]), 0]; log(dot(w, P * w)))
+    I2 = Matrix(1.0I, 2, 2)
+    @test lq(Manifolds.shortest_geodesic(M2, I2, 2I2, 0.5)) > (lq(I2) + lq(2I2)) / 2
+    @test analyze(log(SymbolicAnalysis.quad_form([1.0, 2.0], X2)), M2).gcurvature ==
+        SymbolicAnalysis.GConvex
+
+    # A free parameter is admitted only if its known size fits its role.
+    @variables v2[1:2] v3[1:3]
+    for ex in [
+            SymbolicAnalysis.log_quad_form(v3, X2), SymbolicAnalysis.quad_form(v3, X2),
+            log(SymbolicAnalysis.quad_form(v3, X2)), SymbolicAnalysis.log_quad_form(v3, inv(X2)),
+        ]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GUnknownCurvature
+    end
+    for ex in [
+            SymbolicAnalysis.log_quad_form(v2, X2), SymbolicAnalysis.quad_form(v2, X2),
+            log(SymbolicAnalysis.quad_form(v2, X2)),
+        ]
+        @test analyze(ex, M2).gcurvature == SymbolicAnalysis.GConvex
+    end
+end
