@@ -695,6 +695,31 @@ end
 @test SymbolicAnalysis.analyze(unwrap(sqrt(Xpsd) .^ 3)).curvature ==
     SymbolicAnalysis.UnknownCurvature
 
+@testset "Entrywise negative powers" begin
+    for exponent in (-1, -2, -0.5)
+        powered = sqrt(Xpsd) .^ exponent
+        @test SymbolicAnalysis.analyze(unwrap(powered)).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+        @test SymbolicAnalysis.analyze(unwrap(sum(powered))).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    positive_entries = setmetadata(
+        unwrap(Xpsd), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 2)
+    )
+    for exponent in (-1, -2, -0.5)
+        @test SymbolicAnalysis.analyze(
+            unwrap(Symbolics.wrap(positive_entries) .^ exponent)
+        ).curvature == SymbolicAnalysis.Convex
+        @test SymbolicAnalysis.analyze(
+            unwrap(Symbolics.term(^, dpos, exponent))
+        ).curvature == SymbolicAnalysis.Convex
+    end
+    # Negative off-diagonal entries make the reciprocal violate Jensen's inequality.
+    f(t) = sum(sqrt([1.0 t; t 1.0]) .^ (-1))
+    @test f(-0.6) > (f(-0.8) + f(-0.4)) / 2
+end
+
 # Symbolics folds `-c/2` into `(-1//2)*c`, so a coefficient can be a `Rational`.
 @variables c d
 @test SymbolicAnalysis.analyze(unwrap(-c / 2)).curvature == SymbolicAnalysis.Affine

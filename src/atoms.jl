@@ -891,18 +891,11 @@ function dcprule(::typeof(/), num, den)
 end
 hasdcprule(::typeof(/)) = true
 
-# Positivity established rather than assumed: either a propagated sign says so, or
-# the argument was declared on a domain inside the positive half line. `analyze`
-# overwrites `Sign` metadata during propagation, so a `VarDomain` declaration is
-# how a caller states the precondition durably.
+# Matrix `Positive` denotes Loewner PSD; entrywise positivity needs a domain proof.
 function known_positive(x)
-    getsign(x) == Positive && return true
+    getsign(x) == Positive && _is_real_scalar(x) && return true
     _has_vardomain(x) || return false
-    return try
-        issubset(getmetadata(x, VarDomain), HalfLine{Real, :open}())
-    catch e
-        e isa MethodError ? false : rethrow()
-    end
+    return _domain_inside_halfline(getmetadata(x, VarDomain), HalfLine{Real, :open}())
 end
 
 # `array_domain(d, …)` closures capture `element_domain`; a plain scalar domain is
