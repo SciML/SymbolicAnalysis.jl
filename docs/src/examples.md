@@ -78,12 +78,12 @@ M = Lorentz(2)
 q = [0.0, 0.0, 1.0]  # A point on the Lorentz model
 
 # Create a composite function from Lorentz atoms
-ex = 2.0 * Manifolds.distance(M, q, p) +
-     SymbolicAnalysis.lorentz_log_barrier(p)
+r = [1.0, 0.0, sqrt(2.0)]  # Another point on the Lorentz model
+ex = 2.0 * Manifolds.distance(M, q, p) + Manifolds.distance(M, r, p)
 
 # Analyze the expression
 result = analyze(ex, M)
 @show result.gcurvature
 ```
 
-This example shows that the sum of the Lorentz distance function and the log-barrier function is geodesically convex on the Lorentz manifold.
+This example shows that a nonnegative combination of Lorentz distance functions is geodesically convex on the Lorentz manifold.
