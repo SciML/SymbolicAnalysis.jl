@@ -90,10 +90,54 @@ function array_domain(element_domain, N)
     end
 end
 
+"""
+    symmetric_domain()
+
+`VarDomain` value for a symbolic matrix declared symmetric (`issymmetric`).
+Attach it with `SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain,
+symmetric_domain())` to unlock the `eigmax`/`eigmin` rules, which otherwise
+need a provably symmetric argument; see [`known_symmetric`](@ref).
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xs = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.symmetric_domain());
+
+julia> analyze(eigmax(Xs)).curvature
+Convex::Curvature = 0
+```
+"""
 function symmetric_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(issymmetric)
 end
 
+"""
+    semidefinite_domain()
+
+`VarDomain` value for a symbolic matrix declared positive definite
+(`isposdef`); the same test as [`definite_domain`](@ref). Attach it with
+`SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain,
+semidefinite_domain())` to unlock the matrix atoms restricted to the positive
+definite cone (`logdet`, `trinv`, `matrix_frac`, the matrix `inv`/`log`/`sqrt`);
+see [`known_posdef`](@ref).
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xd = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.semidefinite_domain());
+
+julia> analyze(logdet(Xd) - tr(Xd)).curvature
+Concave::Curvature = 1
+```
+"""
 function semidefinite_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(isposdef) #not semi so needs to change
 end
@@ -102,6 +146,29 @@ function negsemidefinite_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(isposdef ∘ -) #not semi so needs to change
 end
 
+"""
+    definite_domain()
+
+`VarDomain` value for a symbolic matrix declared positive definite
+(`isposdef`); the same test as [`semidefinite_domain`](@ref). Attach it with
+`SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain,
+definite_domain())` to unlock the matrix atoms restricted to the positive
+definite cone (`logdet`, `trinv`, `matrix_frac`, the matrix `inv`/`log`/`sqrt`);
+see [`known_posdef`](@ref).
+
+# Examples
+
+```jldoctest
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xd = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.definite_domain());
+
+julia> analyze(logdet(Xd) - tr(Xd)).curvature
+Concave::Curvature = 1
+```
+"""
 function definite_domain()
     return CustomDomain{AbstractArray{<:Any, 2}}(isposdef)
 end
@@ -226,11 +293,24 @@ _has_vardomain(x) = (x isa Union{Num, Symbolic}) && hasmetadata(x, VarDomain)
 # always matches it. Any other incomparable pair degrades to "no match".
 function subdomain(argdomain, ruledomain)
     ruledomain === ℂ && return true
+    is_posdef_domain(argdomain) && is_real_array_domain(ruledomain) && return true
     return try
         issubset(argdomain, ruledomain)
     catch e
         e isa MethodError ? false : rethrow()
     end
+end
+
+# Both PD domains are the same `isposdef` predicate, so `===` identifies them.
+# DomainSets cannot order `CustomDomain`s; rank is unchecked because `adjoint`
+# and `getindex` declare `array_domain(ℝ, 1)` but take matrices.
+is_posdef_domain(d) = d === definite_domain()
+
+function is_real_array_domain(d)
+    (d === definite_domain() || d === symmetric_domain()) && return true
+    d isa CustomDomain || return false
+    f = d.in
+    return hasproperty(f, :element_domain) && f.element_domain === RealLine()
 end
 
 # Selected when no registered domain covers the declared argument domains. A
@@ -474,42 +554,100 @@ function const_factor_sign(args)
     return getsign(constant_prod)
 end
 
-function mul_curvature(args)
-    # Avoid allocations by not using findall
-    # All but one arg must be constant
+sign_times(a::Sign, b::Sign) = a == AnySign || b == AnySign ? AnySign : a == b ? Positive : Negative
+
+# A congruence `C * M * C'` (or no matrix factor at all) is monotone in the
+# Loewner order of `M`; any other constant matrix factor reads entries of `M`.
+is_congruence(left, right) = left === right === nothing ||
+    left !== nothing && right !== nothing && left == adjoint(right)
+
+# Splits a product into its non-constant factor (with a count of them), the
+# product of its scalar constants, and the constant arrays on either side.
+function split_product(args; elementwise = false)
     non_constant_expr = nothing
     non_constant_count = 0
-    constant_prod = one(Float64)
+    scalar = one(Float64)
+    left = nothing
+    right = nothing
     for arg in args
         if issym(arg) || iscall(arg)
             non_constant_count += 1
             non_constant_expr = arg
-            if non_constant_count > 1
-                @warn "DCP does not support multiple non-constant arguments in multiplication"
-                return UnknownCurvature
+            non_constant_count > 1 && break
+        else
+            c = constval(arg)
+            if c isa Number || elementwise
+                scalar = scalar .* c
+            elseif non_constant_expr === nothing
+                left = left === nothing ? c : left * c
+            else
+                right = right === nothing ? c : right * c
             end
-        else
-            constant_prod *= constval(arg)
         end
     end
+    return non_constant_expr, non_constant_count, scalar, left, right
+end
 
-    if non_constant_expr !== nothing
-        curv = find_curvature(non_constant_expr)
-        # A linear map keeps an affine argument affine whatever the coefficients
-        # are, but it preserves a curvature only when every coefficient shares a
-        # sign: a mixed-sign constant matrix sums convex and concave terms.
-        curv == Affine && return Affine
-        constant_sign = getsign(constant_prod)
-        return if constant_sign == Negative
-            # flip
-            curv == Convex ? Concave : curv == Concave ? Convex : curv
-        elseif constant_sign == Positive
-            curv
-        else
-            UnknownCurvature
-        end
+# `loewner_curved` only detects a Loewner atom somewhere inside `x`; this proves
+# that every non-affine part of `x` is one, combined by sums, scalar multiples,
+# transposes and congruences, so that `x` carries a Loewner-order curvature.
+function loewner_proven(x)
+    is_loewner_matrix_term(x) && return true
+    find_curvature(x) == Affine && return true
+    iscall(x) || return false
+    f, args = operation(x), arguments(x)
+    if f === broadcast
+        g, xs = constval(args[1]), args[2:end]
+        g in (+, -) && return all(loewner_proven, xs)
+        g === (*) || return false
+        nc, count, scalar, _, _ = split_product(xs; elementwise = true)
+        return count == 1 && scalar isa Number && loewner_proven(nc)
     end
-    return Affine
+    f in (+, -) && return all(loewner_proven, args)
+    f in (adjoint, transpose) && return loewner_proven(args[1])
+    f === (*) || return false
+    nc, count, scalar, left, right = split_product(args)
+    return count == 1 && scalar isa Number && is_congruence(left, right) && loewner_proven(nc)
+end
+
+"""
+    mul_curvature(args; elementwise = false)
+
+Curvature of the product of `args`, at most one of which is non-constant. A
+matrix product `L * M * R` has entries `Σ L[i,k] M[k,l] R[l,j]`, so an entrywise
+curvature of `M` survives only when every `L[i,k] * R[l,j]` shares a sign; a
+Loewner-curved `M` survives only a scalar factor times a congruence `C * M * C'`,
+and the congruence only when all of `M`'s curvature is Loewner (`loewner_proven`).
+With `elementwise`, the product is a broadcast `.*` and positions do not matter.
+"""
+function mul_curvature(args; elementwise = false)
+    non_constant_expr, non_constant_count, scalar, left, right =
+        split_product(args; elementwise)
+    if non_constant_count > 1
+        @warn "DCP does not support multiple non-constant arguments in multiplication"
+        return UnknownCurvature
+    end
+    non_constant_expr === nothing && return Affine
+
+    if loewner_curved(non_constant_expr)
+        scalar isa Number && is_congruence(left, right) || return UnknownCurvature
+        left === right === nothing || loewner_proven(non_constant_expr) ||
+            return UnknownCurvature
+        coeff_sign = getsign(scalar)
+    else
+        coeff_sign = getsign(scalar)
+        left === nothing || (coeff_sign = sign_times(coeff_sign, getsign(left)))
+        right === nothing || (coeff_sign = sign_times(coeff_sign, getsign(right)))
+    end
+    curv = find_curvature(non_constant_expr)
+    curv == Affine && return Affine
+    return if coeff_sign == Negative
+        curv == Convex ? Concave : curv == Concave ? Convex : curv
+    elseif coeff_sign == Positive
+        curv
+    else
+        UnknownCurvature
+    end
 end
 
 function add_curvature(args)
@@ -613,7 +751,7 @@ function find_curvature(ex)::Curvature
 
     if iscall(ex)
         f, args = operation(ex), arguments(ex)
-        # @show f
+        any(loewner_curved, args) && !loewner_reader(f, args) && return UnknownCurvature
         if hasdcprule(f)
             rule, args = dcprule(f, args...)
         elseif f === (*)
