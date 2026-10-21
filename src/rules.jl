@@ -386,8 +386,10 @@ function node_sign(ex, M = nothing)
             return mul_sign(arguments(ex))
         elseif f === (+)
             return add_sign(arguments(ex))
+        elseif usegdcp && !atom_dims_ok(f, arguments(ex))
+            return AnySign
         elseif usegdcp && gdcp_rule_applies(f, M) &&
-                gdcp_args_on_manifold(arguments(ex), M)
+                gdcp_args_on_manifold(f, arguments(ex), M)
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign
