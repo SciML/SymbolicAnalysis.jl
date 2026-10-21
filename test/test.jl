@@ -946,3 +946,27 @@ ipv_pos = Symbolics.wrap(
     )
 )
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos)) == SymbolicAnalysis.Convex
+
+# Matrix products only keep a sign when every array factor is entrywise
+# nonnegative (or when scaling a single signed matrix by a scalar).
+@variables M_X[1:2, 1:2] M_Y[1:2, 1:2]
+@test analyze(sqrt(M_X) * sqrt(M_Y)).sign == SymbolicAnalysis.AnySign
+@test analyze(2 * sqrt(M_X)).sign == SymbolicAnalysis.Positive
+@test analyze(2 .* sqrt(M_X)).sign == SymbolicAnalysis.Positive
+@test analyze(-2 * sqrt(M_X)).sign == SymbolicAnalysis.Negative
+let C1 = [1.0 2.0; 3.0 4.0], C2 = [2.0 0.0; 1.0 3.0]
+    @test SymbolicAnalysis.mul_sign([C1, C2]) == SymbolicAnalysis.Positive
+    @test analyze(C1 * exp.(M_X)).sign == SymbolicAnalysis.Positive
+    @test analyze(exp.(M_X) * exp.(M_Y)).sign == SymbolicAnalysis.Positive
+    A_pos = setmetadata(
+        unwrap(M_X), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine(), 2)
+    )
+    B_pos = setmetadata(
+        unwrap(M_Y), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine(), 2)
+    )
+    @test analyze(A_pos * B_pos).sign == SymbolicAnalysis.Positive
+    @test analyze(C1 * A_pos).sign == SymbolicAnalysis.Positive
+    @test analyze(-2 * (A_pos * B_pos)).sign == SymbolicAnalysis.Negative
+end

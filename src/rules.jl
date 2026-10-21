@@ -349,12 +349,113 @@ function add_sign(args)
     end
 end
 
+function is_nonscalar_array(x)
+    x isa Real && !(x isa Num) && return false
+    x isa AbstractArray && return ndims(x) > 0
+    u = unwrap(x)
+    v = constval(u)
+    v isa Number && return false
+    v isa AbstractArray && return ndims(v) > 0
+    sh = SymbolicUtils.shape(u)
+    sh isa AbstractVector && return !isempty(sh)
+    SymbolicUtils.symtype(u) <: AbstractArray && return true
+    if iscall(u)
+        f = operation(u)
+        if f === conjugation || f === hadamard_product || f === affine_map ||
+                f === scalar_mat || f === lorentz_transform ||
+                f === SymbolicUtils.array_literal || f === diag || f === diagm ||
+                f === cumsum || f === diff || f === hcat || f === vcat ||
+                f === kron || f === reshape || f === tril || f === triu ||
+                f === vec || f isa SymbolicUtils.Mapper
+            return true
+        elseif f === (+) || f === (-) || f === (*) || f === (/) ||
+                f === broadcast || f === inv || f === sqrt || f === log ||
+                f === exp || f === adjoint || f === transpose
+            return any(is_nonscalar_array, arguments(u))
+        end
+    end
+    return false
+end
+
+function _entrywise_domain_nonnegative(dom)
+    dom isa Domain && !(dom isa CustomDomain) && return subdomain(dom, HalfLine())
+    if dom isa CustomDomain && isdefined(dom.in, :element_domain)
+        return _entrywise_domain_nonnegative(getfield(dom.in, :element_domain))
+    end
+    return false
+end
+
+function is_entrywise_nonnegative(x)
+    v = constval(unwrap(x))
+    v isa Number && return getsign(v) == Positive
+    v isa AbstractArray && return getsign(v) == Positive
+    u = unwrap(x)
+    if issym(u)
+        return _has_vardomain(u) && _entrywise_domain_nonnegative(getmetadata(u, VarDomain))
+    elseif iscall(u)
+        f = operation(u)
+        args = arguments(u)
+        if f === SymbolicUtils.array_literal
+            return add_sign(@view args[2:end]) == Positive
+        elseif f === (+) || f === hcat || f === vcat || f === vec ||
+                f === reshape || f === tril || f === triu || f === diag ||
+                f === diagm || f === cumsum || f === adjoint || f === transpose
+            return all(is_entrywise_nonnegative, args)
+        elseif f === (*) || f === kron
+            return all(is_entrywise_nonnegative, args)
+        elseif f === broadcast && !isempty(args)
+            bf = constval(args[1])
+            bargs = @view args[2:end]
+            if bf === (+) || bf === (*)
+                return all(is_entrywise_nonnegative, bargs)
+            else
+                return dcprule(broadcast, args...)[1].sign == Positive
+            end
+        elseif f isa SymbolicUtils.Mapper
+            return hasdcprule(f) && dcprule(f, args...)[1].sign == Positive
+        end
+    end
+    return false
+end
+
 function mul_sign(args)
-    # Avoid allocating intermediate arrays
+    # A product with two or more non-scalar array factors is matrix/array
+    # multiplication: Loewner-positive (PSD) factors do not have a PSD or
+    # entrywise-positive product in general, so only propagate a sign when every
+    # array factor is entrywise nonnegative.
+    array_count = 0
+    for arg in args
+        if is_nonscalar_array(arg)
+            array_count += 1
+        end
+    end
+    if array_count >= 2
+        neg_scalars = 0
+        for arg in args
+            if is_nonscalar_array(arg)
+                is_entrywise_nonnegative(arg) || return AnySign
+            else
+                v = constval(arg)
+                s = v isa Number ? getsign(v) : getsign(arg)
+                if s == AnySign
+                    return AnySign
+                elseif s == Negative
+                    neg_scalars += 1
+                end
+            end
+        end
+        return isodd(neg_scalars) ? Negative : Positive
+    end
     neg_count = 0
     for arg in args
         v = constval(arg)
-        s = v isa Number ? getsign(v) : getsign(arg)
+        if v isa Number || v isa AbstractArray
+            s = getsign(v)
+        elseif is_entrywise_nonnegative(arg)
+            s = Positive
+        else
+            s = getsign(arg)
+        end
         if s == AnySign
             return AnySign
         elseif s == Negative

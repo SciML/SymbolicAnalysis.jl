@@ -301,3 +301,23 @@ end
     SymbolicAnalysis.Positive
 @test analyze(SymbolicAnalysis.sum_log_eigmax(X2, 2), M2).sign !=
     SymbolicAnalysis.Positive
+
+# Matrix products of Loewner-positive (SPD) factors are not PSD or entrywise
+# positive in general, so `mul_sign` must not combine their signs with scalar
+# sign arithmetic.
+let D = [1 0; 0 -1], X_val = [5.0 -2.0; -2.0 1.0]
+    @test isposdef(X_val)
+    val = inv(X_val) * (D' * inv(X_val) * D)
+    @test val ≈ [-3.0 8.0; -8.0 21.0]
+    @test val[1, 1] < 0
+    ex = inv(X2) * SymbolicAnalysis.conjugation(inv(X2), D)
+    @test analyze(ex, M2).sign == SymbolicAnalysis.AnySign
+    @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(ex), M2)) ==
+        SymbolicAnalysis.AnySign
+end
+@variables Y2[1:2, 1:2]
+@test analyze(inv(X2) * inv(Y2), M2).sign == SymbolicAnalysis.AnySign
+@test analyze(inv(X2) * inv(X2)', M2).sign == SymbolicAnalysis.AnySign
+@test analyze(2 * inv(X2), M2).sign == SymbolicAnalysis.Positive
+@test analyze(2 .* inv(X2), M2).sign == SymbolicAnalysis.Positive
+@test analyze(-2 * inv(X2), M2).sign == SymbolicAnalysis.Negative
