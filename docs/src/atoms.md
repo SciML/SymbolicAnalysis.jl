@@ -101,7 +101,7 @@ curvature.
 ### Harmonic mean
 
 `StatsBase.harmmean(x)` is positive, concave, and increasing on the positive
-orthant, and indefinite when entries are negative. It receives the positive,
+orthant, and is not concave on the negative orthant. It receives the positive,
 concave, increasing rule when `x` has a propagated `Positive` sign or an array
 `VarDomain` whose element domain lies in `(0, ∞)`; other arguments receive
 `AnySign`, `UnknownCurvature`, and `AnyMono`.
