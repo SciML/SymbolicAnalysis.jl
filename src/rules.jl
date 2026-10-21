@@ -182,7 +182,7 @@ function function_domain()
 end
 
 function increasing_if_positive(x)
-    sign = getsign(x)
+    sign = entrywise_sign(x)
     return sign == AnySign ? AnyMono : sign == Positive ? Increasing : Decreasing
 end
 
@@ -291,11 +291,18 @@ _has_vardomain(x) = (x isa Union{Num, Symbolic}) && hasmetadata(x, VarDomain)
 # decide `issubset(::HalfLine, ::ComplexNumbers)` — it answers `false` for some
 # element types and throws a `MethodError` for others — so a real argument domain
 # always matches it. Any other incomparable pair degrades to "no match".
+function element_domain(d::CustomDomain)
+    return hasproperty(d.in, :element_domain) ? element_domain(d.in.element_domain) : nothing
+end
+element_domain(d) = d
+
 function subdomain(argdomain, ruledomain)
     ruledomain === ℂ && return true
     is_posdef_domain(argdomain) && is_real_array_domain(ruledomain) && return true
+    ae, re = element_domain(argdomain), element_domain(ruledomain)
+    (ae === nothing || re === nothing) && return false
     return try
-        issubset(argdomain, ruledomain)
+        issubset(ae, re)
     catch e
         e isa MethodError ? false : rethrow()
     end
@@ -308,9 +315,7 @@ is_posdef_domain(d) = d === definite_domain()
 
 function is_real_array_domain(d)
     (d === definite_domain() || d === symmetric_domain()) && return true
-    d isa CustomDomain || return false
-    f = d.in
-    return hasproperty(f, :element_domain) && f.element_domain === RealLine()
+    return element_domain(d) === RealLine()
 end
 
 # Selected when no registered domain covers the declared argument domains. A

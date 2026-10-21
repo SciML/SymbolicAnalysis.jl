@@ -1095,3 +1095,70 @@ end
 @test curv_of(eigmax(QX + [1 2; 3 4])) == SymbolicAnalysis.UnknownCurvature
 @test curv_of(eigmax(QX + QX')) == SymbolicAnalysis.Convex
 @test curv_of(eigmin(2 * (QX + QX') + [1 2; 2 1])) == SymbolicAnalysis.Concave
+
+# Geodesic matrix atoms carry PSD cone signs, not entrywise positivity.
+let A = [2 -1 // 2; -1 // 2 2], B = [2 1; 1 2], f(Z) = sum(abs.(inv.(Z')))
+    @test isposdef(A) && isposdef(B)
+    @test inv.(A') == [1 // 2 -2; -2 1 // 2] && det(inv.(A')) < 0
+    @test f(A) == 5 && f(B) == 3 && f((A + B) / 2) == 9 > (f(A) + f(B)) / 2
+end
+let M = SymmetricPositiveDefinite(2), C = [1.0 2.0; 0.0 1.0]
+    @variables EX[1:2, 1:2] ev[1:2]
+    for ex in (
+            inv.(EX'), 1 ./ EX', -1 ./ EX', SymbolicAnalysis.xexpx.(EX'),
+            SymbolicAnalysis.invprod(EX'),
+        )
+        r = analyze(ex, M)
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    for ex in (
+            sum(abs.(inv.(EX'))), sum(abs.(1 ./ EX')), sum(SymbolicAnalysis.xexpx.(EX')),
+            norm(EX', 0.5), abs.(inv(EX)), norm(inv(EX)), inv(EX) .^ 2, cosh.(inv(EX)),
+            abs2.(inv(EX)), norm(SymbolicAnalysis.conjugation(EX, C)),
+            norm(SymbolicAnalysis.conjugation(EX, C), 0.5),
+        )
+        @test analyze(ex, M).curvature == SymbolicAnalysis.UnknownCurvature
+    end
+    for ex in (2 .* EX', EX' ./ 2)
+        @test analyze(ex, M).sign == SymbolicAnalysis.AnySign
+    end
+
+    EXp = Symbolics.wrap(
+        setmetadata(
+            unwrap(EX), SymbolicAnalysis.VarDomain,
+            Symbolics.DomainSets.HalfLine{Real, :open}()
+        )
+    )
+    EXa = Symbolics.wrap(
+        setmetadata(
+            unwrap(EX), SymbolicAnalysis.VarDomain,
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 2)
+        )
+    )
+    for Z in (EXp, EXa), Zp in (Z, Z'), args in ((), (M,))
+        for (ex, curv, sgn) in (
+                (inv.(Zp), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+                (1 ./ Zp, SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+                (-1 ./ Zp, SymbolicAnalysis.Concave, SymbolicAnalysis.Negative),
+                (SymbolicAnalysis.xexpx.(Zp), SymbolicAnalysis.Convex, SymbolicAnalysis.Positive),
+                (2 .* Zp, SymbolicAnalysis.Affine, SymbolicAnalysis.Positive),
+                (Zp ./ 2, SymbolicAnalysis.Affine, SymbolicAnalysis.Positive),
+            )
+            r = analyze(ex, args...)
+            @test r.curvature == curv
+            @test r.sign == sgn
+        end
+        @test analyze(sum(abs.(inv.(Zp))), args...).curvature == SymbolicAnalysis.Convex
+        @test analyze(norm(Zp, 0.5), args...).curvature == SymbolicAnalysis.Concave
+    end
+    for dom in (
+            Symbolics.DomainSets.HalfLine{Real, :open}(),
+            SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1),
+        )
+        evp = Symbolics.wrap(setmetadata(unwrap(ev), SymbolicAnalysis.VarDomain, dom))
+        r = analyze(SymbolicAnalysis.invprod(evp))
+        @test r.curvature == SymbolicAnalysis.Convex
+        @test r.sign == SymbolicAnalysis.Positive
+    end
+end

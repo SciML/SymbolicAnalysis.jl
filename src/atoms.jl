@@ -130,19 +130,8 @@ array `VarDomain` whose element domain lies in `(0, ∞)`).
 """
 function dcprule(::typeof(invprod), x)
     args = (x,)
-    unknown = makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono)
-    ok = getsign(x) == Positive
-    if !ok && _has_vardomain(x)
-        d = getmetadata(x, VarDomain)
-        ok = try
-            f = d.in
-            hasproperty(f, :element_domain) &&
-                issubset(f.element_domain, HalfLine{Real, :open}())
-        catch e
-            e isa MethodError ? false : rethrow()
-        end
-    end
-    ok || return unknown, args
+    known_positive(x) ||
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
     return makerule(array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing),
         args
 end
@@ -348,7 +337,7 @@ function dcprule(::typeof(norm), x, p)
     elseif pv >= 1
         return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), args
     elseif pv > 0
-        curv = getsign(x) == Positive ? Concave : UnknownCurvature
+        curv = known_positive(x) ? Concave : UnknownCurvature
         return makerule(array_domain(HalfLine()), Positive, curv, Increasing), args
     else
         return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
@@ -899,7 +888,9 @@ function dcprule(::typeof(/), num, den)
     if dv isa Number
         iszero(dv) && return unknown, args
         mono = dv > 0 ? Increasing : Decreasing
-        return makerule((RealLine(), RealLine()), mul_sign(args), Affine, (mono, AnyMono)),
+        return makerule(
+                (RealLine(), RealLine()), entrywise_mul_sign(args), Affine, (mono, AnyMono)
+            ),
             args
     elseif nv isa Number && !iszero(nv) && known_positive(den)
         domain = (RealLine(), HalfLine{Real, :open}())
@@ -913,18 +904,127 @@ function dcprule(::typeof(/), num, den)
 end
 hasdcprule(::typeof(/)) = true
 
-# Positivity established rather than assumed: either a propagated sign says so, or
-# the argument was declared on a domain inside the positive half line. `analyze`
-# overwrites `Sign` metadata during propagation, so a `VarDomain` declaration is
-# how a caller states the precondition durably.
-function known_positive(x)
-    getsign(x) == Positive && return true
-    _has_vardomain(x) || return false
+function is_positive_domain(d)
+    ed = element_domain(d)
+    ed === nothing && return false
     return try
-        issubset(getmetadata(x, VarDomain), HalfLine{Real, :open}())
+        issubset(ed, HalfLine{Real, :open}())
     catch e
         e isa MethodError ? false : rethrow()
     end
+end
+
+function is_array_expr(x)
+    x isa AbstractArray && return true
+    u = unwrap(x)
+    constval(u) isa AbstractArray && return true
+    SymbolicUtils.symtype(u) <: AbstractArray && return true
+    is_loewner_matrix_term(u) && return true
+    return iscall(u) && operation(u) in (
+        +, -, *, broadcast, conjugation, adjoint, transpose,
+        scalar_mat, inv, affine_map, hadamard_product,
+    ) && any(is_array_expr, arguments(u))
+end
+
+# Geodesic matrix atoms (`adjoint`, `inv`, `conjugation`, ...) record PSD cone
+# signs in `Sign`, so array rules must derive entrywise signs without trusting a
+# matrix call's `getsign`.
+function entrywise_sign(x)::Sign
+    if x isa AbstractArray
+        isempty(x) && return AnySign
+        all(y -> entrywise_sign(y) == Negative, x) && return Negative
+        all(y -> entrywise_sign(y) == Positive, x) && return Positive
+        return AnySign
+    end
+    x = unwrap(x)
+    v = constval(x)
+    v isa Real && return getsign(v)
+    if v isa AbstractArray
+        isconstarg(x) && !isempty(v) || return AnySign
+        return getsign(map(constval, v))
+    end
+    _has_vardomain(x) && is_positive_domain(getmetadata(x, VarDomain)) && return Positive
+    is_array_expr(x) || return getsign(x)
+    issym(x) && return getsign(x)
+    iscall(x) || return AnySign
+    f, args = operation(x), arguments(x)
+    if f === SymbolicUtils.array_literal
+        els = @view args[2:end]
+        isempty(els) && return AnySign
+        all(y -> entrywise_sign(y) == Negative, els) && return Negative
+        all(y -> entrywise_sign(y) == Positive, els) && return Positive
+        return AnySign
+    end
+    if f === broadcast
+        g, xs = constval(args[1]), @view args[2:end]
+        g === (+) && return entrywise_add_sign(xs)
+        if g === (-)
+            length(xs) == 1 || return AnySign
+            s = entrywise_sign(xs[1])
+            return s == Positive ? Negative : s == Negative ? Positive : AnySign
+        end
+        Symbol(g) == :* && return entrywise_mul_sign(xs)
+        hasdcprule(g) || return AnySign
+        s = elementwise_dcprule(g, xs...)[1].sign
+        return s isa Sign ? s : AnySign
+    end
+    if f isa SymbolicUtils.Mapper
+        hasdcprule(f.f) || return AnySign
+        s = elementwise_dcprule(f.f, args...)[1].sign
+        return s isa Sign ? s : AnySign
+    end
+    f === (+) && return entrywise_add_sign(args)
+    f in (adjoint, transpose, vec, cumsum, diag, reshape) && return entrywise_sign(args[1])
+    f in (hcat, vcat) && return entrywise_add_sign(args)
+    f === (*) && return entrywise_mul_sign(args)
+    return AnySign
+end
+
+function entrywise_add_sign(args)
+    isempty(args) && return AnySign
+    all_neg = true
+    all_pos = true
+    for a in args
+        s = entrywise_sign(a)
+        s == AnySign && return AnySign
+        s == Negative ? (all_pos = false) : (all_neg = false)
+    end
+    return all_neg ? Negative : all_pos ? Positive : AnySign
+end
+
+function entrywise_mul_sign(args)
+    neg_count = 0
+    for a in args
+        s = entrywise_sign(a)
+        s == AnySign && return AnySign
+        s == Negative && (neg_count += 1)
+    end
+    return isodd(neg_count) ? Negative : Positive
+end
+
+function known_positive(x)
+    x isa AbstractArray && return !isempty(x) && all(known_positive, x)
+    x = unwrap(x)
+    v = constval(x)
+    v isa Real && return isfinite(v) && v > 0
+    if v isa AbstractArray
+        return isconstarg(x) && !isempty(v) &&
+            all(y -> (c = constval(y); c isa Real && isfinite(c) && c > 0), v)
+    end
+    _has_vardomain(x) && is_positive_domain(getmetadata(x, VarDomain)) && return true
+    entrywise_sign(x) == Positive && return true
+    iscall(x) || return false
+    f, args = linear_op(x)
+    f === (+) && return all(known_positive, args)
+    f in (adjoint, transpose, vec, cumsum, diag, reshape) && return known_positive(args[1])
+    f in (hcat, vcat) && return all(known_positive, args)
+    f === SymbolicUtils.array_literal &&
+        return !isempty(@view args[2:end]) && all(known_positive, @view args[2:end])
+    f === (*) && return all(known_positive, args)
+    if f === broadcast && constval(args[1]) === (/)
+        return known_positive(args[2]) && known_positive(args[3])
+    end
+    return false
 end
 
 hasdcprule(::typeof(^)) = true
@@ -1152,7 +1252,13 @@ function dcprule(::typeof(broadcast), f, x...)
         # flip `mul_curvature` has already applied.
         s = const_factor_sign(x)
         mono = s == Negative ? Decreasing : s == Positive ? Increasing : AnyMono
-        return makerule(array_domain(RealLine()), mul_sign(x), mul_curvature(x; elementwise = true), mono), x
+        return makerule(
+                array_domain(RealLine()),
+                entrywise_mul_sign(x),
+                mul_curvature(x; elementwise = true),
+                mono
+            ),
+            x
     end
     hasdcprule(g) || return no_rule(array_domain(RealLine()), x)
     return elementwise_dcprule(g, x...)
