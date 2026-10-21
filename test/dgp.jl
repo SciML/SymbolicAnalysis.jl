@@ -418,13 +418,20 @@ end
 end
 
 @testset "GDCP atom role and dimension validation" begin
-    @variables X[1:2, 1:2] v[1:2] v3[1:3] p3[1:3] p4[1:4] A3[1:3, 1:3] A4[1:4, 1:4] s
+    @variables X[1:2, 1:2] v[1:2] v3[1:3] p3[1:3] q3[1:3] p4[1:4] A3[1:3, 1:3] A4[1:4, 1:4] s
+    @variables U::Matrix{Real} w::Vector{Real} t::Real
     M = SymmetricPositiveDefinite(2)
     L2 = Lorentz(2)
     B2 = [2.0 0.5; 0.5 1.0]
     B3 = Matrix(1.0I, 3, 3)
+    c21 = reshape([1.0, 2.0], 2, 1)
+    C23 = [1.0 0.0 1.0; 0.0 1.0 1.0]
     uv = unwrap(v)
     uX = unwrap(X)
+    uU = unwrap(U)
+    uw = unwrap(w)
+    ut = unwrap(t)
+    up3 = unwrap(p3)
     term = SymbolicAnalysis.SymbolicUtils.term
 
     bad_cases = [
@@ -447,15 +454,21 @@ end
         (SymbolicAnalysis.sdivergence(X, v), M),
         (SymbolicAnalysis.sdivergence(v, X), M),
         (SymbolicAnalysis.conjugation(X, randn(3, 3)), M),
-        (SymbolicAnalysis.conjugation(X, rand(2, 3)), M),
+        (SymbolicAnalysis.conjugation(X, rand(3, 2)), M),
+        (SymbolicAnalysis.conjugation(X, rand(3, 1)), M),
         (SymbolicAnalysis.conjugation(v, B2), M),
         (SymbolicAnalysis.hadamard_product(X, randn(3, 3)), M),
         (SymbolicAnalysis.hadamard_product(v, B2), M),
         (SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, B3, B2), M),
         (SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, B2, B3), M),
+        (SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, B2, c21), M),
+        (SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, ones(1, 1), rand(3, 1)), M),
+        (SymbolicAnalysis.affine_map(tr, X, B2), M),
+        (SymbolicAnalysis.affine_map(diag, X, B2), M),
         (SymbolicAnalysis.affine_map(tr, X, B3), M),
         (SymbolicAnalysis.affine_map(diag, X, B3), M),
         (SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, B3, B2), M),
+        (SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, B2, B3), M),
         (SymbolicAnalysis.affine_map(tr, v, B2), M),
         (Manifolds.distance(M, I(3), X), M),
         (Manifolds.distance(M, I(2), v), M),
@@ -468,6 +481,29 @@ end
         (SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(A4, p3, 1.0, p3), L2),
         (SymbolicAnalysis.lorentz_least_squares(randn(4, 3), randn(3), p3), L2),
         (Manifolds.distance(L2, [0.0, 0.0, 0.0, 1.0], p3), L2),
+        # Unknown-length vector / scalar in wrong-rank slots (Finding 1)
+        (term(SymbolicAnalysis.eigsummax, uX, uw), M),
+        (term(SymbolicAnalysis.schatten_norm, uX, uw), M),
+        (term(SymbolicAnalysis.scalar_mat, uX, uw), M),
+        (term(SymbolicAnalysis.sum_log_eigmax, uX, uw), M),
+        (term(SymbolicAnalysis.sum_log_eigmax, exp, uX, uw), M),
+        (term(SymbolicAnalysis.hadamard_product, uX, uw), M),
+        (term(SymbolicAnalysis.affine_map, SymbolicAnalysis.hadamard_product, uX, uw, B2), M),
+        (term(SymbolicAnalysis.quad_form, ut, uX), M),
+        (term(SymbolicAnalysis.log_quad_form, ut, uX), M),
+        (term(SymbolicAnalysis.lorentz_homogeneous_quadratic, uw, up3), L2),
+        # Unknown point sizes with mismatched parameter sizes on M (Finding 2)
+        (SymbolicAnalysis.conjugation(U, B3), M),
+        (SymbolicAnalysis.conjugation(U, rand(3, 2)), M),
+        (SymbolicAnalysis.sdivergence(U, B3), M),
+        (SymbolicAnalysis.hadamard_product(U, B3), M),
+        (SymbolicAnalysis.quad_form(v3, U), M),
+        (SymbolicAnalysis.log_quad_form(v3, U), M),
+        (Manifolds.distance(M, I(3), U), M),
+        (SymbolicAnalysis.lorentz_homogeneous_quadratic(A4, w), L2),
+        (SymbolicAnalysis.lorentz_homogeneous_diagonal(p4, w), L2),
+        (SymbolicAnalysis.lorentz_least_squares(randn(4, 5), randn(4), w), L2),
+        (Manifolds.distance(L2, [0.0, 0.0, 0.0, 1.0], w), L2),
     ]
     for (ex, m) in bad_cases
         r = analyze(ex, m)
@@ -476,36 +512,62 @@ end
     end
 
     valid_controls = [
-        (tr(X), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (term(sum, uX), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (term(diag, uX), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (eigmax(X), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (logdet(X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GLinear),
-        (SymbolicAnalysis.eigsummax(X, 1), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.schatten_norm(X, 2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.sum_log_eigmax(X, 1), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.sum_log_eigmax(exp, X, 1), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.scalar_mat(X, 2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.sdivergence(X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.conjugation(X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.hadamard_product(X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, B2, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.affine_map(tr, X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.affine_map(diag, X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, B2, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (Manifolds.distance(M, I(2), X), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.quad_form(v, X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.log_quad_form(v, X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.lorentz_log_barrier(p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.lorentz_homogeneous_quadratic(A3, p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.lorentz_homogeneous_diagonal([2.0, 2.0, 1.0], p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(A3, [0.0, 0.0, 1.0], s, p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex),
-        (SymbolicAnalysis.lorentz_least_squares(B3, [0.0, 0.0, -1.0], p3), L2, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
-        (Manifolds.distance(L2, [0.0, 0.0, 1.0], p3), L2, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex),
+        (tr(X), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> tr(B2)),
+        (term(sum, uX), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> sum(B2)),
+        (term(diag, uX), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> diag(B2)),
+        (eigmax(X), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> eigmax(B2)),
+        (logdet(X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GLinear, () -> logdet(B2)),
+        (SymbolicAnalysis.eigsummax(X, 1), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.eigsummax(Symmetric(B2), 1)),
+        (SymbolicAnalysis.schatten_norm(X, 2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.schatten_norm(B2, 2)),
+        (SymbolicAnalysis.sum_log_eigmax(X, 1), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.sum_log_eigmax(Symmetric(B2), 1)),
+        (SymbolicAnalysis.sum_log_eigmax(exp, X, 1), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.sum_log_eigmax(exp, Symmetric(B2), 1)),
+        (SymbolicAnalysis.scalar_mat(X, 2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.scalar_mat(B2, 2)),
+        (SymbolicAnalysis.sdivergence(X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.sdivergence(B2, B2)),
+        (SymbolicAnalysis.conjugation(X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.conjugation(B2, B2)),
+        (SymbolicAnalysis.conjugation(X, c21), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.conjugation(B2, c21)),
+        (SymbolicAnalysis.conjugation(X, C23), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.conjugation(B2, C23)),
+        (tr(SymbolicAnalysis.conjugation(X, c21)), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> tr(SymbolicAnalysis.conjugation(B2, c21))),
+        (tr(SymbolicAnalysis.conjugation(X, C23)), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> tr(SymbolicAnalysis.conjugation(B2, C23))),
+        (logdet(SymbolicAnalysis.conjugation(X, c21)), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> logdet(SymbolicAnalysis.conjugation(B2, c21))),
+        (SymbolicAnalysis.hadamard_product(X, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.hadamard_product(B2, B2)),
+        (SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, B2, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, B2, B2, B2)),
+        (SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, X, ones(1, 1), c21), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.affine_map(SymbolicAnalysis.conjugation, B2, ones(1, 1), c21)),
+        (SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, X, B2, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.affine_map(SymbolicAnalysis.hadamard_product, B2, B2, B2)),
+        (Manifolds.distance(M, I(2), X), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> Manifolds.distance(M, Matrix(1.0I, 2, 2), B2)),
+        (term(Manifolds.distance, M, uX, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> Manifolds.distance(M, B2, B2)),
+        (SymbolicAnalysis.quad_form(v, X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.quad_form([1.0, 2.0], B2)),
+        (SymbolicAnalysis.log_quad_form(v, X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.log_quad_form([1.0, 2.0], B2)),
+        (SymbolicAnalysis.quad_form(w, X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.quad_form([1.0, 2.0], B2)),
+        (SymbolicAnalysis.log_quad_form(w, X), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.log_quad_form([1.0, 2.0], B2)),
+        (SymbolicAnalysis.conjugation(U, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.conjugation(B2, B2)),
+        (SymbolicAnalysis.conjugation(U, c21), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.conjugation(B2, c21)),
+        (SymbolicAnalysis.sdivergence(U, B2), M, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.sdivergence(B2, B2)),
+        (SymbolicAnalysis.log_quad_form(v, U), M, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.log_quad_form([1.0, 2.0], B2)),
+        (SymbolicAnalysis.lorentz_log_barrier(p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_log_barrier([0.0, 0.0, 2.0])),
+        (SymbolicAnalysis.lorentz_homogeneous_quadratic(A3, p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_homogeneous_quadratic(B3, [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_homogeneous_quadratic(A3, w), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_homogeneous_quadratic(B3, [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_homogeneous_diagonal([2.0, 2.0, 1.0], p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_homogeneous_diagonal([2.0, 2.0, 1.0], [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_homogeneous_quadratic(U, p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_homogeneous_quadratic(B3, [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_homogeneous_diagonal([2.0, 2.0, 1.0], w), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_homogeneous_diagonal([2.0, 2.0, 1.0], [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(A3, [0.0, 0.0, 1.0], s, p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(B3, [0.0, 0.0, 1.0], 1.0, [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(A3, [0.0, 0.0, 1.0], t, p3), L2, SymbolicAnalysis.AnySign, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(B3, [0.0, 0.0, 1.0], 1.0, [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_least_squares(B3, [0.0, 0.0, -1.0], p3), L2, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_least_squares(B3, [0.0, 0.0, -1.0], [0.0, 0.0, 1.0])),
+        (SymbolicAnalysis.lorentz_least_squares(B3, [0.0, 0.0, -1.0], w), L2, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, () -> SymbolicAnalysis.lorentz_least_squares(B3, [0.0, 0.0, -1.0], [0.0, 0.0, 1.0])),
+        (Manifolds.distance(L2, [0.0, 0.0, 1.0], p3), L2, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, nothing),
+        (Manifolds.distance(L2, p3, q3), L2, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, nothing),
+        (term(Manifolds.distance, L2, up3, [0.0, 0.0, 1.0]), L2, SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, nothing),
     ]
-    for (ex, m, expected_sign, expected_gcurv) in valid_controls
+    for (ex, m, expected_sign, expected_gcurv, eval_fn) in valid_controls
         r = analyze(ex, m)
         @test r.sign == expected_sign
         @test r.gcurvature == expected_gcurv
+        if eval_fn !== nothing
+            val = eval_fn()
+            @test all(isfinite, val)
+        end
     end
+
+    # Argument-only inference is retained when M = nothing.
+    @test SymbolicAnalysis.atom_dims_ok(SymbolicAnalysis.conjugation, (uU, B3))
+    @test !SymbolicAnalysis.atom_dims_ok(SymbolicAnalysis.conjugation, (uU, B3), M)
 end
