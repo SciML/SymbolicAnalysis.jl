@@ -969,4 +969,14 @@ let C1 = [1.0 2.0; 3.0 4.0], C2 = [2.0 0.0; 1.0 3.0]
     @test analyze(A_pos * B_pos).sign == SymbolicAnalysis.Positive
     @test analyze(C1 * A_pos).sign == SymbolicAnalysis.Positive
     @test analyze(-2 * (A_pos * B_pos)).sign == SymbolicAnalysis.Negative
+    @test analyze((M_X .^ 2) * exp.(M_Y)).sign == SymbolicAnalysis.Positive
+    @test analyze((-exp.(M_X)) * (-exp.(M_Y))).sign == SymbolicAnalysis.AnySign
+    for (ex, expected) in (
+            ((-2 .* exp.(M_X)) .* (-3 .* exp.(M_Y)), SymbolicAnalysis.Positive),
+            ((-2 .* exp.(M_X)) .* exp.(M_Y), SymbolicAnalysis.Negative),
+            (-2 .* exp.(M_X), SymbolicAnalysis.Negative),
+        )
+        @test analyze(ex).sign == expected
+        @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(ex))) == expected
+    end
 end

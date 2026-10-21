@@ -321,3 +321,48 @@ end
 @test analyze(2 * inv(X2), M2).sign == SymbolicAnalysis.Positive
 @test analyze(2 .* inv(X2), M2).sign == SymbolicAnalysis.Positive
 @test analyze(-2 * inv(X2), M2).sign == SymbolicAnalysis.Negative
+@test analyze(inv(X2) .* inv(Y2), M2).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(inv(X2) .* inv(Y2)), M2)) ==
+    SymbolicAnalysis.Positive
+
+# Broadcast rules that consume an aggregate Loewner-PSD sign do not establish
+# entrywise nonnegativity for matrix multiplication.
+let X_rat = [5 // 1 2; 2 1], inv_X = [1 // 1 -2; -2 5], exp_Y = [2 // 1 1; 1 2]
+    @test X_rat * inv_X == [1 0; 0 1]
+    @test X_rat[1, 1] > 0 && det(X_rat) > 0
+    prod_val = (1 .// inv_X) * exp_Y
+    @test prod_val == [3 // 2 0; -4 // 5 -1 // 10]
+    @test prod_val[2, 2] < 0
+    for lhs in (1 ./ inv(X2), X2 .^ 3, inv(X2) .^ (-1), inv(X2) .^ 1)
+        @test !SymbolicAnalysis.is_entrywise_nonnegative(unwrap(lhs))
+        ex = lhs * exp.(Y2)
+        @test analyze(ex, M2).sign == SymbolicAnalysis.AnySign
+        @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(ex), M2)) ==
+            SymbolicAnalysis.AnySign
+    end
+end
+
+_test_myconj(X, B) = B' * X * B
+Symbolics.@register_symbolic _test_myconj(X::AbstractMatrix, B::AbstractMatrix)::Matrix{Real}
+SymbolicAnalysis.add_gdcprule(
+    _test_myconj, SymmetricPositiveDefinite,
+    SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, SymbolicAnalysis.GIncreasing
+)
+let B = [1 0; 0 -1], inv_X = [1 // 1 -2; -2 5]
+    @test inv_X * (B' * inv_X * B) == [-3 -8; 8 21]
+    atom_call = _test_myconj(inv(X2), B)
+    @test SymbolicAnalysis.is_nonscalar_array(unwrap(atom_call))
+    ex_reg = inv(X2) * atom_call
+    @test analyze(ex_reg, M2).sign == SymbolicAnalysis.AnySign
+    @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(ex_reg), M2)) ==
+        SymbolicAnalysis.AnySign
+    raw_conj = SymbolicAnalysis.SymbolicUtils.term(
+        _test_myconj, unwrap(inv(X2)), B; type = Matrix{Real}
+    )
+    ex_raw = SymbolicAnalysis.SymbolicUtils.term(
+        *, unwrap(inv(X2)), raw_conj; type = Matrix{Real}
+    )
+    @test analyze(ex_raw, M2).sign == SymbolicAnalysis.AnySign
+    @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(ex_raw, M2)) ==
+        SymbolicAnalysis.AnySign
+end
