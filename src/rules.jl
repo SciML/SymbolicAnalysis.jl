@@ -407,23 +407,32 @@ function _entrywise_domain_nonnegative(dom)
     return _entrywise_domain_sign(dom) == Positive
 end
 
-@inline function _has_call_child(u)
-    iscall(u) || return false
-    args = arguments(u)
-    start_idx = operation(u) === broadcast ? 2 : 1
-    for i in start_idx:length(args)
-        if iscall(unwrap(args[i]))
-            return true
-        end
-    end
-    return false
-end
-
 @inline function _ensure_entrywise_memo(
-        memo::Union{Nothing, IdDict{Any, Sign}}, u
+        memo::Union{Nothing, IdDict{Any, Sign}}, args, start_idx::Int
     )
     memo !== nothing && return memo
-    return _has_call_child(u) ? IdDict{Any, Sign}() : nothing
+    for i in start_idx:length(args)
+        if iscall(unwrap(args[i]))
+            return IdDict{Any, Sign}()
+        end
+    end
+    return nothing
+end
+
+@inline function _safe_even_integer(p::Real)::Bool
+    return try
+        isfinite(p) && isinteger(p) && iseven(p)
+    catch e
+        (e isa MethodError || e isa InexactError || e isa DomainError) ? false : rethrow()
+    end
+end
+
+@inline function _safe_odd_integer(p::Real)::Bool
+    return try
+        isfinite(p) && isinteger(p) && isodd(p)
+    catch e
+        (e isa MethodError || e isa InexactError || e isa DomainError) ? false : rethrow()
+    end
 end
 
 function _combine_entrywise_add(args, start_idx::Int, memo)::Sign
@@ -457,7 +466,7 @@ function _combine_entrywise_mul(args, start_idx::Int, memo)::Sign
     return isodd(neg_count) ? Negative : Positive
 end
 
-function _elementwise_call_sign(bf, args, start_idx::Int, memo)::Sign
+function _elementwise_call_sign(@nospecialize(bf), args, start_idx::Int, memo)::Sign
     n = length(args) - start_idx + 1
     n <= 0 && return AnySign
     if bf === exp || bf === exp2 || bf === exp10 || bf === abs || bf === abs2 ||
@@ -498,19 +507,26 @@ function _elementwise_call_sign(bf, args, start_idx::Int, memo)::Sign
         base = args[start_idx]
         p = constval(args[start_idx + 1])
         if p isa Real
-            isone(p) && return _entrywise_sign(base, memo)
-            if isinteger(p) && iseven(Int(p)) && p > 0
-                return Positive
+            try
+                isfinite(p) || return AnySign
+                isone(p) && return _entrywise_sign(base, memo)
+                if _safe_even_integer(p) && p > 0
+                    return Positive
+                end
+                sb = _entrywise_sign(base, memo)
+                sb == Positive && return Positive
+                if _safe_odd_integer(p) && sb == Negative
+                    return Negative
+                end
+                return AnySign
+            catch e
+                (e isa MethodError || e isa InexactError || e isa DomainError) &&
+                    return AnySign
+                rethrow()
             end
-            sb = _entrywise_sign(base, memo)
-            sb == Positive && return Positive
-            if isinteger(p) && isodd(Int(p)) && sb == Negative
-                return Negative
-            end
-            return AnySign
         else
             bval = constval(base)
-            return (bval isa Real && bval > 0) ? Positive : AnySign
+            return (bval isa Real && isfinite(bval) && bval > 0) ? Positive : AnySign
         end
     elseif bf === LogExpFunctions.xexpx && n == 1
         return _entrywise_sign(args[start_idx], memo) == Positive ? Positive : AnySign
@@ -546,39 +562,40 @@ function _entrywise_sign(x, memo::Union{Nothing, IdDict{Any, Sign}} = nothing)::
         end
         f = operation(u)
         args = arguments(u)
-        if f === Base.getindex && !isempty(args)
-            res = _entrywise_sign(args[1], memo)
-        elseif !is_nonscalar_array(u)
-            res = getsign(u)
-        elseif f === SymbolicUtils.array_literal
-            memo = _ensure_entrywise_memo(memo, u)
-            res = _combine_entrywise_add(args, 2, memo)
+        if f === broadcast && !isempty(args)
+            bf = constval(args[1])
+            if bf === (+) || bf === (-) || bf === (*) || bf === (/)
+                memo = _ensure_entrywise_memo(memo, args, 2)
+            end
+            res = _elementwise_call_sign(bf, args, 2, memo)
         elseif f === (+) || f === hcat || f === vcat
-            memo = _ensure_entrywise_memo(memo, u)
+            memo = _ensure_entrywise_memo(memo, args, 1)
             res = _combine_entrywise_add(args, 1, memo)
         elseif f === (-)
-            memo = _ensure_entrywise_memo(memo, u)
+            memo = _ensure_entrywise_memo(memo, args, 1)
             res = _elementwise_call_sign(-, args, 1, memo)
         elseif f === vec || f === reshape || f === tril || f === triu ||
                 f === diag || f === diagm || f === cumsum ||
                 f === adjoint || f === transpose
             res = isempty(args) ? AnySign : _entrywise_sign(args[1], memo)
         elseif f === (*) || f === kron
-            memo = _ensure_entrywise_memo(memo, u)
+            memo = _ensure_entrywise_memo(memo, args, 1)
             res = _combine_entrywise_mul(args, 1, memo)
         elseif f === (/) && length(args) == 2
-            memo = _ensure_entrywise_memo(memo, u)
+            memo = _ensure_entrywise_memo(memo, args, 1)
             res = !is_nonscalar_array(args[2]) ? _elementwise_call_sign(/, args, 1, memo) : AnySign
-        elseif f === broadcast && !isempty(args)
-            bf = constval(args[1])
-            if bf === (+) || bf === (-) || bf === (*) || bf === (/)
-                memo = _ensure_entrywise_memo(memo, u)
+        elseif f === SymbolicUtils.array_literal
+            memo = _ensure_entrywise_memo(memo, args, 2)
+            res = _combine_entrywise_add(args, 2, memo)
+        elseif f === Base.getindex && !isempty(args)
+            res = _entrywise_sign(args[1], memo)
+            if res == AnySign && !is_nonscalar_array(u)
+                res = getsign(u)
             end
-            res = _elementwise_call_sign(bf, args, 2, memo)
         elseif f isa SymbolicUtils.Mapper
             res = _elementwise_call_sign(f.f, args, 1, memo)
         else
-            res = AnySign
+            res = !is_nonscalar_array(u) ? getsign(u) : AnySign
         end
         if memo !== nothing
             memo[u] = res
@@ -612,20 +629,18 @@ function mul_sign(args)
     array_count = 0
     neg_count = 0
     first_array_arg = nothing
-    memo::Union{Nothing, IdDict{Any, Sign}} = nothing
     for arg in args
         if is_nonscalar_array(arg)
             array_count += 1
             if array_count == 1
                 first_array_arg = arg
             elseif array_count == 2
-                memo = _ensure_entrywise_memo(memo, unwrap(first_array_arg))
-                _entrywise_sign(first_array_arg, memo) == Positive || return AnySign
-                memo = _ensure_entrywise_memo(memo, unwrap(arg))
-                _entrywise_sign(arg, memo) == Positive || return AnySign
+                _entrywise_sign(first_array_arg, nothing) == Positive || return AnySign
+                (arg === first_array_arg || _entrywise_sign(arg, nothing) == Positive) ||
+                    return AnySign
             else
-                memo = _ensure_entrywise_memo(memo, unwrap(arg))
-                _entrywise_sign(arg, memo) == Positive || return AnySign
+                (arg === first_array_arg || _entrywise_sign(arg, nothing) == Positive) ||
+                    return AnySign
             end
         else
             s = _scalar_factor_sign(arg)
@@ -657,28 +672,15 @@ end
 
 function broadcast_mul_sign(args)
     neg_count = 0
-    all_signed = true
     for arg in args
-        if arg isa Real && !(arg isa Num)
-            s = getsign(arg)
+        if is_nonscalar_array(arg)
+            s = _entrywise_sign(arg, nothing)
+            if s == AnySign
+                s = getsign(arg)
+            end
         else
-            v = constval(arg)
-            s = (v isa Number || v isa AbstractArray) ? getsign(v) : _scalar_factor_sign(arg)
+            s = _scalar_factor_sign(arg)
         end
-        if s == AnySign
-            all_signed = false
-            break
-        elseif s == Negative
-            neg_count += 1
-        end
-    end
-    all_signed && return isodd(neg_count) ? Negative : Positive
-
-    neg_count = 0
-    memo::Union{Nothing, IdDict{Any, Sign}} = nothing
-    for arg in args
-        memo = _ensure_entrywise_memo(memo, unwrap(arg))
-        s = _entrywise_sign(arg, memo)
         if s == AnySign
             return AnySign
         elseif s == Negative
@@ -726,17 +728,51 @@ function node_sign(ex, M = nothing)
     return AnySign
 end
 
+_is_builtin_array_op(@nospecialize(f)) =
+    f === (+) || f === (-) || f === (*) || f === (/) || f === (\) || f === (^) ||
+    f === broadcast || f === Base.getindex || f === exp || f === log || f === inv ||
+    f === adjoint || f === transpose
+
+function _collect_custom_array_ops(x, d = nothing)
+    iscall(x) || return d
+    f = operation(x)
+    if !_is_builtin_array_op(f) && SymbolicUtils.symtype(x) <: AbstractArray
+        if d === nothing
+            d = IdDict{Any, Tuple{Any, Any}}()
+        end
+        d[f] = (SymbolicUtils.symtype(x), SymbolicUtils.shape(x))
+    end
+    for arg in arguments(x)
+        d = _collect_custom_array_ops(arg, d)
+    end
+    return d
+end
+
 function propagate_sign(ex, M = nothing)
     # Work on the raw symbolic so the sign metadata survives the walk on
     # Symbolics v7 (a `Num`/`Arr` wrapper round-trips through wrap/unwrap and drops
     # it). `analyze` already unwraps; mirror that for direct callers.
     ex = SymbolicUtils.unwrap(ex)
-    # A single bottom-up walk: `Postwalk` rebuilds each node from its annotated
-    # children before the annotation function sees it, so every node's sign is
-    # computed exactly once. Only symbols and calls are annotated — wrapped
-    # constants can't carry metadata on older SymbolicUtils v4 releases, and
-    # every getter already falls back correctly for them.
-    return Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x, M)) : x)(ex)
+    custom_array_ops = _collect_custom_array_ops(ex)
+    return Postwalk(
+        x -> begin
+            if iscall(x)
+                if custom_array_ops !== nothing && !(SymbolicUtils.symtype(x) <: AbstractArray)
+                    info = get(custom_array_ops, operation(x), nothing)
+                    if info !== nothing
+                        x = SymbolicUtils.term(
+                            operation(x), arguments(x)...; type = info[1], shape = info[2]
+                        )
+                    end
+                end
+                setsign(x, node_sign(x, M))
+            elseif issym(x)
+                setsign(x, node_sign(x, M))
+            else
+                x
+            end
+        end
+    )(ex)
 end
 
 ### Curvature ###

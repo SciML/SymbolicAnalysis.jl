@@ -975,6 +975,11 @@ let C1 = [1.0 2.0; 3.0 4.0], C2 = [2.0 0.0; 1.0 3.0]
             ((-2 .* exp.(M_X)) .* (-3 .* exp.(M_Y)), SymbolicAnalysis.Positive),
             ((-2 .* exp.(M_X)) .* exp.(M_Y), SymbolicAnalysis.Negative),
             (-2 .* exp.(M_X), SymbolicAnalysis.Negative),
+            ((M_X .^ (big(2)^64)) * exp.(M_Y), SymbolicAnalysis.Positive),
+            ((M_X .^ (big(2)^64 + 1)) * exp.(M_Y), SymbolicAnalysis.AnySign),
+            ((M_X .^ 1.0e20) * exp.(M_Y), SymbolicAnalysis.Positive),
+            (((-exp.(M_X)) .^ (big(2)^64 + 1)) .* (-exp.(M_Y)), SymbolicAnalysis.Positive),
+            (((-exp.(M_X)) .^ (big(2)^64 + 1)) .* exp.(M_Y), SymbolicAnalysis.Negative),
         )
         @test analyze(ex).sign == expected
         @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(ex))) == expected

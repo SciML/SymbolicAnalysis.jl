@@ -366,3 +366,41 @@ let B = [1 0; 0 -1], inv_X = [1 // 1 -2; -2 5]
     @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(ex_raw, M2)) ==
         SymbolicAnalysis.AnySign
 end
+
+for (p, expected) in (
+        (big(2)^64, SymbolicAnalysis.Positive),
+        (big(2)^64 + 1, SymbolicAnalysis.AnySign),
+        (1.0e20, SymbolicAnalysis.Positive),
+        (Inf, SymbolicAnalysis.AnySign),
+        (NaN, SymbolicAnalysis.AnySign),
+    )
+    if isfinite(p)
+        @test [1 0; 0 1] .^ p == [1 0; 0 1]
+    end
+    ex_pow = (X2 .^ p) * exp.(Y2)
+    @test analyze(ex_pow, M2).sign == expected
+    @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(ex_pow), M2)) ==
+        expected
+end
+
+_test_raw_matrix(t) = exp(t) * [1 2; 2 5]
+SymbolicAnalysis.add_gdcprule(
+    _test_raw_matrix, SymmetricPositiveDefinite,
+    SymbolicAnalysis.Positive, SymbolicAnalysis.GConvex, SymbolicAnalysis.GIncreasing
+)
+let inv_X = [1 // 1 -2; -2 5], C = [1 // 1 2; 2 5]
+    @test inv_X * C == [-3 -8; 8 21]
+    @variables s_raw
+    q_raw = SymbolicAnalysis.SymbolicUtils.term(
+        _test_raw_matrix, unwrap(s_raw); type = Matrix{Real}
+    )
+    ex_unreg = SymbolicAnalysis.SymbolicUtils.term(
+        *, unwrap(inv(X2)), q_raw; type = Matrix{Real}
+    )
+    @test analyze(ex_unreg, M2).sign == SymbolicAnalysis.AnySign
+    prop_unreg = SymbolicAnalysis.propagate_sign(ex_unreg, M2)
+    @test SymbolicAnalysis.getsign(prop_unreg) == SymbolicAnalysis.AnySign
+    for a in SymbolicAnalysis.SymbolicUtils.arguments(prop_unreg)
+        @test SymbolicAnalysis.is_nonscalar_array(a)
+    end
+end
