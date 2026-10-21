@@ -382,12 +382,12 @@ function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
         f = operation(ex)
-        if f === (*)
+        if usegdcp && !atom_dims_ok(f, arguments(ex), M)
+            return AnySign
+        elseif f === (*)
             return mul_sign(arguments(ex))
         elseif f === (+)
             return add_sign(arguments(ex))
-        elseif usegdcp && !atom_dims_ok(f, arguments(ex), M)
-            return AnySign
         elseif usegdcp && gdcp_rule_applies(f, M) &&
                 gdcp_args_on_manifold(f, arguments(ex), M)
             return gdcprule(f, arguments(ex)...)[1].sign

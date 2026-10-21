@@ -206,9 +206,11 @@ geodesically convex for each fixed `y`. Each GDCP atom checks that its point slo
 receive a point of `M` whose known dimensions match `M` and that every constant or
 free-symbol parameter slot has the rank required by its role and known extents
 compatible with `M` and the point argument (`y` needs length 2 here, congruence
-factors match `X`'s row dimension, and `affine_map` offsets match the operator's
-output size; unknown extents are admitted when the rank fits), while an argument
-built from the point, such as `[sin(X[1, 1]), 0]`, is not a parameter.
+factors match `X`'s row dimension, `affine_map` offsets match the operator's
+output size, and validated output dimensions propagate through size-preserving
+wrappers with arithmetic operand compatibility; unknown extents are admitted when
+the rank fits), while an argument built from the point, such as `[sin(X[1, 1]), 0]`,
+is not a parameter.
 
 This is not joint convexity in the point and the parameters. A certificate also
 does not transfer to the expression obtained by substituting something for a

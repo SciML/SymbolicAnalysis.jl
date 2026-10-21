@@ -141,8 +141,10 @@ that its manifold-point slots receive a point of `M` whose known dimensions
 match `M` and that every constant or free-symbol parameter slot (such as the
 vector `y` in `log_quad_form(y, X)`) has the rank required by its role and known
 extents compatible with `M` and the point argument (matching congruence input
-rows to `X` and `affine_map` offsets to the operator's output size); unknown
-extents are admitted when the rank fits. The result is therefore not a
+rows to `X`, matching `affine_map` offsets to the operator's output size, and
+propagating validated output dimensions through size-preserving wrappers while
+checking arithmetic operand compatibility); unknown extents are admitted when
+the rank fits. The result is therefore not a
 statement of joint convexity in the point and the parameters, and it does not
 carry over when an expression is substituted for a parameter: analyze the
 substituted expression again.
