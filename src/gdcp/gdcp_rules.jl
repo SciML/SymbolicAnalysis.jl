@@ -199,7 +199,7 @@ function manifold_point(ex, M = nothing; shifts::Bool = true)
     if f === inv || f === adjoint || f === transpose
         return manifold_point(args[1], M; shifts)
     elseif f === conjugation
-        return atom_dims_ok(f, args) && manifold_point(args[1], M; shifts) &&
+        return atom_dims_ok(f, args, M) && manifold_point(args[1], M; shifts) &&
             nonsingular_const(args[2])
     elseif f === (*)
         return count(!isconstarg, args) == 1 &&
@@ -237,14 +237,14 @@ function bare_arg_ok(a, M, role = nothing)
         return !issym(a) || fits_manifold(a, M) || fixed_param(a, M)
     elseif role === :spd_point || role === :lorentz_point
         return issym(a) && fits_manifold(a, M)
-    elseif role === :spd_or_mat
+    elseif role === :spd_or_mat || role === :lorentz_or_vec
         return isconstarg(a) || (issym(a) && fits_manifold(a, M))
-    elseif role === :mat || role === :vec || role === :rect_mat || role === :rect_vec ||
-            role === :scalar
+    elseif role === :mat || role === :cong_mat || role === :aff_mat ||
+            role === :vec || role === :rect_mat || role === :rect_vec || role === :scalar
         return fixed_param(a, M)
     elseif role === :vec_or_vecs
         return fixed_param(a, M) || vector_collection_fits(a, nothing)
-    elseif role === :mat_or_mats
+    elseif role === :cong_mat_or_mats
         return fixed_param(a, M) || matrix_collection_fits(a, nothing)
     elseif role === :fn
         return constval(a) isa Function
@@ -255,32 +255,77 @@ function bare_arg_ok(a, M, role = nothing)
     return false
 end
 
-# Size of an argument when it is known, else `nothing`.
+# Known rank and axis extents of `a` as a tuple of `Union{Int, Nothing}` whose
+# length is the rank, or `nothing` when the rank itself is unknown.
 function known_size(a)
     if isconstarg(a)
         v = constval(a)
         return v isa AbstractArray ? size(v) : ()
     end
     issym(a) || iscall(a) || return nothing
-    sh = SymbolicUtils.shape(a)
-    sh isa AbstractVector && return Tuple(map(length, sh))
     if iscall(a)
         f, args = operation(a), arguments(a)
-        if (f === conjugation || f === hadamard_product) && !isempty(args)
+        if f === conjugation && length(args) == 2
+            sb = known_size(args[2])
+            return sb !== nothing && length(sb) == 2 ? (sb[2], sb[2]) : (nothing, nothing)
+        elseif f === hadamard_product && !isempty(args)
             return known_size(args[1])
-        elseif f === affine_map && length(args) >= 2
-            return known_size(args[2])
+        elseif f === affine_map && length(args) == 4
+            op = constval(args[1])
+            if op === conjugation
+                m = cong_out_dim(args)
+                return (m, m)
+            elseif op === hadamard_product
+                return known_size(args[2])
+            end
+        elseif (f === inv || f === log || f === adjoint || f === transpose) &&
+                length(args) == 1
+            s = known_size(args[1])
+            if s !== nothing && length(s) == 2
+                return (f === inv || f === log) ? s : (s[2], s[1])
+            end
+        elseif f === LinearAlgebra.diag && length(args) == 1
+            s = known_size(args[1])
+            return s !== nothing && length(s) == 2 ? (s[1],) : (nothing,)
+        elseif f === scalar_mat && (length(args) == 1 || length(args) == 2)
+            length(args) == 1 && return known_size(args[1])
+            k = constval(args[2])
+            return k isa Integer ? (Int(k), Int(k)) : (nothing, nothing)
+        elseif f === (+) && !isempty(args)
+            for x in args
+                !isconstarg(x) && (s = known_size(x); s !== nothing && return s)
+            end
+            return known_size(args[1])
+        elseif f === (*) && count(!isconstarg, args) == 1 &&
+                all(x -> !isconstarg(x) || constval(x) isa Number, args)
+            for x in args
+                !isconstarg(x) && return known_size(x)
+            end
+        end
+    end
+    sh = SymbolicUtils.shape(a)
+    sh isa AbstractVector && return Tuple(map(length, sh))
+    if hasproperty(sh, :ndims) && sh.ndims >= 0
+        return ntuple(_ -> nothing, sh.ndims)
+    end
+    T = SymbolicUtils.symtype(a)
+    if T isa Type
+        T <: Number && return ()
+        if T <: AbstractArray && applicable(ndims, T)
+            return ntuple(_ -> nothing, ndims(T))
         end
     end
     return nothing
 end
 
-# Whether `a` has shape `want`, where a `nothing` entry is any length. The rank
-# must match whenever the shape is known; an unknown shape is admitted.
+# Whether `a` has shape `want`, where a `nothing` entry in either `s` or `want`
+# matches any length along that axis. The rank (`length(s)`) must match whenever
+# it is known.
 function shape_fits(a, want)
     s = known_size(a)
     s === nothing && return true
-    return length(s) == length(want) && all(((x, w),) -> w === nothing || x == w, zip(s, want))
+    return length(s) == length(want) &&
+        all(((x, w),) -> x === nothing || w === nothing || x == w, zip(s, want))
 end
 
 # A constant vector of numeric vectors, each of length `n` (any length if `nothing`).
@@ -294,33 +339,34 @@ function vector_collection_fits(a, n)
     end
 end
 
-function matrix_collection_fits(a, n)
+function matrix_collection_fits(a, rdim, cdim = rdim)
     (issym(a) || iscall(a) || isconstarg(a)) && return false
     v = constval(a)
     v isa AbstractVector && !isempty(v) || return false
+    m = cdim === nothing && first(v) isa AbstractMatrix ? size(first(v), 2) : cdim
     return all(v) do Y
         Y isa AbstractMatrix && all(e -> constval(e) isa Number, Y) &&
-            (n === nothing || size(Y) == (n, n))
+            (rdim === nothing || size(Y, 1) == rdim) &&
+            (m === nothing || size(Y, 2) == m)
     end
 end
 
 # Per-atom argument roles: `:spd_point` / `:lorentz_point` mark the manifold
-# variable slot, `:spd_or_mat` accepts a point or a constant matrix, and the
-# remaining tags describe fixed parameter slots relative to the point dimension.
+# variable slot, `:spd_or_mat` / `:lorentz_or_vec` accept a point or a constant
+# array, and the remaining tags describe fixed parameter slots relative to the
+# point dimension.
 function atom_roles(f, args)
     if f === Manifolds.distance
         length(args) == 3 || return ()
         m = constval(args[1])
-        m isa SymmetricPositiveDefinite && return (:manifold, :spd_or_mat, :spd_point)
-        m isa Lorentz && return (:manifold, :vec, :lorentz_point)
+        m isa SymmetricPositiveDefinite && return (:manifold, :spd_or_mat, :spd_or_mat)
+        m isa Lorentz && return (:manifold, :lorentz_or_vec, :lorentz_or_vec)
         return ()
     elseif f === affine_map
         isempty(args) && return ()
         op = constval(args[1])
-        if (op === LinearAlgebra.tr || op === LinearAlgebra.diag) && length(args) == 3
-            return (:fn, :spd_point, :mat)
-        elseif op === conjugation && length(args) == 4
-            return (:fn, :spd_point, :mat, :mat_or_mats)
+        if op === conjugation && length(args) == 4
+            return (:fn, :spd_point, :aff_mat, :cong_mat_or_mats)
         elseif op === hadamard_product && length(args) == 4
             return (:fn, :spd_point, :mat, :mat)
         end
@@ -339,7 +385,7 @@ function atom_roles(f, args)
         scalar_mat => ((:spd_point,), (:spd_point, :scalar)),
         sum_log_eigmax => ((:spd_point, :scalar), (:fn, :spd_point, :scalar)),
         sdivergence => ((:spd_or_mat, :spd_or_mat),),
-        conjugation => ((:spd_point, :mat),),
+        conjugation => ((:spd_point, :cong_mat),),
         hadamard_product => ((:spd_point, :mat),),
         quad_form => ((:vec, :spd_point),),
         log_quad_form => ((:vec_or_vecs, :spd_point),),
@@ -362,34 +408,109 @@ function atom_roles(f, args)
 end
 
 lead_dim(a) = (s = known_size(a); s === nothing || isempty(s) ? nothing : s[1])
+col_dim(a) = (s = known_size(a); s === nothing || length(s) < 2 ? nothing : s[2])
 
-function point_dim(roles, args)
-    for (r, a) in zip(roles, args)
-        if r === :spd_point || r === :lorentz_point
-            n = lead_dim(a)
-            n !== nothing && return n
-        end
+function cong_out_dim(args)
+    length(args) >= 4 || return nothing
+    m = lead_dim(args[3])
+    m !== nothing && return m
+    y = args[4]
+    if issym(y) || iscall(y) || isconstarg(y)
+        return col_dim(y)
     end
-    for (r, a) in zip(roles, args)
-        if r === :spd_or_mat || r === :mat || r === :vec
-            n = lead_dim(a)
-            n !== nothing && return n
-        end
+    v = constval(y)
+    if v isa AbstractVector && !isempty(v) && first(v) isa AbstractMatrix
+        return size(first(v), 2)
     end
     return nothing
 end
 
-function slot_dims_ok(role::Symbol, a, d, args)
+function dim_changing_call(a)
+    iscall(a) || return false
+    g, gargs = operation(a), arguments(a)
+    return g === conjugation || g === scalar_mat ||
+        (g === affine_map && !isempty(gargs) && constval(gargs[1]) === conjugation)
+end
+
+function point_dim(roles, args, M = nothing)
+    has_spd = any(r -> r === :spd_point || r === :spd_or_mat, roles)
+    has_lorentz = any(r -> r === :lorentz_point || r === :lorentz_or_vec, roles)
+    if has_spd
+        for (r, a) in zip(roles, args)
+            if (r === :spd_point || r === :spd_or_mat) && iscall(a)
+                atom_dims_ok(operation(a), arguments(a), M) || return -1
+                if r === :spd_point && dim_changing_call(a)
+                    n = lead_dim(a)
+                    n !== nothing && return n
+                end
+            end
+        end
+        if M isa SymmetricPositiveDefinite
+            return Manifolds.representation_size(M)[1]
+        elseif M !== nothing
+            return -1
+        end
+    elseif has_lorentz
+        if M !== nothing && !(M isa Lorentz)
+            return -1
+        end
+    end
+    d = nothing
+    for (r, a) in zip(roles, args)
+        if r === :spd_point || r === :lorentz_point
+            n = lead_dim(a)
+            if n !== nothing
+                d = n
+                break
+            end
+        end
+    end
+    if d === nothing
+        for (r, a) in zip(roles, args)
+            if r === :spd_or_mat || r === :lorentz_or_vec || r === :mat ||
+                    r === :cong_mat || r === :vec
+                n = lead_dim(a)
+            elseif r === :rect_mat
+                n = col_dim(a)
+            elseif r === :vec_or_vecs
+                n = (issym(a) || iscall(a) || isconstarg(a)) ? lead_dim(a) :
+                    (v = constval(a); v isa AbstractVector && !isempty(v) && first(v) isa AbstractVector ? length(first(v)) : nothing)
+            elseif r === :cong_mat_or_mats
+                n = (issym(a) || iscall(a) || isconstarg(a)) ? lead_dim(a) :
+                    (v = constval(a); v isa AbstractVector && !isempty(v) && first(v) isa AbstractMatrix ? size(first(v), 1) : nothing)
+            else
+                n = nothing
+            end
+            if n !== nothing
+                d = n
+                break
+            end
+        end
+    end
+    if has_lorentz && M isa Lorentz && d !== nothing
+        want = Manifolds.representation_size(M)[1]
+        (d == want || d == want + 1) || return -1
+    end
+    return d
+end
+
+function slot_dims_ok(role::Symbol, a, d, args, M = nothing)
     if role === :spd_point || role === :spd_or_mat || role === :mat
         return shape_fits(a, (d, d))
-    elseif role === :lorentz_point || role === :vec
+    elseif role === :cong_mat
+        return shape_fits(a, (d, nothing))
+    elseif role === :aff_mat
+        m = cong_out_dim(args)
+        return shape_fits(a, (m, m))
+    elseif role === :cong_mat_or_mats
+        m = cong_out_dim(args)
+        (issym(a) || iscall(a) || isconstarg(a)) && return shape_fits(a, (d, m))
+        return matrix_collection_fits(a, d, m)
+    elseif role === :lorentz_point || role === :lorentz_or_vec || role === :vec
         return shape_fits(a, (d,))
     elseif role === :vec_or_vecs
         (issym(a) || iscall(a) || isconstarg(a)) && return shape_fits(a, (d,))
         return vector_collection_fits(a, d)
-    elseif role === :mat_or_mats
-        (issym(a) || iscall(a) || isconstarg(a)) && return shape_fits(a, (d, d))
-        return matrix_collection_fits(a, d)
     elseif role === :rect_mat
         m = lead_dim(a)
         return shape_fits(a, (m, d))
@@ -397,12 +518,12 @@ function slot_dims_ok(role::Symbol, a, d, args)
         m = lead_dim(args[1])
         return shape_fits(a, (m,))
     elseif role === :scalar
-        return shape_fits(a, ())
+        return (issym(a) || iscall(a) || isconstarg(a)) && shape_fits(a, ())
     elseif role === :fn
         return constval(a) isa Function
     elseif role === :manifold
         m = constval(a)
-        m isa AbstractManifold || return false
+        m isa AbstractManifold && (M === nothing || m == M) || return false
         d === nothing && return true
         want = Manifolds.representation_size(m)
         return m isa Lorentz ? (d == want[1] || d == want[1] + 1) : want == (d, d)
@@ -411,20 +532,25 @@ function slot_dims_ok(role::Symbol, a, d, args)
 end
 
 # Whether each argument's known rank and dimensions fit its role in the atom,
-# relative to the point argument.
-function atom_dims_ok(f, args)
+# relative to the manifold `M` and the point argument.
+function atom_dims_ok(f, args, M = nothing)
     roles = atom_roles(f, args)
     roles === nothing && return true
     isempty(roles) && return false
-    d = point_dim(roles, args)
-    return all(((r, a),) -> slot_dims_ok(r, a, d, args), zip(roles, args))
+    eff_M = M === nothing && f === Manifolds.distance && !isempty(args) &&
+        constval(args[1]) isa AbstractManifold ? constval(args[1]) : M
+    d = point_dim(roles, args, eff_M)
+    d === -1 && return false
+    return all(((r, a),) -> slot_dims_ok(r, a, d, args, eff_M), zip(roles, args))
 end
 
 function gdcp_arg_ok(f, a, M, role = nothing; allow_call::Bool = false)
     if iscall(a)
         allow_call || return false
-        (role === nothing || role === :spd_point || role === :lorentz_point || role === :spd_or_mat) ||
-            return false
+        (
+            role === nothing || role === :spd_point || role === :lorentz_point ||
+                role === :spd_or_mat || role === :lorentz_or_vec
+        ) || return false
         return geodesic_rule_arg(f, a, M)
     end
     return bare_arg_ok(a, M, role)
@@ -436,7 +562,8 @@ function gdcp_args_ok(f, args, M; allow_call::Bool = false)
     isempty(roles) && return false
     all(((r, a),) -> gdcp_arg_ok(f, a, M, r; allow_call), zip(roles, args)) || return false
     return any(zip(roles, args)) do (r, a)
-        (r === :spd_point || r === :lorentz_point || r === :spd_or_mat) && !isconstarg(a)
+        (r === :spd_point || r === :lorentz_point || r === :spd_or_mat || r === :lorentz_or_vec) &&
+            !isconstarg(a)
     end
 end
 
@@ -444,14 +571,14 @@ gdcp_args_on_manifold(args, M) =
     all(a -> !(issym(a) || iscall(a)) || manifold_point(a, M), args)
 
 function gdcp_args_on_manifold(f, args, M)
-    atom_dims_ok(f, args) || return false
+    atom_dims_ok(f, args, M) || return false
     roles = atom_roles(f, args)
     roles === nothing && return gdcp_args_on_manifold(args, M)
     isempty(roles) && return false
     all(zip(roles, args)) do (r, a)
         if r === :spd_point || r === :lorentz_point
             manifold_point(a, M)
-        elseif r === :spd_or_mat
+        elseif r === :spd_or_mat || r === :lorentz_or_vec
             isconstarg(a) || manifold_point(a, M)
         elseif r === :manifold
             m = constval(a)
@@ -461,7 +588,8 @@ function gdcp_args_on_manifold(f, args, M)
         end
     end || return false
     return any(zip(roles, args)) do (r, a)
-        (r === :spd_point || r === :lorentz_point || r === :spd_or_mat) && manifold_point(a, M)
+        (r === :spd_point || r === :lorentz_point || r === :spd_or_mat || r === :lorentz_or_vec) &&
+            manifold_point(a, M)
     end
 end
 
@@ -560,7 +688,7 @@ function positive_image(ex, M = nothing)
     spd_point(ex, M) && return true
     iscall(ex) || return false
     g, gargs = operation(ex), arguments(ex)
-    atom_dims_ok(g, gargs) || return false
+    atom_dims_ok(g, gargs, M) || return false
     if g === conjugation || g === LinearAlgebra.diag || g === hadamard_product
         return spd_point(gargs[1], M) && consts_from(gargs, 2)
     elseif g === affine_map
@@ -591,7 +719,7 @@ function geodesic_rule_arg(f, a, M = nothing)
     any(h -> h === f, SHIFT_INVARIANT_GATOMS) || return false
     eig_shift = f === eigmax || f === eigsummax
     if g === affine_map
-        return atom_dims_ok(g, arguments(a)) && isometric_point(arguments(a)[2], M) &&
+        return atom_dims_ok(g, arguments(a), M) && isometric_point(arguments(a)[2], M) &&
             consts_from(arguments(a), 3)
     elseif g === (+)
         args = arguments(a)
@@ -614,7 +742,7 @@ function find_gcurvature(ex, M = nothing)
     end
     if iscall(ex)
         f, args = operation(ex), arguments(ex)
-        atom_dims_ok(f, args) || return GUnknownCurvature
+        atom_dims_ok(f, args, M) || return GUnknownCurvature
         knowngcurv = false
         f_curvature = GUnknownCurvature
         f_monotonicity = (GAnyMono,)
@@ -633,12 +761,12 @@ function find_gcurvature(ex, M = nothing)
                 (
                 (
                     operation(args[1]) == LinearAlgebra.tr &&
-                        atom_dims_ok(LinearAlgebra.tr, arguments(args[1])) &&
+                        atom_dims_ok(LinearAlgebra.tr, arguments(args[1]), M) &&
                         positive_image(arguments(args[1])[1], M)
                 ) ||
                     (
                     operation(args[1]) == quad_form && fixed_param(arguments(args[1])[1], M) &&
-                        atom_dims_ok(quad_form, arguments(args[1])) &&
+                        atom_dims_ok(quad_form, arguments(args[1]), M) &&
                         positive_image(arguments(args[1])[2], M)
                 )
             )
@@ -654,10 +782,8 @@ function find_gcurvature(ex, M = nothing)
                 return GUnknownCurvature
             end
         elseif f == affine_map
-            if (
-                    args[1] == tr || args[1] == conjugation || args[1] == diag ||
-                        args[1] == hadamard_product
-                ) && spd_point(args[2], M) && consts_from(args, 3)
+            if (args[1] == conjugation || args[1] == hadamard_product) &&
+                    spd_point(args[2], M) && consts_from(args, 3)
                 return GConvex
             else
                 return GUnknownCurvature

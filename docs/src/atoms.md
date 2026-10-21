@@ -203,10 +203,12 @@ or a vector on `Lorentz`. Every other free symbol is a parameter held fixed. For
 example, with `@variables y[1:2] X[1:2, 1:2]`, `log_quad_form(y, X)` is `GConvex` on
 `SymmetricPositiveDefinite(2)` because ``X \mapsto \log(y^\top X y)`` is
 geodesically convex for each fixed `y`. Each GDCP atom checks that its point slots
-receive a point of `M` of the right size and that every constant or free-symbol
-parameter slot has the rank and compatible known size required by its role (`y`
-needs length 2 here; unknown sizes are admitted), while an argument built from the
-point, such as `[sin(X[1, 1]), 0]`, is not a parameter.
+receive a point of `M` whose known dimensions match `M` and that every constant or
+free-symbol parameter slot has the rank required by its role and known extents
+compatible with `M` and the point argument (`y` needs length 2 here, congruence
+factors match `X`'s row dimension, and `affine_map` offsets match the operator's
+output size; unknown extents are admitted when the rank fits), while an argument
+built from the point, such as `[sin(X[1, 1]), 0]`, is not a parameter.
 
 This is not joint convexity in the point and the parameters. A certificate also
 does not transfer to the expression obtained by substituting something for a
