@@ -591,4 +591,21 @@ end
     # Argument-only inference is retained when M = nothing.
     @test SymbolicAnalysis.atom_dims_ok(SymbolicAnalysis.conjugation, (uU, B3))
     @test !SymbolicAnalysis.atom_dims_ok(SymbolicAnalysis.conjugation, (uU, B3), M)
+
+    z_valid = X
+    z_invalid = SymbolicAnalysis.conjugation(X, rand(3, 2))
+    for _ in 1:10
+        z_valid = SymbolicAnalysis.conjugation(z_valid, B2)
+        z_invalid = SymbolicAnalysis.conjugation(z_invalid, B2)
+    end
+    ex_nested_valid = tr(z_valid)
+    ex_nested_invalid = tr(z_invalid)
+    analyze(ex_nested_valid, M)
+    t_nested = @elapsed r_nested = analyze(ex_nested_valid, M)
+    @test r_nested.gcurvature == SymbolicAnalysis.GConvex
+    @test r_nested.sign == SymbolicAnalysis.Positive
+    @test t_nested < 0.5
+    r_nested_bad = analyze(ex_nested_invalid, M)
+    @test r_nested_bad.gcurvature == SymbolicAnalysis.GUnknownCurvature
+    @test r_nested_bad.sign == SymbolicAnalysis.AnySign
 end
