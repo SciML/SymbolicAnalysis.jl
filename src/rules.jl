@@ -382,7 +382,7 @@ function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
         f = operation(ex)
-        if usegdcp && !atom_dims_ok(f, arguments(ex), M)
+        if usegdcp && !atom_dims_ok(ex, M)
             return AnySign
         elseif f === (*)
             return mul_sign(arguments(ex))
