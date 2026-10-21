@@ -136,16 +136,14 @@ An `AnalysisResult` with the fields:
 
 `gcurvature` is the curvature along geodesics of `M` in the manifold variable: a
 symbolic argument that is a point of `M` (an `n×n` matrix for
-`SymmetricPositiveDefinite(n)`, a vector for `Lorentz`). Any other free symbol,
-such as the vector `y` in `log_quad_form(y, X)`, is a parameter held fixed, and it
-must have a size compatible with its role. Known argument ranks and dimensions
-are checked for `quad_form`, `log_quad_form`, `lorentz_homogeneous_quadratic`,
-`lorentz_homogeneous_diagonal`, `lorentz_nonhomogeneous_quadratic`, and
-`lorentz_least_squares`. For other atoms, callers must ensure compatible argument
-sizes; a certificate does not establish that the expression can be evaluated.
-The result is not a statement of joint convexity in the point and the parameters,
-and it does not carry over when an expression is substituted for a parameter:
-analyze the substituted expression again.
+`SymmetricPositiveDefinite(n)`, a vector for `Lorentz`). Each GDCP atom checks
+that its manifold-point slots receive a point of `M` of the manifold's size and
+that any constant or free-symbol parameter slot (such as the vector `y` in
+`log_quad_form(y, X)`) has the rank and dimensions required by its role when its
+size is known; unknown sizes are admitted. The result is therefore not a
+statement of joint convexity in the point and the parameters, and it does not
+carry over when an expression is substituted for a parameter: analyze the
+substituted expression again.
 
 # Throws
 
