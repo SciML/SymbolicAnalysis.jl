@@ -404,3 +404,67 @@ let inv_X = [1 // 1 -2; -2 5], C = [1 // 1 2; 2 5]
         @test SymbolicAnalysis.is_nonscalar_array(a)
     end
 end
+
+# Hadamard multiplication requires a single coherent proof across all array
+# factors: never mix a Loewner-PSD proof with an entrywise-sign proof.
+let Xv = [5 // 1 2; 2 1], Yv = [2 // 1 1; 1 2]
+    @test isposdef(Xv) && isposdef(Yv)
+    F = inv(Xv) .* triu(abs.(Yv .- 2))
+    @test F == [0 -2; 0 0]
+    @test dot([1, 1], F * [1, 1]) == -2
+    @test dot([1, -1], F * [1, -1]) == 2
+    for rhs in (
+            triu(abs.(Y2 .- 2)),
+            -triu(abs.(Y2 .- 2)),
+            -exp.(Y2),
+            Y2 .^ 2,
+        )
+        ex_had = inv(X2) .* rhs
+        @test analyze(ex_had, M2).sign == SymbolicAnalysis.AnySign
+        @test SymbolicAnalysis.getsign(SymbolicAnalysis.propagate_sign(unwrap(ex_had), M2)) ==
+            SymbolicAnalysis.AnySign
+    end
+    @test analyze(inv(X2) .* (-inv(Y2)), M2).sign == SymbolicAnalysis.Negative
+    @test SymbolicAnalysis.getsign(
+        SymbolicAnalysis.propagate_sign(unwrap(inv(X2) .* (-inv(Y2))), M2)
+    ) == SymbolicAnalysis.Negative
+end
+
+# `propagate_sign` must preserve each call node's own symtype and shape when the
+# same operation is applied to scalars and to differently shaped arrays.
+let
+    @variables s_spd X3[1:3, 1:3]
+    @test sqrt(4) + tr(sqrt([4.0 0; 0 9])) == 7
+    for ex_sc in (
+            sqrt(s_spd) + tr(sqrt(X2)),
+            sqrt(s_spd) * tr(sqrt(X2)),
+            sqrt(s_spd) + tr(sqrt(X2)) + tr(sqrt(X3)),
+        )
+        @test analyze(ex_sc, M2).sign == SymbolicAnalysis.Positive
+        p_sc = SymbolicAnalysis.propagate_sign(unwrap(ex_sc), M2)
+        @test SymbolicAnalysis.SymbolicUtils.symtype(p_sc) <: Real
+        @test isempty(SymbolicAnalysis.SymbolicUtils.shape(p_sc))
+        @test SymbolicAnalysis.getsign(p_sc) == SymbolicAnalysis.Positive
+    end
+    for ex_mat in (sqrt(s_spd) * sqrt(X2), sqrt(s_spd) .* sqrt(X2))
+        @test analyze(ex_mat, M2).sign == SymbolicAnalysis.Positive
+        p_mat = SymbolicAnalysis.propagate_sign(unwrap(ex_mat), M2)
+        @test SymbolicAnalysis.SymbolicUtils.symtype(p_mat) <: AbstractMatrix
+        @test SymbolicAnalysis.SymbolicUtils.shape(p_mat) == [1:2, 1:2]
+        @test SymbolicAnalysis.getsign(p_mat) == SymbolicAnalysis.Positive
+    end
+    q_sc = SymbolicAnalysis.SymbolicUtils.term(
+        _test_raw_matrix, unwrap(s_spd); type = Real, shape = UnitRange{Int}[]
+    )
+    q_m2 = SymbolicAnalysis.SymbolicUtils.term(
+        _test_raw_matrix, unwrap(s_spd); type = Matrix{Real}, shape = [1:2, 1:2]
+    )
+    q_m3 = SymbolicAnalysis.SymbolicUtils.term(
+        _test_raw_matrix, unwrap(s_spd); type = Matrix{Real}, shape = [1:3, 1:3]
+    )
+    ex_multi = q_sc + tr(q_m2) + tr(q_m3)
+    p_multi = SymbolicAnalysis.propagate_sign(ex_multi, M2)
+    @test SymbolicAnalysis.SymbolicUtils.symtype(p_multi) <: Real
+    @test isempty(SymbolicAnalysis.SymbolicUtils.shape(p_multi))
+    @test SymbolicAnalysis.getsign(p_multi) == SymbolicAnalysis.Positive
+end

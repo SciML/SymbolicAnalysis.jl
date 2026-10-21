@@ -671,23 +671,211 @@ function mul_sign(args)
 end
 
 function broadcast_mul_sign(args)
-    neg_count = 0
+    array_count = 0
+    scalar_neg_count = 0
+    first_array_arg = nothing
     for arg in args
         if is_nonscalar_array(arg)
-            s = _entrywise_sign(arg, nothing)
-            if s == AnySign
-                s = getsign(arg)
+            array_count += 1
+            if array_count == 1
+                first_array_arg = arg
             end
         else
             s = _scalar_factor_sign(arg)
+            if s == AnySign
+                return AnySign
+            elseif s == Negative
+                scalar_neg_count += 1
+            end
         end
+    end
+    if array_count == 0
+        return isodd(scalar_neg_count) ? Negative : Positive
+    elseif array_count == 1
+        s = _entrywise_sign(first_array_arg, nothing)
+        if s == AnySign
+            s = _loewner_sign(first_array_arg)
+        end
+        if s == AnySign
+            s = getsign(first_array_arg)
+        end
+        s == AnySign && return AnySign
+        s == Negative && (scalar_neg_count += 1)
+        return isodd(scalar_neg_count) ? Negative : Positive
+    end
+
+    entrywise_neg_count = scalar_neg_count
+    all_entrywise = true
+    for arg in args
+        is_nonscalar_array(arg) || continue
+        s = _entrywise_sign(arg, nothing)
+        if s == AnySign
+            all_entrywise = false
+            break
+        elseif s == Negative
+            entrywise_neg_count += 1
+        end
+    end
+    all_entrywise && return isodd(entrywise_neg_count) ? Negative : Positive
+
+    loewner_neg_count = scalar_neg_count
+    for arg in args
+        is_nonscalar_array(arg) || continue
+        s = _loewner_sign(arg)
         if s == AnySign
             return AnySign
         elseif s == Negative
-            neg_count += 1
+            loewner_neg_count += 1
         end
     end
-    return isodd(neg_count) ? Negative : Positive
+    return isodd(loewner_neg_count) ? Negative : Positive
+end
+
+function _loewner_domain_sign(dom)::Sign
+    if dom isa CustomDomain
+        dom.in === isposdef && return Positive
+        dom.in == (isposdef ∘ -) && return Negative
+    end
+    return AnySign
+end
+
+function _loewner_sign(x)::Sign
+    x isa Real && !(x isa Num) && return AnySign
+    if x isa AbstractArray
+        if x isa AbstractMatrix{<:Real} && size(x, 1) == size(x, 2) && issymmetric(x)
+            isposdef(x) && return Positive
+            isposdef(-x) && return Negative
+        end
+        return AnySign
+    end
+    u = unwrap(x)
+    v = constval(u)
+    v isa Number && return AnySign
+    if v isa AbstractArray
+        if v isa AbstractMatrix{<:Real} && size(v, 1) == size(v, 2) && issymmetric(v)
+            isposdef(v) && return Positive
+            isposdef(-v) && return Negative
+        end
+        return AnySign
+    end
+    is_nonscalar_array(u) || return AnySign
+    if issym(u)
+        if _has_vardomain(u)
+            return _loewner_domain_sign(getmetadata(u, VarDomain))
+        end
+        return AnySign
+    elseif iscall(u)
+        f = operation(u)
+        args = arguments(u)
+        if f === (+)
+            isempty(args) && return AnySign
+            s = _loewner_sign(args[1])
+            s == AnySign && return AnySign
+            for i in 2:length(args)
+                _loewner_sign(args[i]) == s || return AnySign
+            end
+            return s
+        elseif f === (-)
+            if length(args) == 1
+                s = _loewner_sign(args[1])
+                return s == Positive ? Negative : s == Negative ? Positive : AnySign
+            elseif length(args) == 2
+                s1 = _loewner_sign(args[1])
+                s1 == AnySign && return AnySign
+                s2 = _loewner_sign(args[2])
+                return s2 == (s1 == Positive ? Negative : Positive) ? s1 : AnySign
+            end
+            return AnySign
+        elseif f === adjoint || f === transpose
+            return isempty(args) ? AnySign : _loewner_sign(args[1])
+        elseif f === (*) || f === kron
+            neg_count = 0
+            array_count = 0
+            for arg in args
+                if is_nonscalar_array(arg)
+                    array_count += 1
+                    if f === (*) && array_count > 1
+                        return AnySign
+                    end
+                    s = _loewner_sign(arg)
+                    s == AnySign && return AnySign
+                    s == Negative && (neg_count += 1)
+                else
+                    s = _scalar_factor_sign(arg)
+                    s == AnySign && return AnySign
+                    s == Negative && (neg_count += 1)
+                end
+            end
+            array_count == 0 && return AnySign
+            return isodd(neg_count) ? Negative : Positive
+        elseif f === (/) && length(args) == 2
+            if is_nonscalar_array(args[1]) && !is_nonscalar_array(args[2])
+                s1 = _loewner_sign(args[1])
+                s1 == AnySign && return AnySign
+                s2 = _scalar_factor_sign(args[2])
+                s2 == AnySign && return AnySign
+                return s1 == s2 ? Positive : Negative
+            end
+            return AnySign
+        elseif f === broadcast && !isempty(args)
+            bf = constval(args[1])
+            if bf === (+) && length(args) >= 2
+                s = _loewner_sign(args[2])
+                s == AnySign && return AnySign
+                for i in 3:length(args)
+                    _loewner_sign(args[i]) == s || return AnySign
+                end
+                return s
+            elseif bf === (-)
+                if length(args) == 2
+                    s = _loewner_sign(args[2])
+                    return s == Positive ? Negative : s == Negative ? Positive : AnySign
+                elseif length(args) == 3
+                    s1 = _loewner_sign(args[2])
+                    s1 == AnySign && return AnySign
+                    s2 = _loewner_sign(args[3])
+                    return s2 == (s1 == Positive ? Negative : Positive) ? s1 : AnySign
+                end
+                return AnySign
+            elseif bf === (*) && length(args) >= 2
+                neg_count = 0
+                array_count = 0
+                for i in 2:length(args)
+                    arg = args[i]
+                    if is_nonscalar_array(arg)
+                        array_count += 1
+                        s = _loewner_sign(arg)
+                        s == AnySign && return AnySign
+                        s == Negative && (neg_count += 1)
+                    else
+                        s = _scalar_factor_sign(arg)
+                        s == AnySign && return AnySign
+                        s == Negative && (neg_count += 1)
+                    end
+                end
+                array_count == 0 && return AnySign
+                return isodd(neg_count) ? Negative : Positive
+            elseif bf === (/) && length(args) == 3
+                if is_nonscalar_array(args[2]) && !is_nonscalar_array(args[3])
+                    s1 = _loewner_sign(args[2])
+                    s1 == AnySign && return AnySign
+                    s2 = _scalar_factor_sign(args[3])
+                    s2 == AnySign && return AnySign
+                    return s1 == s2 ? Positive : Negative
+                end
+                return AnySign
+            end
+            return AnySign
+        elseif f === vec || f === reshape || f === tril || f === triu ||
+                f === diag || f === diagm || f === cumsum || f === diff ||
+                f === hcat || f === vcat || f === SymbolicUtils.array_literal ||
+                f === Base.getindex || f isa SymbolicUtils.Mapper
+            return AnySign
+        else
+            return hasgdcprule(f) ? getsign(u) : AnySign
+        end
+    end
+    return AnySign
 end
 
 # Sign of a single node whose children have already been annotated by the
@@ -728,24 +916,42 @@ function node_sign(ex, M = nothing)
     return AnySign
 end
 
-_is_builtin_array_op(@nospecialize(f)) =
-    f === (+) || f === (-) || f === (*) || f === (/) || f === (\) || f === (^) ||
-    f === broadcast || f === Base.getindex || f === exp || f === log || f === inv ||
-    f === adjoint || f === transpose
-
-function _collect_custom_array_ops(x, d = nothing)
-    iscall(x) || return d
-    f = operation(x)
-    if !_is_builtin_array_op(f) && SymbolicUtils.symtype(x) <: AbstractArray
-        if d === nothing
-            d = IdDict{Any, Tuple{Any, Any}}()
+function _propagate_sign_walk(x, M)
+    if iscall(x)
+        orig_type = SymbolicUtils.symtype(x)
+        orig_shape = SymbolicUtils.shape(x)
+        args = arguments(x)
+        new_args = nothing
+        for i in eachindex(args)
+            arg = args[i]
+            newarg = _propagate_sign_walk(arg, M)
+            if new_args === nothing
+                arg === newarg && continue
+                new_args = Any[args[j] for j in eachindex(args)]
+            end
+            new_args[i] = newarg
         end
-        d[f] = (SymbolicUtils.symtype(x), SymbolicUtils.shape(x))
+        if new_args !== nothing
+            f = operation(x)
+            m = metadata(x)
+            x = maketerm(typeof(x), f, new_args, m; type = orig_type)
+            if SymbolicUtils.symtype(x) !== orig_type || SymbolicUtils.shape(x) != orig_shape
+                x = SymbolicUtils.term(
+                    f, new_args...; type = orig_type, shape = orig_shape
+                )
+                if m isa AbstractDict
+                    for (k, v) in m
+                        x = setmetadata(x, k, v)
+                    end
+                end
+            end
+        end
+        return setsign(x, node_sign(x, M))
+    elseif issym(x)
+        return setsign(x, node_sign(x, M))
+    else
+        return x
     end
-    for arg in arguments(x)
-        d = _collect_custom_array_ops(arg, d)
-    end
-    return d
 end
 
 function propagate_sign(ex, M = nothing)
@@ -753,26 +959,7 @@ function propagate_sign(ex, M = nothing)
     # Symbolics v7 (a `Num`/`Arr` wrapper round-trips through wrap/unwrap and drops
     # it). `analyze` already unwraps; mirror that for direct callers.
     ex = SymbolicUtils.unwrap(ex)
-    custom_array_ops = _collect_custom_array_ops(ex)
-    return Postwalk(
-        x -> begin
-            if iscall(x)
-                if custom_array_ops !== nothing && !(SymbolicUtils.symtype(x) <: AbstractArray)
-                    info = get(custom_array_ops, operation(x), nothing)
-                    if info !== nothing
-                        x = SymbolicUtils.term(
-                            operation(x), arguments(x)...; type = info[1], shape = info[2]
-                        )
-                    end
-                end
-                setsign(x, node_sign(x, M))
-            elseif issym(x)
-                setsign(x, node_sign(x, M))
-            else
-                x
-            end
-        end
-    )(ex)
+    return _propagate_sign_walk(ex, M)
 end
 
 ### Curvature ###
