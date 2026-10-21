@@ -100,14 +100,16 @@ curvature.
 
 ### Harmonic mean
 
-`StatsBase.harmmean(x)` receives a positive, concave, increasing rule when `x`
-has a propagated `Positive` sign or an array `VarDomain` whose element domain
-lies in `(0, ∞)`. Other arguments receive unknown curvature.
+`StatsBase.harmmean(x)` is positive, concave, and increasing on the positive
+orthant, and indefinite when entries are negative. It receives the positive,
+concave, increasing rule when `x` has a propagated `Positive` sign or an array
+`VarDomain` whose element domain lies in `(0, ∞)`; other arguments receive
+`AnySign`, `UnknownCurvature`, and `AnyMono`.
 
-| Atom                 | Condition          | Sign     | Curvature        | Monotonicity |
-|:-------------------- |:------------------ |:-------- |:---------------- |:------------ |
-| StatsBase.harmmean(x) | `x` known positive | Positive | Concave          | Increasing   |
-| StatsBase.harmmean(x) | otherwise          | AnySign  | UnknownCurvature | AnyMono      |
+| Atom                  | Condition          | Domain                                  | Sign     | Curvature        | Monotonicity |
+|:--------------------- |:------------------ |:--------------------------------------- |:-------- |:---------------- |:------------ |
+| StatsBase.harmmean(x) | `x` known positive | array_domain(HalfLine{Real,:open}(), 1) | Positive | Concave          | Increasing   |
+| StatsBase.harmmean(x) | otherwise          | array_domain(ℝ)                         | AnySign  | UnknownCurvature | AnyMono      |
 
 ### Perspective
 
