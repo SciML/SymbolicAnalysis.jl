@@ -187,8 +187,16 @@ end
 function nonsingular_const(x)
     isconstarg(x) || return false
     v = map(constval, constval(x))
-    return v isa AbstractMatrix && size(v, 1) == size(v, 2) &&
-        LinearAlgebra.rank(float.(v)) == size(v, 1)
+    v isa AbstractMatrix && size(v, 1) == size(v, 2) || return false
+    A = float.(v)
+    if eltype(A) <: Union{Float32, Float64, ComplexF32, ComplexF64}
+        return LinearAlgebra.rank(A) == size(A, 1)
+    end
+    # Pivoted QR supports generic precision and a scale-relative rank threshold.
+    R = LinearAlgebra.qr(A, LinearAlgebra.ColumnNorm()).R
+    d = abs.(LinearAlgebra.diag(R))
+    isempty(d) && return true
+    return minimum(d) > size(A, 1) * eps(real(float(one(eltype(A))))) * maximum(d)
 end
 
 function manifold_point(ex, M = nothing; shifts::Bool = true)
