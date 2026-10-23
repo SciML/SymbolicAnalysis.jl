@@ -181,16 +181,52 @@ but `eigmax(X + [0 3; 0 0])` is not.
 
 ## DGCP Atoms (Lorentz Model)
 
-| Atom                          | Sign     | Geodesic Curvature | Monotonicity |
-|:----------------------------- |:-------- |:------------------ |:------------ |
-| lorentz_distance              | Positive | GConvex            | GAnyMono     |
-| lorentz_log_barrier           | AnySign  | GConvex            | GIncreasing  |
-| lorentz_homogeneous_quadratic | AnySign  | GConvex            | GAnyMono     |
-| lorentz_homogeneous_diagonal  | AnySign  | GConvex            | GAnyMono     |
-| lorentz_least_squares         | Positive | GConvex            | GAnyMono     |
-| lorentz_transform             | -        | -                  | -            |
+| Atom                          | Condition                                     | Sign     | Geodesic Curvature | Monotonicity |
+|:----------------------------- |:--------------------------------------------- |:-------- |:------------------ |:------------ |
+| lorentz_distance              |                                               | Positive | GConvex            | GAnyMono     |
+| lorentz_log_barrier           |                                               | AnySign  | GConvex            | GIncreasing  |
+| lorentz_homogeneous_quadratic | `A` constant, quadratic condition below       | AnySign  | GConvex            | GAnyMono     |
+| lorentz_homogeneous_quadratic | otherwise                                     | AnySign  | GUnknownCurvature  | GAnyMono     |
+| lorentz_homogeneous_diagonal  | `a` constant, diagonal condition below        | AnySign  | GConvex            | GAnyMono     |
+| lorentz_homogeneous_diagonal  | otherwise                                     | AnySign  | GUnknownCurvature  | GAnyMono     |
+| lorentz_least_squares         | `X`, `y` constant, conditions below           | Positive | GConvex            | GAnyMono     |
+| lorentz_least_squares         | otherwise                                     | Positive | GUnknownCurvature  | GAnyMono     |
+| lorentz_transform             | -                                             | -        | -                  | -            |
 
 Note: `lorentz_transform` does not have specific geodesic curvature properties by itself, but it preserves geodesic convexity when applied to geodesically convex functions.
+
+The three quadratic atoms above — and the internal
+`SymbolicAnalysis.lorentz_nonhomogeneous_quadratic(A, b, c, p)` — certify
+`GConvex` only when every data argument is a constant whose entries are
+integers, rationals, or finite floats, checked exactly in rational arithmetic,
+and that constant satisfies the atom's condition. A free symbolic data
+argument, or constant data that fails or cannot be decided, gives
+`GUnknownCurvature`. Writing `S = (A + Aᵀ)/2` with `d + 1` rows,
+`Ā = S[1:d, 1:d]`, `a = S[1:d, d + 1]` and `σ = S[d + 1, d + 1]`, the conditions
+are:
+
+- `lorentz_homogeneous_quadratic(A, p)`: `A` is a square matrix of size at
+  least 2 and either `a = 0` with `Ā + σI ⪰ 0`, or `Ā + (σ - 2‖a‖)I ≻ 0`
+  (semidefiniteness is checked by exact elimination, with an exact rational
+  upper bound on `‖a‖`).
+- `lorentz_homogeneous_diagonal(a, p)`: `a` has length at least 2 and
+  `min(a[1:end-1]) + a[end] ≥ 0`.
+- `lorentz_nonhomogeneous_quadratic(A, b, c, p)`: `A` meets the quadratic
+  condition, `c` is a constant real, and `b` lies in the Lorentz cone:
+  `b[end] ≥ 0` and `‖b[1:end-1]‖² ≤ b[end]²`.
+- `lorentz_least_squares(X, y, p)`: `size(X, 1) == length(y)`, `A = XᵀX` meets
+  the quadratic condition, and `b = -2Xᵀy` lies in the Lorentz cone.
+
+`lorentz_least_squares` is a sum of squares, so its `Positive` sign does not
+depend on the curvature certificate: it stays `Positive` even when the data
+check fails and the curvature is `GUnknownCurvature`.
+
+For example, with `@variables p[1:3] A[1:3, 1:3]` and `M = Lorentz(2)`,
+`analyze(lorentz_homogeneous_quadratic([1 0 0; 0 1 0; 0 0 -1], p), M)` is
+`GConvex` (`σ = -λ_min(Ā)` is admitted), while both
+`analyze(lorentz_homogeneous_quadratic(A, p), M)` (symbolic data) and
+`analyze(lorentz_homogeneous_diagonal([1, 1, -3], p), M)` (constant data
+failing `min(a[1:end-1]) + a[end] ≥ 0`) are `GUnknownCurvature`.
 
 ## Manifold variable and fixed parameters
 
@@ -202,6 +238,11 @@ example, with `@variables y[1:2] X[1:2, 1:2]`, `log_quad_form(y, X)` is `GConvex
 geodesically convex for each fixed `y`. A parameter's known size must match its role
 (`y` needs length 2 here), and an argument built from the point, such as
 `[sin(X[1, 1]), 0]`, is not a parameter.
+
+Being held fixed is not always enough: the Lorentz quadratic atoms above
+certify `GConvex` only for constant data meeting their conditions, so
+`lorentz_homogeneous_quadratic(A, p)` with a symbolic `A` is
+`GUnknownCurvature` even though `A` is a valid fixed parameter.
 
 This is not joint convexity in the point and the parameters. A certificate also
 does not transfer to the expression obtained by substituting something for a

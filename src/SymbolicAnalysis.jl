@@ -143,6 +143,13 @@ therefore not a statement of joint convexity in the point and the parameters, an
 it does not carry over when an expression is substituted for a parameter: analyze
 the substituted expression again.
 
+The Lorentz quadratic atoms (`lorentz_homogeneous_quadratic`,
+`lorentz_homogeneous_diagonal`, `lorentz_nonhomogeneous_quadratic` and
+`lorentz_least_squares`) are stricter: their data arguments must be constants
+with integer, rational, or finite float entries satisfying the atom's
+geodesic-convexity condition (see the Lorentz section of the atom
+documentation). Symbolic or unproved data gives `GUnknownCurvature`.
+
 # Throws
 
 - `AssertionError`: if `M` is not a supported manifold.
