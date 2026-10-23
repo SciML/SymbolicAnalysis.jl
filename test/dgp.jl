@@ -430,6 +430,34 @@ let Xv = [5 // 1 2; 2 1], Yv = [2 // 1 1; 1 2]
     ) == SymbolicAnalysis.Negative
 end
 
+# Constant Loewner signs require an exact definiteness proof.
+let
+    epsilon = 1 // (Int64(2)^60)
+    C_rational = [2 // 1 -2; -2 2 - epsilon]
+    C_float = [2.0 -2.0; -2.0 prevfloat(2.0)]
+    C_positive = [2 // 1 -2; -2 3]
+    @test isposdef(C_rational)
+    @test isposdef(C_float)
+    @test det(Rational{BigInt}.(C_rational)) < 0
+    @test det(Rational{BigInt}.(C_float)) < 0
+
+    for C in (C_rational, C_float)
+        for signed_C in (C, -C)
+            ex = inv(X2) .* signed_C
+            @test analyze(ex, M2).sign == SymbolicAnalysis.AnySign
+            @test SymbolicAnalysis.getsign(
+                SymbolicAnalysis.propagate_sign(unwrap(ex), M2)
+            ) == SymbolicAnalysis.AnySign
+        end
+    end
+
+    ex_positive = inv(X2) .* C_positive
+    @test analyze(ex_positive, M2).sign == SymbolicAnalysis.Positive
+    @test SymbolicAnalysis.getsign(
+        SymbolicAnalysis.propagate_sign(unwrap(ex_positive), M2)
+    ) == SymbolicAnalysis.Positive
+end
+
 # `propagate_sign` must preserve each call node's own symtype and shape when the
 # same operation is applied to scalars and to differently shaped arrays.
 let

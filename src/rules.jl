@@ -743,8 +743,8 @@ function _loewner_sign(x)::Sign
     x isa Real && !(x isa Num) && return AnySign
     if x isa AbstractArray
         if x isa AbstractMatrix{<:Real} && size(x, 1) == size(x, 2) && issymmetric(x)
-            isposdef(x) && return Positive
-            isposdef(-x) && return Negative
+            psd_constant(x) && return Positive
+            psd_constant(-x) && return Negative
         end
         return AnySign
     end
@@ -753,8 +753,8 @@ function _loewner_sign(x)::Sign
     v isa Number && return AnySign
     if v isa AbstractArray
         if v isa AbstractMatrix{<:Real} && size(v, 1) == size(v, 2) && issymmetric(v)
-            isposdef(v) && return Positive
-            isposdef(-v) && return Negative
+            psd_constant(v) && return Positive
+            psd_constant(-v) && return Negative
         end
         return AnySign
     end
