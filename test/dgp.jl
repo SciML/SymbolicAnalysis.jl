@@ -400,6 +400,33 @@ Base.getindex(C::CountingMatrix, i::Int, j::Int) = (C.reads[] += 1; C.A[i, j])
         @test analyze(exp(exp(tr(had(X3, C)))), M3).gcurvature == SymbolicAnalysis.GConvex
     end
 
+    # Distinct values keep interned constants separate from the mutation fixture.
+    let B = [3.0 1.0; 1.0 3.0]
+        for f in (ex -> analyze(ex, M2), ex -> SymbolicAnalysis.propagate_gcurvature(ex, M2)),
+                depth in (0, 10)
+
+            ex = had(X2, B)
+            for _ in 1:depth
+                ex = had(ex, B)
+            end
+            SymbolicAnalysis.with_factor_cache() do
+                f(logdet(ex))
+                @test length(SymbolicAnalysis.current_factor_cache().semidefinite) == 1
+            end
+        end
+    end
+    let B = ones(2, 2)
+        SymbolicAnalysis.with_factor_cache() do
+            @test SymbolicAnalysis.psd_constant(B)
+            @test !SymbolicAnalysis.pd_constant(B)
+            @test length(SymbolicAnalysis.current_factor_cache().semidefinite) == 2
+        end
+    end
+    for ex in (abs(tr(had(X2, D))), norm(had(X2, D)))
+        @test positive(ex)
+        @test !gconvex(ex)
+    end
+
     # Curvature stored by an earlier analysis must not outlive a factor that has
     # since been mutated into an indefinite matrix.
     let B = [2.0 1.0; 1.0 2.0]

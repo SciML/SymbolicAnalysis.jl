@@ -175,8 +175,9 @@ must be a numeric real matrix. Any other factor, including a symbolic one, provi
 no gDCP sign or curvature premise: the atom gets `AnySign` and `GUnknownCurvature`,
 and no geodesic curvature is derived for expressions containing it, although outer
 operations may still establish a sign independently (e.g. `abs` or `norm`). The same
-holds for `sdivergence` unless each constant argument is numeric positive definite. These checks are exact: a floating-point matrix that is positive
-semidefinite only up to rounding is refused.
+holds for `sdivergence` unless each constant argument is numeric positive definite.
+These checks require exact symmetry and definiteness: a floating-point matrix
+that is symmetric or positive semidefinite only up to rounding is refused.
 
 ## DGCP Atoms (Lorentz Model)
 

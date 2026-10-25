@@ -151,7 +151,9 @@ end
 
 `false` when some call in `ex` (including `ex` itself) fails
 `constant_factors_ok`. Such a node may not be a point of the manifold,
-so no geodesic sign or curvature is derived for anything that contains it.
+so its gDCP sign rule is unavailable and expressions containing it get
+`GUnknownCurvature`. Outer operations can still establish a sign through their
+Euclidean rules, such as `Positive` for `abs`.
 Within an analysis each node's result is computed once and reused by its
 ancestors.
 """
