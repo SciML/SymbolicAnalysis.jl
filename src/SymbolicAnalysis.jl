@@ -7,7 +7,7 @@ using DomainSets: HalfLine, RealLine, ℂ, ℤ
 using IntervalSets: Domain, Interval
 import LinearAlgebra
 using LinearAlgebra: Diagonal, I, Symmetric, diag, diagm, dot, eigmax, eigmin, eigvals,
-    isposdef, issymmetric, logdet, norm, opnorm, tr, tril, triu
+    ishermitian, isposdef, issymmetric, logdet, norm, opnorm, tr, tril, triu
 import LogExpFunctions
 using LogExpFunctions: xexpx, xlogx
 import Manifolds
@@ -131,6 +131,23 @@ An `AnalysisResult` with the fields:
 - `sign::SymbolicAnalysis.Sign`: inferred sign of `ex`.
 - `gcurvature::Union{SymbolicAnalysis.GCurvature, Nothing}`: geodesic curvature
   when `M` is supplied, or `nothing` otherwise.
+
+# Geodesic curvature and free parameters
+
+`gcurvature` is the curvature along geodesics of `M` in the manifold variable: a
+symbolic argument that is a point of `M` (an `n×n` matrix for
+`SymmetricPositiveDefinite(n)`, a vector for `Lorentz`). Each GDCP atom checks
+that its manifold-point slots receive a point of `M` whose known dimensions
+match `M` and that every constant or free-symbol parameter slot (such as the
+vector `y` in `log_quad_form(y, X)`) has the rank required by its role and known
+extents compatible with `M` and the point argument (matching congruence input
+rows to `X`, matching `affine_map` offsets to the operator's output size, and
+propagating validated output dimensions through size-preserving wrappers while
+checking arithmetic operand compatibility); unknown extents are admitted when
+the rank fits. The result is therefore not a
+statement of joint convexity in the point and the parameters, and it does not
+carry over when an expression is substituted for a parameter: analyze the
+substituted expression again.
 
 # Throws
 

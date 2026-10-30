@@ -31,7 +31,15 @@ end
 
 mutable struct FoldCtx
     memo::IdDict{Any, NodeAnalysis}
+    shapes::Union{IdDict{Any, Any}, Nothing}
+    points::Union{IdDict{Any, Int}, Nothing}
     M::Union{AbstractManifold, Nothing}
+end
+
+function FoldCtx(memo::IdDict{Any, NodeAnalysis}, M::Union{AbstractManifold, Nothing})
+    shapes = isnothing(M) ? nothing : IdDict{Any, Any}()
+    points = isnothing(M) ? nothing : IdDict{Any, Int}()
+    return FoldCtx(memo, shapes, points, M)
 end
 
 # Task-local key for the active fold. Must not be a process-global `Ref`: with
@@ -115,7 +123,7 @@ function analyze_node!(ex, ctx::FoldCtx)
     # later `::Sign` assertion fails exactly as `getmetadata(...)::Sign` did.
     s = node_sign(ex, ctx.M)
     c = node_curvature(ex)
-    g = isnothing(ctx.M) ? nothing : node_gcurvature(ex)
+    g = isnothing(ctx.M) ? nothing : node_gcurvature(ex, ctx.M)
     props = NodeAnalysis(s, c, g)
     ctx.memo[ex] = props
     return props
