@@ -291,10 +291,17 @@ ws = Symbolics.scalarize(w)
 
 # The elementwise `x .^ i` traces to `broadcast(^, x, i)` with an array base too,
 # but applies the power pointwise, so the scalar laws do hold there and the
-# matrix-power guard above must not reject it.
+# matrix-power guard above must not reject it. Odd integer powers still need a
+# nonnegative base (they exist and are nonconvex on R); even powers do not.
 @test SymbolicAnalysis.analyze(unwrap(w .^ 2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 2))).curvature == SymbolicAnalysis.Convex
-@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(sum(w .^ 3))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# `Positive` on an array is not an entrywise-nonnegativity proof (matrix atoms
+# reuse it for Loewner PSD), so elementwise cubes need a scalar Positive base or
+# an element-domain `VarDomain` — not a broadcast that only carries `Positive`.
+@test SymbolicAnalysis.analyze(unwrap(sum(exp.(w) .^ 3))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(sum(w .^ 0.5))).curvature ==
     SymbolicAnalysis.Concave
 @test SymbolicAnalysis.analyze(unwrap(sum(Xm .^ 2))).curvature == SymbolicAnalysis.Convex
@@ -429,6 +436,11 @@ bxs = Symbolics.scalarize(bx)
     SymbolicAnalysis.UnknownCurvature
 @test SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.huber(bh, 1.0))).curvature ==
     SymbolicAnalysis.Convex
+# `huber` with a negative threshold is the concave `2M*abs(x) - M^2`.
+let r = SymbolicAnalysis.analyze(unwrap(SymbolicAnalysis.huber(bh, -1.0)))
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
 
 
 # `exp(X)` on a matrix is the matrix exponential, not the scalar law applied
@@ -568,6 +580,145 @@ lAmix = [1.0 -2.0; 3.0 -4.0]
 # though the base is an array.
 @test SymbolicAnalysis.analyze(unwrap(bx .^ 2)).curvature == SymbolicAnalysis.Convex
 @test SymbolicAnalysis.analyze(unwrap(sum(bx .^ 2))).curvature == SymbolicAnalysis.Convex
+
+# Odd positive powers and integer negative powers exist outside their DCP
+# domain with the wrong curvature, so an undeclared real base must not certify.
+# (At u=-1, u^3=-1 lies above the chord -4 between -2 and 0; u.^-1 is concave
+# on (-∞, 0).) Even powers and DomainError-guarded non-integer powers are unchanged.
+@variables u
+@test SymbolicAnalysis.analyze(unwrap(u^3)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^3)).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(u^5)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u .^ 3)).curvature == SymbolicAnalysis.UnknownCurvature
+# Array broadcast keeps `broadcast(^, …)` (scalar `u^-n` rewrites through `/`),
+# so this is the path that hits `power_rule` for negative integer exponents.
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 3)).curvature == SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ (-1))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ (-2))).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Declared-positive / established-nonnegative bases still certify, as does the
+# even-power law on R and a base that already carries a Positive sign.
+@test SymbolicAnalysis.analyze(unwrap(exp(u)^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(exp(u)^3)).sign == SymbolicAnalysis.Positive
+@test SymbolicAnalysis.analyze(unwrap(abs(u)^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(dpos^3)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(dpos^(-1))).curvature == SymbolicAnalysis.Convex
+bpos = setmetadata(
+    unwrap(bx), SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine{Number, :open}()
+)
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bpos) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bpos) .^ (-1))).curvature ==
+    SymbolicAnalysis.Convex
+# Element-domain nonnegative array: `array_domain(HalfLine(), 1)` recovers the cube.
+bnneg = setmetadata(
+    unwrap(bx),
+    SymbolicAnalysis.VarDomain,
+    SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine(), 1)
+)
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bnneg) .^ 3)).curvature ==
+    SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(Symbolics.wrap(bnneg) .^ 3)).sign ==
+    SymbolicAnalysis.Positive
+# Array-valued `Positive` (broadcast `exp`/`abs`) is not entrywise proof enough.
+@test SymbolicAnalysis.analyze(unwrap(exp.(bx) .^ 3)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(abs.(bx) .^ 3)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^2)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^1.5)).curvature == SymbolicAnalysis.Convex
+@test SymbolicAnalysis.analyze(unwrap(u^0.5)).curvature == SymbolicAnalysis.Concave
+# Julia's `x^±Inf` is finite on negative bases: h(t) = (t^2 - 2)^Inf has
+# h(-1.2) = h(1.2) = 0 but h(1.0) = (-1)^Inf = 1 above the chord.
+# A non-integer `p > 1` of a convex AnySign base has the non-convex natural domain
+# `{x^2 ≥ 1}`, so it needs an established-nonnegative base; an affine base keeps
+# the half-space domain.
+let upos = Symbolics.wrap(
+        setmetadata(unwrap(u), SymbolicAnalysis.VarDomain, Symbolics.DomainSets.HalfLine{Number, :open}())
+    )
+    for e in (
+            (u^2 - 2)^Inf, Symbolics.term(^, unwrap(u), Inf), Symbolics.term(^, unwrap(u), -Inf),
+            Symbolics.term(^, unwrap(u), NaN), (u^2 - 1)^1.5, (u^2 - 1)^2.5, (u^2 - 1)^(7 // 2),
+            (abs(u) - 1)^1.5, (exp(u) + bh)^2.5, Symbolics.term(^, unwrap(u), -0.5),
+        )
+        r = SymbolicAnalysis.analyze(unwrap(e))
+        @test r.curvature == SymbolicAnalysis.UnknownCurvature
+        @test r.sign == SymbolicAnalysis.AnySign
+    end
+    for e in (
+            (2 - u)^1.5, exp(u)^1.5, abs(u)^2.5, upos^1.5, Symbolics.term(^, unwrap(upos), -0.5),
+            Symbolics.term(^, sqrt(unwrap(u)), -1.5),
+        )
+        r = SymbolicAnalysis.analyze(unwrap(e))
+        @test r.curvature == SymbolicAnalysis.Convex
+        @test r.sign == SymbolicAnalysis.Positive
+    end
+end
+# Huge integer exponents are outside the range Julia's `Float64^Integer`
+# evaluates exactly (clamped to `Int64`), so even BigInt/UInt64 powers must not
+# certify: at runtime `(-1.0)^n` is negative when the clamp turns an even `n`
+# into an odd Int64.
+n_huge = big(2)^64
+n_uint = UInt64(1) << 63
+@test SymbolicAnalysis.analyze(unwrap(u^n_huge)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^n_huge)).sign == SymbolicAnalysis.AnySign
+@test SymbolicAnalysis.analyze(unwrap(bx .^ n_huge)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(u^n_uint)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+@test SymbolicAnalysis.analyze(unwrap(bx .^ n_uint)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Zeroth power is the constant 1 (Affine/Positive), including broadcast.
+# Scalar `u^0` constant-folds; `bx.^0` reaches `power_rule` via the elementwise path.
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).curvature == SymbolicAnalysis.Affine
+@test SymbolicAnalysis.analyze(unwrap(bx .^ 0)).sign == SymbolicAnalysis.Positive
+
+# Matrix `Positive` under SPD / Euclidean matrix atoms is Loewner PSD, not
+# entrywise ≥ 0. Entries of `inv(X)` and `X'` can be negative, so elementwise
+# cubes must not certify (t^3 is concave for t < 0).
+using Manifolds: SymmetricPositiveDefinite
+@variables Xpsd[1:2, 1:2]
+Mpsd_cube = SymmetricPositiveDefinite(2)
+let r = SymbolicAnalysis.analyze(unwrap(inv(Xpsd) .^ 3), Mpsd_cube)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
+let r = SymbolicAnalysis.analyze(unwrap(Xpsd' .^ 3), Mpsd_cube)
+    @test r.curvature == SymbolicAnalysis.UnknownCurvature
+    @test r.sign == SymbolicAnalysis.AnySign
+end
+@test SymbolicAnalysis.analyze(unwrap(sum(inv(Xpsd) .^ 3)), Mpsd_cube).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+# Euclidean matrix sqrt is likewise PSD-not-entrywise; refuse the elementwise cube.
+@test SymbolicAnalysis.analyze(unwrap(sqrt(Xpsd) .^ 3)).curvature ==
+    SymbolicAnalysis.UnknownCurvature
+
+@testset "Entrywise negative powers" begin
+    for exponent in (-1, -2, -0.5)
+        powered = sqrt(Xpsd) .^ exponent
+        @test SymbolicAnalysis.analyze(unwrap(powered)).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+        @test SymbolicAnalysis.analyze(unwrap(sum(powered))).curvature ==
+            SymbolicAnalysis.UnknownCurvature
+    end
+    positive_entries = setmetadata(
+        unwrap(Xpsd), SymbolicAnalysis.VarDomain,
+        SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 2)
+    )
+    for exponent in (-1, -2, -0.5)
+        @test SymbolicAnalysis.analyze(
+            unwrap(Symbolics.wrap(positive_entries) .^ exponent)
+        ).curvature == SymbolicAnalysis.Convex
+        @test SymbolicAnalysis.analyze(
+            unwrap(Symbolics.term(^, dpos, exponent))
+        ).curvature == SymbolicAnalysis.Convex
+    end
+    # Negative off-diagonal entries make the reciprocal violate Jensen's inequality.
+    f(t) = sum(sqrt([1.0 t; t 1.0]) .^ (-1))
+    @test f(-0.6) > (f(-0.8) + f(-0.4)) / 2
+end
 
 # Symbolics folds `-c/2` into `(-1//2)*c`, so a coefficient can be a `Rational`.
 @variables c d
