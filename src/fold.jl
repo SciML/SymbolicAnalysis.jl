@@ -115,7 +115,7 @@ function analyze_node!(ex, ctx::FoldCtx)
     # later `::Sign` assertion fails exactly as `getmetadata(...)::Sign` did.
     s = node_sign(ex, ctx.M)
     c = node_curvature(ex)
-    g = isnothing(ctx.M) ? nothing : node_gcurvature(ex)
+    g = isnothing(ctx.M) ? nothing : node_gcurvature(ex, ctx.M)
     props = NodeAnalysis(s, c, g)
     ctx.memo[ex] = props
     return props
