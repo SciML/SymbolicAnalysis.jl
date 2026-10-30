@@ -50,6 +50,32 @@ add_gdcprule(sum, SymmetricPositiveDefinite, Positive, GConvex, GIncreasing)
 
 add_gdcprule(adjoint, SymmetricPositiveDefinite, Positive, GLinear, GIncreasing)
 
+psd_constant(B) = exact_semidefinite(B, false)
+pd_constant(B) = exact_semidefinite(B, true)
+
+function exact_semidefinite(B, strict::Bool)
+    isconstarg(B) || return false
+    Bv = constval(B)
+    Bv isa AbstractMatrix || return false
+    all(x -> (y = constval(x); y isa Real && isfinite(y)), Bv) || return false
+    values = map(constval, Bv)
+    all(x -> x isa Union{Integer, Rational, AbstractFloat}, values) || return false
+    size(Bv, 1) == size(Bv, 2) || return false
+    A = Matrix{Rational{BigInt}}(values)
+    A == transpose(A) || return false
+    while !isempty(A)
+        d = diag(A)
+        any(<(0), d) && return false
+        k = argmax(d)
+        p = A[k, k]
+        iszero(p) && return !strict && iszero(A)
+        r = [1:(k - 1); (k + 1):size(A, 1)]
+        a = A[r, k]
+        A = A[r, r] - a * transpose(a) / p
+    end
+    return true
+end
+
 """
     scalar_mat(X, k=size(X, 1))
 

@@ -23,7 +23,7 @@ import SymbolicUtils
 using SymbolicUtils: @rule, BasicSymbolic, getmetadata, hasmetadata, iscall, issym,
     setmetadata, unwrap
 using SymbolicUtils.Rewriters: Postwalk
-using TermInterface: arguments, operation
+using TermInterface: arguments, maketerm, metadata, operation
 
 # Symbolics v7 / SymbolicUtils v4 removed the `Symbolic` abstract type: every
 # symbolic — scalar or array — is now a `BasicSymbolic{SymReal}`.

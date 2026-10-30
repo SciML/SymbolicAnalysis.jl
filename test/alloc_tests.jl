@@ -50,6 +50,15 @@ end
     mul_sign(numeric_args)
     allocs = @allocations mul_sign(numeric_args)
     @test allocs <= 3  # Allow minimal allocations for iteration
+
+    @variables AX[1:2, 1:2] AY[1:2, 1:2]
+    dag = exp.(AX)
+    for _ in 1:12
+        dag = (dag .+ dag) .+ (dag .+ exp.(AY))
+    end
+    dag_args = Symbolics.unwrap.([dag, dag])
+    @test mul_sign(dag_args) == Positive
+    @test (@allocated mul_sign(dag_args)) < 16_000
 end
 
 @testset "Low allocation curvature operations" begin
