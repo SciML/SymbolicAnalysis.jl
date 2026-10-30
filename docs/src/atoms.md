@@ -116,13 +116,15 @@ certificate is `UnknownCurvature` / `AnySign`.
 
 `inv(x) = 1/x` is convex-decreasing and positive only on `(0, ∞)`. The atom
 exists for every nonzero `x` and is concave on the negative reals, so the
-certificate requires a known-positive argument (same house rule as `/` and
-`xexpx`). Matrix `inv` keeps the Loewner-order semidefinite rule.
+certificate requires a known-nonnegative scalar argument (same house rule as
+`c/x` and `xexpx`). Where the argument reaches `0`, `1/x` is `+∞`: this is the
+extended-value function cvxpy's `inv_pos` uses, so `inv(sqrt(t))` with
+`t ∈ [0, ∞)` is convex. Matrix `inv` keeps the Loewner-order semidefinite rule.
 
-| Atom   | Condition              | Sign     | Curvature         | Monotonicity |
-|:------ |:---------------------- |:-------- |:----------------- |:------------ |
-| inv(x) | `x` known positive     | Positive | Convex            | Decreasing   |
-| inv(x) | otherwise (scalar)     | AnySign  | UnknownCurvature  | AnyMono      |
+| Atom   | Condition                         | Sign     | Curvature         | Monotonicity |
+|:------ |:--------------------------------- |:-------- |:----------------- |:------------ |
+| inv(x) | `x` known nonnegative, not `0`    | Positive | Convex            | Decreasing   |
+| inv(x) | otherwise (scalar)                | AnySign  | UnknownCurvature  | AnyMono      |
 
 `invprod(x) = 1/∏xᵢ` is convex-decreasing on the positive orthant only; a
 mixed-sign product lands in the concave branch of `1/t`, so the argument must be
@@ -169,14 +171,31 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 
 ### Special Cases for ^(x, i)
 
-| Condition on i    | Domain                      | Sign     | Curvature | Monotonicity           |
-|:----------------- |:--------------------------- |:-------- |:--------- |:---------------------- |
-| i = 1             | ℝ                           | AnySign  | Affine    | Increasing             |
-| i is even integer | ℝ                           | Positive | Convex    | increasing_if_positive |
-| i is odd integer  | HalfLine()                  | Positive | Convex    | Increasing             |
-| i ≥ 1             | HalfLine()                  | Positive | Convex    | Increasing             |
-| 0 < i < 1         | HalfLine()                  | Positive | Concave   | Increasing             |
-| i < 0             | HalfLine{Float64,:closed}() | Positive | Convex    | Increasing             |
+Odd positive integer powers and all integer negative powers are gated on an
+established-nonnegative / established-positive base (`known_nonnegative` /
+`known_positive`): those functions exist outside the declared domain with the
+wrong curvature. `known_nonnegative` trusts a `Positive` sign only for
+scalar-typed arguments; on matrices `Positive` means Loewner PSD (e.g. `inv(X)`,
+`X'` on the SPD cone), not entrywise ≥ 0, so array bases need an elementwise
+proof: an element domain inside `HalfLine()` (`array_domain(HalfLine(), …)`) or
+an elementwise expression such as `abs.(x)` or `exp.(x)`. Indexing (`x[i]`)
+inherits `Positive` only from such an elementwise proof. Integer exponents outside
+the exact `Int64` range are refused outright: Julia's `^(::Float64, ::Integer)`
+clamps to `Int64`, so a mathematically even `BigInt` / `UInt64` can evaluate as
+an odd Float64 power. Non-integer exponents throw `DomainError` for a negative
+base in Julia, so they keep the log / sqrt convention.
+
+| Condition on i                         | Domain                      | Sign     | Curvature | Monotonicity           |
+|:-------------------------------------- |:--------------------------- |:-------- |:--------- |:---------------------- |
+| i = 1                                  | ℝ                           | AnySign  | Affine    | Increasing             |
+| i = 0                                  | ℝ                           | Positive | Affine    | AnyMono                |
+| i integer, not exact as Int64          | ℝ                           | AnySign  | Unknown   | AnyMono                |
+| i even integer, i > 0                  | ℝ                           | Positive | Convex    | increasing_if_positive |
+| i odd integer, i ≥ 3 (base ⪰ 0)        | HalfLine()                  | Positive | Convex    | Increasing             |
+| i ≥ 1 non-integer                      | HalfLine()                  | Positive | Convex    | Increasing             |
+| 0 < i < 1                              | HalfLine()                  | Positive | Concave   | Increasing             |
+| i integer, i < 0 (base ≻ 0)            | HalfLine{Real,:open}()      | Positive | Convex    | Decreasing             |
+| i < 0 non-integer                      | HalfLine{Float64,:closed}() | Positive | Convex    | Decreasing             |
 
 ## DGCP Atoms (Symmetric Positive Definite)
 
@@ -201,6 +220,17 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 | affine_map                 | Positive | GConvex            | GIncreasing  |
 | hadamard_product           | Positive | GConvex            | GIncreasing  |
 
+These signs and curvatures hold at a point of the manifold, so they apply only when
+the atom's matrix argument provably is one: the variable `X` itself, or `X` passed
+through `inv`, `adjoint`, `transpose`, a positive scalar multiple, or `conjugation` by
+a constant nonsingular matrix. The sign rule also accepts sums of such points and
+constant positive semidefinite matrices (`X + γI`). Any other argument, such as
+`X .- 5`, `-X` or `X - 5I`, falls back to the Euclidean rule, so `tr(X .- 5)` has no
+sign. For `tr`, `sum` and `diag`, geodesic convexity also survives adding any
+constant to the point. For `eigmax` and `eigsummax` the constant must be symmetric
+(a symmetric matrix, or a scalar via `.-` / `.+`), so `eigmax(X .- 5)` is `GConvex`
+but `eigmax(X + [0 3; 0 0])` is not.
+
 ## DGCP Atoms (Lorentz Model)
 
 | Atom                          | Sign     | Geodesic Curvature | Monotonicity |
@@ -213,3 +243,18 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 | lorentz_transform             | -        | -                  | -            |
 
 Note: `lorentz_transform` does not have specific geodesic curvature properties by itself, but it preserves geodesic convexity when applied to geodesically convex functions.
+
+## Manifold variable and fixed parameters
+
+Geodesic curvature is reported with respect to the manifold variable: the symbolic
+arguments that are points of `M`, an `n×n` matrix on `SymmetricPositiveDefinite(n)`
+or a vector on `Lorentz`. Every other free symbol is a parameter held fixed. For
+example, with `@variables y[1:2] X[1:2, 1:2]`, `log_quad_form(y, X)` is `GConvex` on
+`SymmetricPositiveDefinite(2)` because ``X \mapsto \log(y^\top X y)`` is
+geodesically convex for each fixed `y`. A parameter's known size must match its role
+(`y` needs length 2 here), and an argument built from the point, such as
+`[sin(X[1, 1]), 0]`, is not a parameter.
+
+This is not joint convexity in the point and the parameters. A certificate also
+does not transfer to the expression obtained by substituting something for a
+parameter; analyze that expression again.

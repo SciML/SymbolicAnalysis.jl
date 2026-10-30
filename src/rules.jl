@@ -116,7 +116,9 @@ end
 
 function increasing_if_positive(x)
     sign = getsign(x)
-    return sign == AnySign ? AnyMono : sign == Positive ? Increasing : Decreasing
+    sign == AnySign && return AnyMono
+    array_sign_kind(x) in (nothing, :entrywise) || return AnyMono
+    return sign == Positive ? Increasing : Decreasing
 end
 
 """
@@ -313,10 +315,60 @@ hassign(ex) = ex isa Real
 hassign(ex::typeof(Base.broadcast)) = true
 getsign(ex::typeof(Base.broadcast))::Sign = Positive
 
+# An array sign is entrywise (element domains, constants, slices and elementwise
+# maps of entrywise arrays), Loewner (PSD-valued matrix atoms), or `:unknown`;
+# only signs of one known kind combine. `nothing` for scalars; a vector sign is
+# always entrywise.
+function array_sign_kind(x)
+    T = SymbolicUtils.symtype(x)
+    T <: AbstractArray || return nothing
+    T <: AbstractVector && return :entrywise
+    (isconstarg(x) || _has_vardomain(x) || known_nonnegative(x)) && return :entrywise
+    iscall(x) || return :unknown
+    f = operation(x)
+    args = arguments(x)
+    f === SymbolicUtils.array_literal && return :entrywise
+    if f === getindex || f === view
+        return array_sign_kind(first(args)) === :entrywise ? :entrywise : :unknown
+    elseif f === broadcast || f isa SymbolicUtils.Mapper
+        g = f === broadcast ? constval(first(args)) : f.f
+        elems = f === broadcast ? (@view args[2:end]) : args
+        kind = combine_sign_kinds(elems)
+        g === (+) || g === (-) || g === (*) || g === (/) || return (
+            kind === nothing || kind === :entrywise ? :entrywise : :unknown
+        )
+        return kind === nothing ? :entrywise : kind
+    elseif f === (+) || f === (-) || f === (*)
+        return combine_sign_kinds(args)
+    elseif loewner_sign_atom(f)
+        return :loewner
+    end
+    return :unknown
+end
+
+loewner_sign_atom(f) = f === sqrt || f === inv || f === adjoint || f === transpose ||
+    f === conjugation || f === scalar_mat || f === affine_map || f === hadamard_product
+
+function combine_sign_kinds(args)
+    kind = nothing
+    for a in args
+        k = array_sign_kind(a)
+        k === nothing && continue
+        k === :unknown && return :unknown
+        if kind === nothing
+            kind = k
+        elseif kind !== k
+            return :unknown
+        end
+    end
+    return kind
+end
+
 function add_sign(args)
     if hassign(args)
         return getsign(args)
     end
+    combine_sign_kinds(args) === :unknown && return AnySign
     # Check signs without allocating intermediate arrays
     has_anysign = false
     all_negative = true
@@ -349,8 +401,15 @@ function add_sign(args)
     end
 end
 
-function mul_sign(args)
-    # Avoid allocating intermediate arrays
+# A matrix product of PSD factors need not be PSD; a Hadamard product
+# (`elementwise`) of them is (Schur product theorem).
+function mul_sign(args; elementwise::Bool = false)
+    kind = combine_sign_kinds(args)
+    kind === :unknown && return AnySign
+    if !elementwise && kind === :loewner &&
+            count(a -> SymbolicUtils.symtype(a) <: AbstractArray, args) > 1
+        return AnySign
+    end
     neg_count = 0
     for arg in args
         v = constval(arg)
@@ -370,12 +429,14 @@ end
 # over a DCP rule, which wins over the `AnySign` default (also overwriting any
 # stale metadata from a previous analysis).
 #
-# A GDCP rule's sign only holds on its manifold — `eigmax` is registered
+# A GDCP rule's sign only holds on its registered manifold — `eigmax` is
 # `Positive` because every eigenvalue of an SPD matrix is — so it is consulted
-# only when manifold analysis was actually requested. Without the gate it leaked
-# into Euclidean analysis, where `eigmax(X)` for an unconstrained symmetric `X`
-# has no sign; that made `abs`'s `increasing_if_positive` resolve to `Increasing`
-# and certified `abs(eigmax(X))` as `Convex`, which is false.
+# only when manifold analysis was actually requested and the rule's manifold
+# type matches `M`. Without that gate an SPD atom would apply in Euclidean analysis
+# (`abs(eigmax(X))` Convex) and in Lorentz analysis of a vector
+# (`quad_form(p, diag(1,1,-5))` Positive). It also needs every symbolic argument
+# to be a point of `M`: `tr(X .- 5)` is not `Positive` just because `tr` is on
+# the SPD cone, and `inv`/`adjoint` of a scalar keep their DCP sign.
 function node_sign(ex, M = nothing)
     usegdcp = !isnothing(M)
     if iscall(ex)
@@ -384,16 +445,19 @@ function node_sign(ex, M = nothing)
             return mul_sign(arguments(ex))
         elseif f === (+)
             return add_sign(arguments(ex))
-        elseif usegdcp && hasgdcprule(f)
+        elseif usegdcp && gdcp_rule_applies(f, M) &&
+                gdcp_args_on_manifold(arguments(ex), M)
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign
         end
     elseif issym(ex)
-        if usegdcp && hasgdcprule(ex)
+        if usegdcp && gdcp_rule_applies(ex, M)
             return gdcprule(ex)[1].sign
         elseif hasdcprule(ex)
             return dcprule(ex)[1].sign
+        elseif _vardomain_inside(ex, HalfLine())
+            return Positive
         end
     end
     return AnySign
