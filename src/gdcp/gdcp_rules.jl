@@ -111,6 +111,65 @@ function makegrule(manifold, sign, curvature, monotonicity)
     return GDCPRule(manifold, sign, curvature, monotonicity)
 end
 
+"""
+    constant_factors_ok(f, args)
+
+Whether the constant factors of the gDCP atom call `f(args...)` meet the
+preconditions under which the atom's registered rule holds. Atoms without such
+preconditions accept any arguments; `hadamard_product` and `affine_map` add
+methods.
+"""
+constant_factors_ok(f, args) = true
+
+# Per-analysis memo of constant-factor checks. `valid` maps a call node to its
+# `valid_constant_factors` result; `semidefinite` maps `(matrix, strict)` to the
+# exact (semi)definiteness proof, keyed on the constant matrix's identity so
+# trees rebuilt by the `propagate_*` walks still share it.
+struct FactorCache
+    valid::IdDict{Any, Bool}
+    semidefinite::IdDict{Any, Bool}
+end
+FactorCache() = FactorCache(IdDict{Any, Bool}(), IdDict{Any, Bool}())
+
+const FACTOR_CACHE_KEY = :SymbolicAnalysis_factor_cache
+
+current_factor_cache() = get(task_local_storage(), FACTOR_CACHE_KEY, nothing)
+
+function with_factor_cache(f)
+    current_factor_cache() === nothing || return f()
+    tls = task_local_storage()
+    tls[FACTOR_CACHE_KEY] = FactorCache()
+    try
+        return f()
+    finally
+        delete!(tls, FACTOR_CACHE_KEY)
+    end
+end
+
+"""
+    valid_constant_factors(ex)
+
+`false` when some call in `ex` (including `ex` itself) fails
+`constant_factors_ok`. Such a node may not be a point of the manifold,
+so its gDCP sign rule is unavailable and expressions containing it get
+`GUnknownCurvature`. Outer operations can still establish a sign through their
+Euclidean rules, such as `Positive` for `abs`.
+Within an analysis each node's result is computed once and reused by its
+ancestors.
+"""
+function valid_constant_factors(ex, cache = current_factor_cache())
+    iscall(ex) || return true
+    if cache !== nothing
+        hit = get(cache.valid, ex, nothing)
+        hit === nothing || return hit
+    end
+    args = arguments(ex)
+    ok = constant_factors_ok(operation(ex), args) &&
+        all(a -> valid_constant_factors(a, cache), args)
+    cache === nothing || (cache.valid[ex] = ok)
+    return ok
+end
+
 hasgdcprule(f::Function) = haskey(gdcprules_dict, f)
 hasgdcprule(f) = false
 gdcprule(f, args...) = gdcprules_dict[f], args
@@ -200,7 +259,66 @@ function add_gcurvature(args)
     end
 end
 
+# A matrix argument's `Positive` sign and geodesic curvature on the SPD cone are
+# in the Loewner order, so a Euclidean rule over a matrix argument keeps its
+# monotonicity only when the atom is monotone in that order. `tr`, a full `sum`,
+# the main `diag` and `quad_form`'s matrix slot are PSD-weighted linear functionals.
+# On the PSD cone `|A[i,j]| ≤ √(A[i,i]·A[j,j])`, so `maximum` and `norm(A, Inf)`
+# read only the diagonal; for an even integer `p` the gradient of `Σ A[i,j]^p` is
+# a Hadamard power of `A`, PSD by the Schur product theorem. The entrywise 1-norm,
+# `minimum`, `sum_largest`, column sums and nonlinear broadcasts are not monotone
+# there (see test/dgp.jl).
+const LOEWNER_LINEAR_READERS = (
+    LinearAlgebra.tr, sum, adjoint, transpose, +, -, quad_form,
+)
+
+# `diag(A, k)` for `k ≠ 0` reads off-diagonal entries, which are neither signed
+# nor geodesically convex on the SPD cone.
+function main_diagonal(args)
+    length(args) == 1 && return true
+    k = constval(args[2])
+    return k isa Integer && iszero(k)
+end
+
+function gdcprule(f::typeof(LinearAlgebra.diag), args...)
+    main_diagonal(args) && return gdcprules_dict[f], args
+    return makegrule(SymmetricPositiveDefinite, AnySign, GUnknownCurvature, (GAnyMono,)), args
+end
+
+function loewner_monotonicity(f, args, monotonicity)
+    mats = filter(a -> SymbolicUtils.symtype(a) <: AbstractMatrix, collect(args))
+    isempty(mats) && return monotonicity
+    signs_are(s) = all(a -> getsign(a) == s, mats)
+    f in LOEWNER_LINEAR_READERS && return monotonicity
+    f === LinearAlgebra.diag && return main_diagonal(args) ? monotonicity : AnyMono
+    if f isa SymbolicUtils.Mapreducer{typeof(identity)}
+        f.dims isa Colon || return AnyMono
+        f.reduce === Base.add_sum && return monotonicity
+        f.reduce === max && return signs_are(Positive) ? monotonicity : AnyMono
+        f.reduce === min && return signs_are(Negative) ? monotonicity : AnyMono
+        return AnyMono
+    end
+    f === maximum && return signs_are(Positive) ? monotonicity : AnyMono
+    f === minimum && return signs_are(Negative) ? monotonicity : AnyMono
+    if f === LinearAlgebra.norm
+        length(args) == 1 && return monotonicity
+        p = constval(args[2])
+        p isa Number && (p == Inf || (isinteger(p) && iseven(p) && p > 0)) &&
+            return monotonicity
+        return AnyMono
+    end
+    if f === broadcast
+        g, xs = constval(args[1]), args[2:end]
+        g in (+, -) && return monotonicity
+        g === (*) && count(a -> !(constval(a) isa Number), xs) == 1 && return monotonicity
+    end
+    return AnyMono
+end
+
 function find_gcurvature(ex)
+    # Checked before any stored curvature: a constant factor is a mutable matrix,
+    # so metadata from an earlier analysis can certify a factor that is now invalid.
+    iscall(ex) && !valid_constant_factors(ex) && return GUnknownCurvature
     if hasgcurvature(ex)
         return getgcurvature(ex)
     end
@@ -309,9 +427,11 @@ function find_gcurvature(ex)
         if !knowngcurv
             (hasdcprule(f) && any(a -> find_gcurvature(a) in (GConvex, GConcave), args)) ||
                 return GUnknownCurvature
+            # `dcprule(broadcast, g, xs...)` drops `g`, which the Loewner check needs.
+            call_args = args
             rule, args = dcprule(f, args...)
             f_curvature = rule.curvature
-            f_monotonicity = rule.monotonicity
+            f_monotonicity = loewner_monotonicity(f, call_args, rule.monotonicity)
         end
 
         if f_curvature == Convex || f_curvature == Affine
@@ -334,7 +454,7 @@ function find_gcurvature(ex)
         elseif f_curvature == Concave
             if all(enumerate(args)) do (i, arg)
                     arg_curv = find_gcurvature(arg)
-                    m = f_monotonicity[i]
+                    m = get_arg_property(f_monotonicity, i, args)
                     if arg_curv == GConcave
                         m == Increasing
                     elseif arg_curv == GConvex
@@ -387,6 +507,8 @@ function propagate_gcurvature(ex, M::AbstractManifold)
     # `propagate_sign` leaves behind. `find_gcurvature` falls back to the Euclidean
     # rule table for atoms with no geodesic rule and picks up `increasing_if_positive`
     # with it, so `distance(M, A, X)^2` needs `distance`'s manifold sign to compose.
-    ex = propagate_sign(ex, M)
-    return Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
+    return with_factor_cache() do
+        ex = propagate_sign(ex, M)
+        Postwalk(x -> issym(x) || iscall(x) ? setgcurvature(x, node_gcurvature(x)) : x)(ex)
+    end
 end

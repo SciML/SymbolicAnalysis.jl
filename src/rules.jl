@@ -385,6 +385,7 @@ function node_sign(ex, M = nothing)
         elseif f === (+)
             return add_sign(arguments(ex))
         elseif usegdcp && hasgdcprule(f)
+            valid_constant_factors(ex) || return AnySign
             return gdcprule(f, arguments(ex)...)[1].sign
         elseif hasdcprule(f)
             return dcprule(f, arguments(ex)...)[1].sign
@@ -409,7 +410,9 @@ function propagate_sign(ex, M = nothing)
     # computed exactly once. Only symbols and calls are annotated — wrapped
     # constants can't carry metadata on older SymbolicUtils v4 releases, and
     # every getter already falls back correctly for them.
-    return Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x, M)) : x)(ex)
+    return with_factor_cache() do
+        Postwalk(x -> issym(x) || iscall(x) ? setsign(x, node_sign(x, M)) : x)(ex)
+    end
 end
 
 ### Curvature ###

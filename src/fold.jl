@@ -130,6 +130,8 @@ when called from [`analyze`](@ref).
 function analyze_fold(ex, M::Union{AbstractManifold, Nothing} = nothing)
     ctx = FoldCtx(IdDict{Any, NodeAnalysis}(), M)
     return with_fold_ctx(ctx) do
-        analyze_node!(ex, ctx)
+        with_factor_cache() do
+            analyze_node!(ex, ctx)
+        end
     end
 end
