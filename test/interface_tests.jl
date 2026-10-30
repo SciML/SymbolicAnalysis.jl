@@ -70,9 +70,9 @@ _interface_gdcp_atom(p) = p[1]
         x = BigFloat[1.0 2.0; 3.0 4.0]
         result = SymbolicAnalysis.sum_largest(x, 2)
         @test result isa BigFloat
-        # sum_largest sums the k largest elements: sorted = [1,2,3,4], (end-k):end = 3:4+1 = 3 elements
-        # Looking at the code: sort(vec(x))[(end - k):end] = [2, 3, 4] when k=2, so sum = 9
-        @test result == BigFloat(9.0)
+        @test result == BigFloat(7.0)
+        @test SymbolicAnalysis.sum_largest([1 2 3]', 1) == 3
+        @test SymbolicAnalysis.sum_largest([1 2 3]', 3) == 6
     end
 
     @testset "sum_smallest" begin

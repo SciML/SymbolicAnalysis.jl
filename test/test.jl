@@ -946,3 +946,50 @@ ipv_pos = Symbolics.wrap(
     )
 )
 @test curv_of(SymbolicAnalysis.invprod(ipv_pos)) == SymbolicAnalysis.Convex
+
+# Registered rules checked against numeric witnesses.
+# SymbolicAnalysis.StatsBase.kldivergence is Σ pᵢ log(pᵢ/qᵢ) without the −p + q terms, so it is
+# negative for unnormalised inputs: kldivergence([1, 1], [2, 2]) = −2 log 2.
+@test SymbolicAnalysis.StatsBase.kldivergence([1.0, 1.0], [2.0, 2.0]) < 0
+@test SymbolicAnalysis.dcprules_dict[SymbolicAnalysis.StatsBase.kldivergence][1].sign ==
+    SymbolicAnalysis.AnySign
+# diff([a, b]) = b − a is increasing in b and decreasing in a.
+@test SymbolicAnalysis.dcprules_dict[diff][1].monotonicity == (SymbolicAnalysis.AnyMono,)
+# S(X, B) is minimised at X = B, so adding a PSD matrix to X can decrease it.
+let B = [2.0 0.0; 0.0 2.0], P = [1.0 0.0; 0.0 1.0], X = B - P
+    @test SymbolicAnalysis.sdivergence(X, B) > SymbolicAnalysis.sdivergence(X + P, B)
+end
+@test SymbolicAnalysis.gdcprules_dict[SymbolicAnalysis.sdivergence].gmonotonicity ==
+    (SymbolicAnalysis.GAnyMono,)
+
+# harmmean exists for negative inputs, where it is not concave:
+# h(−1, −3) = h(−3, −1) = −1.5 > h(−2, −2) = −2.
+@test SymbolicAnalysis.StatsBase.harmmean([-2.0, -2.0]) < SymbolicAnalysis.StatsBase.harmmean([-1.0, -3.0])
+@variables hmv[1:2]
+@test SymbolicAnalysis.dcprule(SymbolicAnalysis.StatsBase.harmmean, unwrap(hmv))[1].curvature ==
+    SymbolicAnalysis.UnknownCurvature
+hmv_pos = setmetadata(
+    unwrap(hmv), SymbolicAnalysis.VarDomain,
+    SymbolicAnalysis.array_domain(Symbolics.DomainSets.HalfLine{Real, :open}(), 1)
+)
+let rule = SymbolicAnalysis.dcprule(SymbolicAnalysis.StatsBase.harmmean, hmv_pos)[1]
+    @test rule.curvature == SymbolicAnalysis.Concave
+    @test rule.sign == SymbolicAnalysis.Positive
+end
+
+@test SymbolicAnalysis.sum_log_eigmax([2.0 0.0; 0.0 3.0], 1) ≈ log(3.0)
+@test SymbolicAnalysis.sum_log_eigmax(exp, [2.0 0.0; 0.0 3.0], 2) ≈ 5.0
+
+# A VarDomain that is not an array domain gives no positivity proof and must not
+# make the rule lookup throw.
+@variables svd_v[1:2]
+svd_v = Symbolics.wrap(
+    setmetadata(
+        unwrap(svd_v), SymbolicAnalysis.VarDomain,
+        Symbolics.DomainSets.HalfLine{Real, :open}()
+    )
+)
+for atom in (SymbolicAnalysis.StatsBase.harmmean, SymbolicAnalysis.invprod)
+    @test SymbolicAnalysis.analyze(Symbolics.term(atom, unwrap(svd_v))).curvature ==
+        SymbolicAnalysis.UnknownCurvature
+end

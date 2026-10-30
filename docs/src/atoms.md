@@ -9,7 +9,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | dot                       | (array_domain(ℝ), array_domain(ℝ))                                             | AnySign   | See below | See below                                   |
 | dotsort                   | (array_domain(ℝ, 1), array_domain(ℝ, 1))                                       | AnySign   | See below | See below                                   |
 | StatsBase.geomean         | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
-| StatsBase.harmmean        | array_domain(HalfLine{Real,:open}(), 1)                                        | Positive  | Concave   | Increasing                                  |
+| StatsBase.harmmean        | See below                                                                      | See below | See below | See below                                   |
 | invprod                   | See below                                                                      | See below | See below | See below                                   |
 | eigmax                    | symmetric_domain()                                                             | AnySign   | Convex    | AnyMono                                     |
 | eigmin                    | symmetric_domain()                                                             | AnySign   | Concave   | AnyMono                                     |
@@ -53,7 +53,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | log                       | array_domain(ℝ, 2)                                                             | AnySign   | Concave   | Increasing                                  |
 | inv                       | semidefinite_domain()                                                          | AnySign   | Convex    | Decreasing                                  |
 | sqrt                      | semidefinite_domain()                                                          | Positive  | Concave   | Increasing                                  |
-| kldivergence              | (array_domain(HalfLine{Real,:open}(), 1), array_domain(HalfLine{Real,:open}(), 1)) | Positive  | Convex    | AnyMono                                     |
+| kldivergence              | (array_domain(HalfLine{Real,:open}(), 1), array_domain(HalfLine{Real,:open}(), 1)) | AnySign   | Convex    | AnyMono                                     |
 | lognormcdf                | ℝ                                                                              | Negative  | Concave   | Increasing                                  |
 | log1p                     | Interval{:open,:open}(-1, Inf)                                                 | AnySign   | Concave   | Increasing                                  |
 | LogExpFunctions.log1pexp  | ℝ                                                                              | Positive  | Convex    | Increasing                                  |
@@ -70,7 +70,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | cumsum                    | array_domain(ℝ)                                                                | AnySign   | Affine    | Increasing                                  |
 | diagm                     | array_domain(ℝ, 1)                                                             | AnySign   | Affine    | Increasing                                  |
 | diag                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
-| diff                      | array_domain(ℝ)                                                                | AnySign   | Affine    | Increasing                                  |
+| diff                      | array_domain(ℝ)                                                                | AnySign   | Affine    | AnyMono                                     |
 | kron                      | (array_domain(ℝ, 2), array_domain(ℝ, 2))                                       | AnySign   | See below | See below                                   |
 | tril                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
 | triu                      | array_domain(ℝ, 2)                                                             | AnySign   | Affine    | Increasing                                  |
@@ -97,6 +97,19 @@ curvature.
 | norm(x, p) | constant `0 < p < 1`, `x` sign `Positive` | Positive | Concave | Increasing           |
 | norm(x, p) | constant `0 < p < 1`, other sign of `x` | Positive | UnknownCurvature | Increasing     |
 | norm(x, p) | symbolic `p`, or constant `p ≤ 0` | Positive | UnknownCurvature | AnyMono                |
+
+### Harmonic mean
+
+`StatsBase.harmmean(x)` is positive, concave, and increasing on the positive
+orthant, and is not concave on the negative orthant. It receives the positive,
+concave, increasing rule when `x` has a propagated `Positive` sign or an array
+`VarDomain` whose element domain lies in `(0, ∞)`; other arguments receive
+`AnySign`, `UnknownCurvature`, and `AnyMono`.
+
+| Atom                  | Condition          | Domain                                  | Sign     | Curvature        | Monotonicity |
+|:--------------------- |:------------------ |:--------------------------------------- |:-------- |:---------------- |:------------ |
+| StatsBase.harmmean(x) | `x` known positive | array_domain(HalfLine{Real,:open}(), 1) | Positive | Concave          | Increasing   |
+| StatsBase.harmmean(x) | otherwise          | array_domain(ℝ)                         | AnySign  | UnknownCurvature | AnyMono      |
 
 ### Perspective
 
@@ -189,7 +202,7 @@ linear map, which may have either sign, so the affine case is `AnyMono`.
 | adjoint                    | Positive | GLinear            | GIncreasing  |
 | scalar_mat                 | Positive | GConvex            | GIncreasing  |
 | LinearAlgebra.diag         | Positive | GConvex            | GIncreasing  |
-| sdivergence                | Positive | GConvex            | GIncreasing  |
+| sdivergence                | Positive | GConvex            | GAnyMono     |
 | Manifolds.distance         | Positive | GConvex            | GAnyMono     |
 | SymbolicAnalysis.quad_form | Positive | GConvex            | GIncreasing  |
 | LinearAlgebra.eigmax       | Positive | GConvex            | GIncreasing  |
