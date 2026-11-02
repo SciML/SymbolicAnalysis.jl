@@ -60,6 +60,23 @@ dcprule(::typeof(dot), x, y)
 </details>
 
 <details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofLinearAlgebra.logdet, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofLinearAlgebra.logdet, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+dcprule(::typeof(logdet), X)
+```
+
+
+`logdet` is concave on the positive definite cone, but it exists wherever `det(X) > 0`. Off the cone it is not concave: along `[s 1-s; s-1 s]` it is `0` at `s = 0` and `s = 1` and `log(1/2)` at the midpoint. So the certificate needs `X` proven positive definite (see `known_posdef`).
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
 <summary><a id='SymbolicAnalysis.dcprule-Tuple{typeofLogExpFunctions.xexpx, Any}' href='#SymbolicAnalysis.dcprule-Tuple{typeofLogExpFunctions.xexpx, Any}'><span class="jlbinding">SymbolicAnalysis.dcprule</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
 
 
@@ -160,7 +177,7 @@ dcprule(::typeof(quad_form), x, P)
 
 `x'Px` is quadratic in `x` but **linear** in `P`, so it is convex only for a constant positive definite `P`. Registering it as unconditionally `Convex` certified both the both-symbolic form (indefinite: `quad_form([a], [b;;])` is `a^2*b`, whose second difference along `(1, -1)` is `-2`) and a constant indefinite `P` (`quad_form(x, [1 0; 0 -1])` is `x[1]^2 - x[2]^2`).
 
-`P` is checked with `isposdef`, matching the `semidefinite_domain()` the rule declares; a singular positive semidefinite `P` therefore gets no certificate.
+`P` is checked with the exact `pd_constant`; a singular positive semidefinite `P` therefore gets no certificate.
 
 Slot 1 is only `increasing_if_positive` when `P` is **entrywise** nonnegative. `x'Px = Σ P[i,j]·x[i]·x[j]` is nondecreasing in each `x[i]` over the nonnegative orthant only then; positive definiteness alone does not give it. With `P = [1 -0.9; -0.9 1]` (which is positive definite) the composition certified `quad_form(exp.(v), P)` as `Convex` while it is not — the midpoint exceeds the chord by 1.92 between `v = [0.64, 2.0]` and `[1.64, 2.3]`.
 
@@ -215,7 +232,7 @@ dcprule(::typeof(inv), x)
 
 `1/x` is convex-decreasing and positive on `(0, ∞)`, but it **exists** for every nonzero `x` and is concave (and negative) on `(-∞, 0)` — e.g. `f(-1) = -1`, `f(-3) = -1/3`, and the midpoint `f(-2) = -1/2` lies above the chord `-2/3`. Certifying `Convex`/`Positive` for a sign-unknown argument is therefore a false certificate over the function's own real domain. The same house rule that guards `/` and `xexpx` applies; `log`/`sqrt` escape it only because they are undefined outside their declared domain.
 
-Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually covers rewritten forms; this method covers the bare `inv` term (as built by `perspective` and `Symbolics.term`). Matrix `inv` keeps the Loewner-order table entry via the fallback.
+Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually covers rewritten forms; this method covers the bare `inv` term (as built by `perspective` and `Symbolics.term`). Matrix `inv` is convex-decreasing in the Loewner order on the positive definite cone only, and exists for every nonsingular matrix (`tr(inv(-t*I))` is concave in `t > 0`), so it is certified only for an argument proven positive definite.
 
 
 <Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
@@ -376,6 +393,40 @@ Returns the inverse of the product of the elements of `x`.
 - `x::AbstractVector`: A vector.
 ```
 
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.known_posdef-Tuple{Any}' href='#SymbolicAnalysis.known_posdef-Tuple{Any}'><span class="jlbinding">SymbolicAnalysis.known_posdef</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+known_posdef(X)
+```
+
+
+Whether the matrix expression `X` is proven positive definite: a constant matrix passing the exact `pd_constant`, a symbolic matrix declared with `VarDomain` metadata `semidefinite_domain()` / `definite_domain()` (both are the `isposdef` test), a positive constant multiple, sum or transpose of proven ones. Anything else is unproven, and the matrix atoms that need it degrade to `UnknownCurvature`.
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.known_symmetric-Tuple{Any}' href='#SymbolicAnalysis.known_symmetric-Tuple{Any}'><span class="jlbinding">SymbolicAnalysis.known_symmetric</span></a> <Badge type="info" class="jlObjectType jlMethod" text="Method" /></summary>
+
+
+
+```julia
+known_symmetric(X)
+```
+
+
+Whether the matrix expression `X` is proven symmetric: an exactly symmetric constant, a proven positive definite matrix, a leaf declared `symmetric_domain()`, an assembled matrix with mirrored entries, `A + A'`, `A'A`, `A*A'`, or a scalar multiple, sum or transpose of proven ones.
 
 
 <Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>

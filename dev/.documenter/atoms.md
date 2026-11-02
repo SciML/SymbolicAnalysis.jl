@@ -14,14 +14,14 @@ This page is intended to be a reference for the atoms that are currently impleme
 | StatsBase.geomean         | array_domain(HalfLine{Real,:open}(), 1)                                            | Positive  | Concave   | Increasing                           |
 | StatsBase.harmmean        | array_domain(HalfLine{Real,:open}(), 1)                                            | Positive  | Concave   | Increasing                           |
 | invprod                   | See below                                                                          | See below | See below | See below                            |
-| eigmax                    | symmetric_domain()                                                                 | AnySign   | Convex    | AnyMono                              |
-| eigmin                    | symmetric_domain()                                                                 | AnySign   | Concave   | AnyMono                              |
+| eigmax                    | See below                                                                          | AnySign   | Convex    | AnyMono                              |
+| eigmin                    | See below                                                                          | AnySign   | Concave   | AnyMono                              |
 | LinearAlgebra.opnorm      | array_domain(ℝ, 2)                                                                 | Positive  | Convex    | AnyMono                              |
 | eigsummax                 | (array_domain(ℝ, 2), ℝ)                                                            | AnySign   | Convex    | AnyMono                              |
 | eigsummin                 | (array_domain(ℝ, 2), ℝ)                                                            | AnySign   | Concave   | AnyMono                              |
-| logdet                    | semidefinite_domain()                                                              | AnySign   | Concave   | AnyMono                              |
+| logdet                    | See below                                                                          | See below | See below | See below                            |
 | LogExpFunctions.logsumexp | array_domain(ℝ)                                                                    | AnySign   | Convex    | Increasing                           |
-| matrix_frac               | (array_domain(ℝ, 1), definite_domain())                                            | AnySign   | Convex    | AnyMono                              |
+| matrix_frac               | See below                                                                          | See below | See below | See below                            |
 | maximum                   | array_domain(ℝ)                                                                    | AnySign   | Convex    | Increasing                           |
 | minimum                   | array_domain(ℝ)                                                                    | AnySign   | Concave   | Increasing                           |
 | norm                      | (array_domain(ℝ), Interval{:closed, :open}(1, Inf))                                | Positive  | Convex    | increasing_if_positive               |
@@ -34,7 +34,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 | sum_largest               | (array_domain(ℝ, 2), ℤ)                                                            | AnySign   | Convex    | Increasing                           |
 | sum_smallest              | (array_domain(ℝ, 2), ℤ)                                                            | AnySign   | Concave   | Increasing                           |
 | tr                        | array_domain(ℝ, 2)                                                                 | AnySign   | Affine    | Increasing                           |
-| trinv                     | definite_domain()                                                                  | Positive  | Convex    | AnyMono                              |
+| trinv                     | See below                                                                          | See below | See below | See below                            |
 | tv                        | array_domain(ℝ, 1)                                                                 | Positive  | Convex    | AnyMono                              |
 | tv                        | array_domain(array_domain(ℝ, 2), 1)                                                | Positive  | Convex    | AnyMono                              |
 | abs                       | ℂ                                                                                  | Positive  | Convex    | increasing_if_positive               |
@@ -53,9 +53,9 @@ This page is intended to be a reference for the atoms that are currently impleme
 | log                       | HalfLine{Real,:open}()                                                             | AnySign   | Concave   | Increasing                           |
 | log2                      | HalfLine{Real,:open}()                                                             | AnySign   | Concave   | Increasing                           |
 | log10                     | HalfLine{Real,:open}()                                                             | AnySign   | Concave   | Increasing                           |
-| log                       | array_domain(ℝ, 2)                                                                 | AnySign   | Concave   | Increasing                           |
-| inv                       | semidefinite_domain()                                                              | AnySign   | Convex    | Decreasing                           |
-| sqrt                      | semidefinite_domain()                                                              | Positive  | Concave   | Increasing                           |
+| log (matrix)              | See below                                                                          | See below | See below | See below                            |
+| inv (matrix)              | See below                                                                          | See below | See below | See below                            |
+| sqrt (matrix)             | See below                                                                          | See below | See below | See below                            |
 | kldivergence              | (array_domain(HalfLine{Real,:open}(), 1), array_domain(HalfLine{Real,:open}(), 1)) | Positive  | Convex    | AnyMono                              |
 | lognormcdf                | ℝ                                                                                  | Negative  | Concave   | Increasing                           |
 | log1p                     | Interval{:open,:open}(-1, Inf)                                                     | AnySign   | Concave   | Increasing                           |
@@ -111,7 +111,7 @@ This page is intended to be a reference for the atoms that are currently impleme
 
 ### Inverse {#Inverse}
 
-`inv(x) = 1/x` is convex-decreasing and positive only on `(0, ∞)`. The atom exists for every nonzero `x` and is concave on the negative reals, so the certificate requires a known-positive argument (same house rule as `/` and `xexpx`). Matrix `inv` keeps the Loewner-order semidefinite rule.
+`inv(x) = 1/x` is convex-decreasing and positive only on `(0, ∞)`. The atom exists for every nonzero `x` and is concave on the negative reals, so the certificate requires a known-positive argument (same house rule as `/` and `xexpx`). Matrix `inv` is covered under [Matrix atoms](/atoms#matrix-atoms-pd).
 
 | Atom   | Condition          | Sign     | Curvature        | Monotonicity |
 |:------ |:------------------ |:-------- |:---------------- |:------------ |
@@ -127,28 +127,157 @@ This page is intended to be a reference for the atoms that are currently impleme
 | invprod(x) | otherwise          | AnySign  | UnknownCurvature | AnyMono      |
 
 
+### Matrix atoms {#matrix-atoms-pd}
+
+`logdet`, `trinv`, `matrix_frac` and the matrix `inv`, `log` and `sqrt` are convex or concave on the positive definite cone only, but each also exists off it: `logdet` wherever `det(X) > 0`, `inv` for every nonsingular matrix, and `log` and `sqrt` for any real matrix without eigenvalues on `(-∞, 0]`. Along `[s 1-s; s-1 s]`, whose determinant stays positive, `logdet` and `tr(log(X))` are `0` at `s = 0` and `s = 1` but `log(1/2)` at the midpoint, and `tr(inv(-t*I))` is concave in `t > 0`. So each certifies only an argument proven positive definite:
+- a constant symmetric matrix that passes `isposdef`;
+    
+- a symbolic matrix with `VarDomain` metadata `semidefinite_domain()` or `definite_domain()` (both are the `isposdef` test);
+    
+- a positive constant multiple, a sum, or a transpose of proven ones.
+    
+
+```julia
+@variables X[1:3, 1:3]
+X = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.definite_domain())
+analyze(logdet(X) - tr(X)).curvature  # Concave
+```
+
+
+These domain constructors, along with `symmetric_domain()` (used by the `eigmax`/`eigmin` rules below), are the supported way to declare a symbolic matrix's domain:
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.definite_domain' href='#SymbolicAnalysis.definite_domain'><span class="jlbinding">SymbolicAnalysis.definite_domain</span></a> <Badge type="info" class="jlObjectType jlFunction" text="Function" /></summary>
+
+
+
+```julia
+definite_domain()
+```
+
+
+`VarDomain` value for a symbolic matrix declared positive definite (`isposdef`); the same test as [`semidefinite_domain`](/atoms#SymbolicAnalysis.semidefinite_domain). Attach it with `SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain, definite_domain())` to unlock the matrix atoms restricted to the positive definite cone (`logdet`, `trinv`, `matrix_frac`, the matrix `inv`/`log`/`sqrt`); see [`known_posdef`](/functions#SymbolicAnalysis.known_posdef-Tuple{Any}).
+
+**Examples**
+
+```julia
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xd = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.definite_domain());
+
+julia> analyze(logdet(Xd) - tr(Xd)).curvature
+Concave::Curvature = 1
+```
+
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.semidefinite_domain' href='#SymbolicAnalysis.semidefinite_domain'><span class="jlbinding">SymbolicAnalysis.semidefinite_domain</span></a> <Badge type="info" class="jlObjectType jlFunction" text="Function" /></summary>
+
+
+
+```julia
+semidefinite_domain()
+```
+
+
+`VarDomain` value for a symbolic matrix declared positive definite (`isposdef`); the same test as [`definite_domain`](/atoms#SymbolicAnalysis.definite_domain). Attach it with `SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain, semidefinite_domain())` to unlock the matrix atoms restricted to the positive definite cone (`logdet`, `trinv`, `matrix_frac`, the matrix `inv`/`log`/`sqrt`); see [`known_posdef`](/functions#SymbolicAnalysis.known_posdef-Tuple{Any}).
+
+**Examples**
+
+```julia
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xd = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.semidefinite_domain());
+
+julia> analyze(logdet(Xd) - tr(Xd)).curvature
+Concave::Curvature = 1
+```
+
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+<details class='jldocstring custom-block' open>
+<summary><a id='SymbolicAnalysis.symmetric_domain' href='#SymbolicAnalysis.symmetric_domain'><span class="jlbinding">SymbolicAnalysis.symmetric_domain</span></a> <Badge type="info" class="jlObjectType jlFunction" text="Function" /></summary>
+
+
+
+```julia
+symmetric_domain()
+```
+
+
+`VarDomain` value for a symbolic matrix declared symmetric (`issymmetric`). Attach it with `SymbolicUtils.setmetadata(X, SymbolicAnalysis.VarDomain, symmetric_domain())` to unlock the `eigmax`/`eigmin` rules, which otherwise need a provably symmetric argument; see [`known_symmetric`](/functions#SymbolicAnalysis.known_symmetric-Tuple{Any}).
+
+**Examples**
+
+```julia
+julia> using SymbolicAnalysis, Symbolics, SymbolicUtils, LinearAlgebra
+
+julia> @variables X[1:3, 1:3];
+
+julia> Xs = setmetadata(X, SymbolicAnalysis.VarDomain, SymbolicAnalysis.symmetric_domain());
+
+julia> analyze(eigmax(Xs)).curvature
+Convex::Curvature = 0
+```
+
+
+
+<Badge type="info" class="source-link" text="source"><a href="https://github.com/SciML/SymbolicAnalysis.jl" target="_blank" rel="noreferrer">source</a></Badge>
+
+</details>
+
+
+| Atom              | Condition                    | Sign     | Curvature        | Monotonicity |
+|:----------------- |:---------------------------- |:-------- |:---------------- |:------------ |
+| logdet(X)         | `X` proven positive definite | AnySign  | Concave          | AnyMono      |
+| trinv(X)          | `X` proven positive definite | Positive | Convex           | AnyMono      |
+| matrix_frac(x, P) | `P` proven positive definite | AnySign  | Convex           | AnyMono      |
+| inv(X)            | `X` proven positive definite | AnySign  | Convex           | Decreasing   |
+| log(X)            | `X` proven positive definite | AnySign  | Concave          | Increasing   |
+| sqrt(X)           | `X` proven positive definite | AnySign  | Concave          | Increasing   |
+| any of the above  | otherwise                    | AnySign  | UnknownCurvature | AnyMono      |
+
+
+Constant matrices are checked exactly, by an LDLᵀ elimination in `Rational{BigInt}`: `[5.0 11; 11 24.2]` passes a floating-point `isposdef` but has determinant `-2⁻⁴⁸`, so it is not proven.
+
+The curvature and monotonicity of `inv`, `log` and `sqrt` are in the Loewner order, which is not entrywise: `minimum(2sqrt(P))` and `maximum(-log(P))` are not concave/convex. Loewner curvature passes through sums, transposes and scalar multiples, and is read only by `tr` and a full `sum`, plus `maximum` of a bare `inv(X)` (the largest entry of a positive definite matrix is on its diagonal). Every other consumer of it is `UnknownCurvature`. `sqrt(X)` is positive semidefinite but can have negative entries, so it carries no sign. Broadcast forms (`log.(X)`, `sqrt.(X)`, `inv.(X)`) take the scalar rules.
+
+`eigmax` (`Convex`) and `eigmin` (`Concave`) need a provably symmetric argument: an exactly symmetric constant, a proven positive definite matrix, a leaf declared `symmetric_domain()`, an assembled matrix with mirrored entries, `A + A'`, `A'A`, `A*A'`, or a scalar multiple, sum or transpose of those. Between `[0 4; 1 0]` and its transpose `eigmax` is `2` at both ends and `2.5` at the midpoint.
+
 ### Bilinear atoms {#Bilinear-atoms}
 
 `dot`, `conv`, `kron`, `dotsort`, `quad_form` and `huber`'s threshold slot are bilinear: each is a convex (or affine) atom only when the argument it is linear in is a constant. With every argument symbolic the expression is indefinite, so the curvature depends on the arguments and there is no single table entry.
 
-| Atom            | Condition                                              | Sign     | Curvature        | Monotonicity                                |
-|:--------------- |:------------------------------------------------------ |:-------- |:---------------- |:------------------------------------------- |
-| dot(x, y)       | `x` or `y` constant                                    | AnySign  | Affine           | AnyMono                                     |
-| dot(x, y)       | otherwise                                              | AnySign  | UnknownCurvature | AnyMono                                     |
-| conv(x, y)      | `x` or `y` constant                                    | AnySign  | Affine           | AnyMono                                     |
-| conv(x, y)      | otherwise                                              | AnySign  | UnknownCurvature | AnyMono                                     |
-| kron(X, Y)      | `X` or `Y` constant                                    | AnySign  | Affine           | AnyMono                                     |
-| kron(X, Y)      | otherwise                                              | AnySign  | UnknownCurvature | AnyMono                                     |
-| dotsort(x, y)   | `x` or `y` constant                                    | AnySign  | Convex           | (AnyMono, increasing_if_positive ∘ minimum) |
-| dotsort(x, y)   | otherwise                                              | AnySign  | UnknownCurvature | AnyMono                                     |
-| quad_form(x, P) | `P` a constant `isposdef` matrix, entrywise ≥ 0        | Positive | Convex           | (increasing_if_positive, Increasing)        |
-| quad_form(x, P) | `P` a constant `isposdef` matrix with a negative entry | Positive | Convex           | (AnyMono, Increasing)                       |
-| quad_form(x, P) | otherwise                                              | AnySign  | UnknownCurvature | AnyMono                                     |
-| huber(x, M)     | `M` constant                                           | Positive | Convex           | increasing_if_positive                      |
-| huber(x, M)     | otherwise                                              | AnySign  | UnknownCurvature | AnyMono                                     |
+| Atom            | Condition                                        | Sign     | Curvature        | Monotonicity                                |
+|:--------------- |:------------------------------------------------ |:-------- |:---------------- |:------------------------------------------- |
+| dot(x, y)       | `x` or `y` constant                              | AnySign  | Affine           | AnyMono                                     |
+| dot(x, y)       | otherwise                                        | AnySign  | UnknownCurvature | AnyMono                                     |
+| conv(x, y)      | `x` or `y` constant                              | AnySign  | Affine           | AnyMono                                     |
+| conv(x, y)      | otherwise                                        | AnySign  | UnknownCurvature | AnyMono                                     |
+| kron(X, Y)      | `X` or `Y` constant                              | AnySign  | Affine           | AnyMono                                     |
+| kron(X, Y)      | otherwise                                        | AnySign  | UnknownCurvature | AnyMono                                     |
+| dotsort(x, y)   | `x` or `y` constant                              | AnySign  | Convex           | (AnyMono, increasing_if_positive ∘ minimum) |
+| dotsort(x, y)   | otherwise                                        | AnySign  | UnknownCurvature | AnyMono                                     |
+| quad_form(x, P) | `P` an exactly PD constant, entrywise ≥ 0        | Positive | Convex           | (increasing_if_positive, Increasing)        |
+| quad_form(x, P) | `P` an exactly PD constant with a negative entry | Positive | Convex           | (AnyMono, Increasing)                       |
+| quad_form(x, P) | otherwise                                        | AnySign  | UnknownCurvature | AnyMono                                     |
+| huber(x, M)     | `M` constant                                     | Positive | Convex           | increasing_if_positive                      |
+| huber(x, M)     | otherwise                                        | AnySign  | UnknownCurvature | AnyMono                                     |
 
 
-`quad_form` is _linear_ in `P`, so a non-constant `P` makes `x'Px` indefinite; a constant but indefinite `P` does too (`quad_form(x, [1 0; 0 -1])` is `x[1]^2 - x[2]^2`). `isposdef` matches the `semidefinite_domain()` the rule declares, so a singular positive semidefinite `P` gets no certificate. The `x` slot is `increasing_if_positive` only for an entrywise nonnegative `P`: with `P = [1 -0.9; -0.9 1]`, `x'Px` decreases in `x[1]` near `x = [0.5, 1]`.
+`quad_form` is _linear_ in `P`, so a non-constant `P` makes `x'Px` indefinite; a constant but indefinite `P` does too (`quad_form(x, [1 0; 0 -1])` is `x[1]^2 - x[2]^2`). `P` must be exactly positive definite (see [Matrix atoms](/atoms#matrix-atoms-pd)), so a singular positive semidefinite `P` gets no certificate. The `x` slot is `increasing_if_positive` only for an entrywise nonnegative `P`: with `P = [1 -0.9; -0.9 1]`, `x'Px` decreases in `x[1]` near `x = [0.5, 1]`.
 
 The constant side of `dot`, `conv` and `kron` holds the coefficients of the linear map, which may have either sign, so the affine case is `AnyMono`.
 
