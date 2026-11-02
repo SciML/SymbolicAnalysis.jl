@@ -130,19 +130,8 @@ array `VarDomain` whose element domain lies in `(0, ∞)`).
 """
 function dcprule(::typeof(invprod), x)
     args = (x,)
-    unknown = makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono)
-    ok = getsign(x) == Positive
-    if !ok && _has_vardomain(x)
-        d = getmetadata(x, VarDomain)
-        ok = try
-            f = d.in
-            hasproperty(f, :element_domain) &&
-                issubset(f.element_domain, HalfLine{Real, :open}())
-        catch e
-            e isa MethodError ? false : rethrow()
-        end
-    end
-    ok || return unknown, args
+    known_positive(x) ||
+        return makerule(array_domain(RealLine()), AnySign, UnknownCurvature, AnyMono), args
     return makerule(array_domain(HalfLine{Real, :open}()), Positive, Convex, Decreasing),
         args
 end
@@ -150,10 +139,16 @@ hasdcprule(::typeof(invprod)) = true
 
 # `eigmax`/`eigmin` build symbolic terms via Symbolics' own registration (a Base
 # LinearAlgebra function belongs to Symbolics, not pirated here); we only attach
-# the DCP curvature rule, exactly as for `tr`.
-add_dcprule(eigmax, symmetric_domain(), AnySign, Convex, AnyMono)
-
-add_dcprule(eigmin, symmetric_domain(), AnySign, Concave, AnyMono)
+# the DCP curvature rule, which needs a symmetric argument (`[0 4; 1 0]`).
+function symmetric_rule(X, curvature)
+    dom = symmetric_domain()
+    known_symmetric(X) || return makerule(dom, AnySign, UnknownCurvature, AnyMono), (X,)
+    return makerule(dom, AnySign, curvature, AnyMono), (X,)
+end
+dcprule(::typeof(eigmax), X) = symmetric_rule(X, Convex)
+dcprule(::typeof(eigmin), X) = symmetric_rule(X, Concave)
+hasdcprule(::typeof(eigmax)) = true
+hasdcprule(::typeof(eigmin)) = true
 
 # The spectral norm is convex on every real matrix but not monotone in the
 # Loewner order, so it composes only over affine arguments.
@@ -198,7 +193,16 @@ end
 Symbolics.@register_symbolic eigsummin(m::Matrix, k::Int)
 add_dcprule(eigsummin, (array_domain(RealLine(), 2), RealLine()), AnySign, Concave, AnyMono)
 
-add_dcprule(logdet, semidefinite_domain(), AnySign, Concave, AnyMono)
+"""
+    dcprule(::typeof(logdet), X)
+
+`logdet` is concave on the positive definite cone, but it exists wherever
+`det(X) > 0`. Off the cone it is not concave: along `[s 1-s; s-1 s]` it is `0` at
+`s = 0` and `s = 1` and `log(1/2)` at the midpoint. So the certificate needs `X`
+proven positive definite (see `known_posdef`).
+"""
+dcprule(::typeof(logdet), X) = posdef_rule(X, AnySign, Concave, AnyMono)
+hasdcprule(::typeof(logdet)) = true
 
 # `LogExpFunctions.logsumexp` on a symbolic vector must stay an unevaluated
 # `logsumexp` term so the curvature pass can dispatch on it; Symbolics' own
@@ -248,13 +252,13 @@ function matrix_frac(x::AbstractVector, P::AbstractMatrix)
     return x' * inv(P) * x
 end
 Symbolics.@register_symbolic matrix_frac(x::AbstractVector, P::AbstractMatrix)
-add_dcprule(
-    matrix_frac,
-    (array_domain(RealLine(), 1), definite_domain()),
-    AnySign,
-    Convex,
-    AnyMono
-)
+function dcprule(::typeof(matrix_frac), x, P)
+    dom = (array_domain(RealLine(), 1), definite_domain())
+    known_posdef(P) ||
+        return makerule(dom, AnySign, UnknownCurvature, AnyMono), (x, P)
+    return makerule(dom, AnySign, Convex, AnyMono), (x, P)
+end
+hasdcprule(::typeof(matrix_frac)) = true
 
 add_dcprule(maximum, array_domain(RealLine()), AnySign, Convex, Increasing)
 
@@ -274,6 +278,30 @@ function is_loewner_matrix_term(x)
     operation(x) in LOEWNER_MATRIX_ATOMS || return false
     args = arguments(x)
     return length(args) == 1 && SymbolicUtils.symtype(args[1]) <: AbstractArray{<:Any, 2}
+end
+
+# Loewner curvature is not entrywise: only `tr`, a full `sum` and `maximum` of a
+# bare PD `inv` (largest entry on the diagonal) may read it.
+function loewner_curved(x)
+    is_loewner_matrix_term(x) && return true
+    iscall(x) || return false
+    f, args = operation(x), arguments(x)
+    f === broadcast && (f = constval(args[1]))
+    return f in (+, -, *, adjoint, transpose) && any(loewner_curved, args)
+end
+
+function loewner_reader(f, args)
+    f in (+, -, *, tr, sum, adjoint, transpose) && return true
+    if f === broadcast
+        g, xs = constval(args[1]), args[2:end]
+        g in (+, -) && return true
+        return g === (*) && count(a -> !(constval(a) isa Number), xs) == 1
+    end
+    f isa SymbolicUtils.Mapreducer{typeof(identity), typeof(Base.add_sum)} &&
+        return f.dims isa Colon
+    full_max = f === maximum ||
+        f isa SymbolicUtils.Mapreducer{typeof(identity), typeof(max), Colon}
+    return full_max && all(a -> is_loewner_matrix_term(a) && operation(a) === inv, args)
 end
 
 """
@@ -309,7 +337,7 @@ function dcprule(::typeof(norm), x, p)
     elseif pv >= 1
         return makerule(array_domain(RealLine()), Positive, Convex, increasing_if_positive), args
     elseif pv > 0
-        curv = getsign(x) == Positive ? Concave : UnknownCurvature
+        curv = known_positive(x) ? Concave : UnknownCurvature
         return makerule(array_domain(HalfLine()), Positive, curv, Increasing), args
     else
         return makerule(array_domain(RealLine()), Positive, UnknownCurvature, AnyMono), args
@@ -408,8 +436,8 @@ certified both the both-symbolic form (indefinite: `quad_form([a], [b;;])` is
 `a^2*b`, whose second difference along `(1, -1)` is `-2`) and a constant
 indefinite `P` (`quad_form(x, [1 0; 0 -1])` is `x[1]^2 - x[2]^2`).
 
-`P` is checked with `isposdef`, matching the `semidefinite_domain()` the rule
-declares; a singular positive semidefinite `P` therefore gets no certificate.
+`P` is checked with the exact `pd_constant`; a singular positive semidefinite `P`
+therefore gets no certificate.
 
 Slot 1 is only `increasing_if_positive` when `P` is **entrywise** nonnegative.
 `x'Px = Σ P[i,j]·x[i]·x[j]` is nondecreasing in each `x[i]` over the nonnegative
@@ -421,8 +449,8 @@ chord by 1.92 between `v = [0.64, 2.0]` and `[1.64, 2.3]`.
 function dcprule(::typeof(quad_form), x, P)
     args = (x, P)
     dom = (array_domain(RealLine(), 1), semidefinite_domain())
-    Pv = constval(P)
-    if Pv isa AbstractMatrix && isconstarg(P) && issymmetric(Pv) && isposdef(Pv)
+    if pd_constant(P)
+        Pv = map(constval, constval(P))
         mono1 = all(>=(0), Pv) ? increasing_if_positive : AnyMono
         return makerule(dom, Positive, Convex, (mono1, Increasing)), args
     end
@@ -527,7 +555,8 @@ function trinv(x::AbstractMatrix)
     return tr(inv(x))
 end
 Symbolics.@register_symbolic trinv(x::AbstractMatrix)
-add_dcprule(trinv, definite_domain(), Positive, Convex, AnyMono)
+dcprule(::typeof(trinv), X) = posdef_rule(X, Positive, Convex, AnyMono)
+hasdcprule(::typeof(trinv)) = true
 
 """
     tv(x::AbstractVector{<:Real})
@@ -655,19 +684,21 @@ outside their declared domain.
 
 Symbolics rewrites ordinary `inv(x)` to `/(1, x)`, so the `/` rule usually
 covers rewritten forms; this method covers the bare `inv` term (as built by
-`perspective` and `Symbolics.term`). Matrix `inv` keeps the Loewner-order table
-entry via the fallback.
+`perspective` and `Symbolics.term`). Matrix `inv` is convex-decreasing in the
+Loewner order on the positive definite cone only, and exists for every
+nonsingular matrix (`tr(inv(-t*I))` is concave in `t > 0`), so it is certified
+only for an argument proven positive definite.
 """
 function dcprule(::typeof(inv), x)
     args = (x,)
     if SymbolicUtils.symtype(x) <: AbstractArray
-        return @invoke dcprule(inv::Any, x)
+        return posdef_rule(x, AnySign, Convex, Decreasing)
     end
     known_positive(x) ||
         return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), args
     return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), args
 end
-# Matrix Loewner-order rule registered below; keeps `hasdcprule(inv)`.
+hasdcprule(::typeof(inv)) = true
 add_dcprule(log, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
 # `log2`/`log10` are `log` rescaled by a positive constant.
 add_dcprule(log2, HalfLine{Real, :open}(), AnySign, Concave, Increasing)
@@ -718,14 +749,20 @@ end
 
 Base.log(A::Symbolics.Arr) = matrix_atom(log, A)
 Base.log(A::Matrix{Num}) = matrix_atom(log, A)
-# Matrix logarithm of a PD matrix with eigenvalues in (0, 1) is negative
-# definite (e.g. log(0.01I₂) = −log(100)·I), so the result is not Positive.
-add_dcprule(log, array_domain(RealLine(), 2), AnySign, Concave, Increasing)
-
-add_dcprule(inv, semidefinite_domain(), AnySign, Convex, Decreasing)
-
 Base.sqrt(A::Symbolics.Arr) = matrix_atom(sqrt, A)
-add_dcprule(sqrt, semidefinite_domain(), Positive, Concave, Increasing)
+
+# Operator concave on the PD cone only, though real-valued off it (`tr(log(X))`
+# along `[s 1-s; s-1 s]`). No sign: `log(0.01I) ≺ 0`, `sqrt([2 -1; -1 2])[1, 2] < 0`.
+function dcprule(::typeof(log), x)
+    SymbolicUtils.symtype(x) <: AbstractArray{<:Any, 2} ||
+        return @invoke dcprule(log::Any, x)
+    return posdef_rule(x, AnySign, Concave, Increasing)
+end
+function dcprule(::typeof(sqrt), x)
+    SymbolicUtils.symtype(x) <: AbstractArray{<:Any, 2} ||
+        return @invoke dcprule(sqrt::Any, x)
+    return posdef_rule(x, AnySign, Concave, Increasing)
+end
 
 add_dcprule(
     kldivergence,
@@ -851,7 +888,9 @@ function dcprule(::typeof(/), num, den)
     if dv isa Number
         iszero(dv) && return unknown, args
         mono = dv > 0 ? Increasing : Decreasing
-        return makerule((RealLine(), RealLine()), mul_sign(args), Affine, (mono, AnyMono)),
+        return makerule(
+                (RealLine(), RealLine()), entrywise_mul_sign(args), Affine, (mono, AnyMono)
+            ),
             args
     elseif nv isa Number && !iszero(nv) && known_positive(den)
         domain = (RealLine(), HalfLine{Real, :open}())
@@ -865,21 +904,241 @@ function dcprule(::typeof(/), num, den)
 end
 hasdcprule(::typeof(/)) = true
 
-# Positivity established rather than assumed: either a propagated sign says so, or
-# the argument was declared on a domain inside the positive half line. `analyze`
-# overwrites `Sign` metadata during propagation, so a `VarDomain` declaration is
-# how a caller states the precondition durably.
-function known_positive(x)
-    getsign(x) == Positive && return true
-    _has_vardomain(x) || return false
+function is_positive_domain(d)
+    ed = element_domain(d)
+    ed === nothing && return false
     return try
-        issubset(getmetadata(x, VarDomain), HalfLine{Real, :open}())
+        issubset(ed, HalfLine{Real, :open}())
     catch e
         e isa MethodError ? false : rethrow()
     end
 end
 
+function is_array_expr(x)
+    x isa AbstractArray && return true
+    u = unwrap(x)
+    constval(u) isa AbstractArray && return true
+    SymbolicUtils.symtype(u) <: AbstractArray && return true
+    is_loewner_matrix_term(u) && return true
+    return iscall(u) && operation(u) in (
+        +, -, *, broadcast, conjugation, adjoint, transpose,
+        scalar_mat, inv, affine_map, hadamard_product,
+    ) && any(is_array_expr, arguments(u))
+end
+
+# Geodesic matrix atoms (`adjoint`, `inv`, `conjugation`, ...) record PSD cone
+# signs in `Sign`, so array rules must derive entrywise signs without trusting a
+# matrix call's `getsign`.
+function entrywise_sign(x)::Sign
+    if x isa AbstractArray
+        isempty(x) && return AnySign
+        all(y -> entrywise_sign(y) == Negative, x) && return Negative
+        all(y -> entrywise_sign(y) == Positive, x) && return Positive
+        return AnySign
+    end
+    x = unwrap(x)
+    v = constval(x)
+    v isa Real && return getsign(v)
+    if v isa AbstractArray
+        isconstarg(x) && !isempty(v) || return AnySign
+        return getsign(map(constval, v))
+    end
+    _has_vardomain(x) && is_positive_domain(getmetadata(x, VarDomain)) && return Positive
+    is_array_expr(x) || return getsign(x)
+    issym(x) && return getsign(x)
+    iscall(x) || return AnySign
+    f, args = operation(x), arguments(x)
+    if f === SymbolicUtils.array_literal
+        els = @view args[2:end]
+        isempty(els) && return AnySign
+        all(y -> entrywise_sign(y) == Negative, els) && return Negative
+        all(y -> entrywise_sign(y) == Positive, els) && return Positive
+        return AnySign
+    end
+    if f === broadcast
+        g, xs = constval(args[1]), @view args[2:end]
+        g === (+) && return entrywise_add_sign(xs)
+        if g === (-)
+            length(xs) == 1 || return AnySign
+            s = entrywise_sign(xs[1])
+            return s == Positive ? Negative : s == Negative ? Positive : AnySign
+        end
+        Symbol(g) == :* && return entrywise_mul_sign(xs)
+        hasdcprule(g) || return AnySign
+        s = elementwise_dcprule(g, xs...)[1].sign
+        return s isa Sign ? s : AnySign
+    end
+    if f isa SymbolicUtils.Mapper
+        hasdcprule(f.f) || return AnySign
+        s = elementwise_dcprule(f.f, args...)[1].sign
+        return s isa Sign ? s : AnySign
+    end
+    f === (+) && return entrywise_add_sign(args)
+    f in (adjoint, transpose, vec, cumsum, diag, reshape) && return entrywise_sign(args[1])
+    f in (hcat, vcat) && return entrywise_add_sign(args)
+    f === (*) && return entrywise_mul_sign(args)
+    return AnySign
+end
+
+function entrywise_add_sign(args)
+    isempty(args) && return AnySign
+    all_neg = true
+    all_pos = true
+    for a in args
+        s = entrywise_sign(a)
+        s == AnySign && return AnySign
+        s == Negative ? (all_pos = false) : (all_neg = false)
+    end
+    return all_neg ? Negative : all_pos ? Positive : AnySign
+end
+
+function entrywise_mul_sign(args)
+    neg_count = 0
+    for a in args
+        s = entrywise_sign(a)
+        s == AnySign && return AnySign
+        s == Negative && (neg_count += 1)
+    end
+    return isodd(neg_count) ? Negative : Positive
+end
+
+function known_positive(x)
+    x isa AbstractArray && return !isempty(x) && all(known_positive, x)
+    x = unwrap(x)
+    v = constval(x)
+    v isa Real && return isfinite(v) && v > 0
+    if v isa AbstractArray
+        return isconstarg(x) && !isempty(v) &&
+            all(y -> (c = constval(y); c isa Real && isfinite(c) && c > 0), v)
+    end
+    _has_vardomain(x) && is_positive_domain(getmetadata(x, VarDomain)) && return true
+    entrywise_sign(x) == Positive && return true
+    iscall(x) || return false
+    f, args = linear_op(x)
+    f === (+) && return all(known_positive, args)
+    f in (adjoint, transpose, vec, cumsum, diag, reshape) && return known_positive(args[1])
+    f in (hcat, vcat) && return all(known_positive, args)
+    f === SymbolicUtils.array_literal &&
+        return !isempty(@view args[2:end]) && all(known_positive, @view args[2:end])
+    f === (*) && return all(known_positive, args)
+    if f === broadcast && constval(args[1]) === (/)
+        return known_positive(args[2]) && known_positive(args[3])
+    end
+    return false
+end
+
 hasdcprule(::typeof(^)) = true
+
+"""
+    known_posdef(X)
+
+Whether the matrix expression `X` is proven positive definite: a constant
+matrix passing the exact `pd_constant`, a symbolic matrix declared with
+`VarDomain` metadata `semidefinite_domain()` / `definite_domain()` (both are the
+`isposdef` test), a positive constant multiple, sum or transpose of proven ones.
+Anything else is unproven, and the matrix atoms that need it degrade to
+`UnknownCurvature`.
+"""
+function known_posdef(x)
+    x = unwrap(x)
+    constval(x) isa AbstractMatrix && return pd_constant(x)
+    _has_vardomain(x) && return is_posdef_domain(getmetadata(x, VarDomain))
+    iscall(x) || return false
+    f, args = linear_op(x)
+    f === (+) && return all(known_posdef, args)
+    f in (adjoint, transpose) && return known_posdef(args[1])
+    if f === (*)
+        mats = filter(a -> !(constval(a) isa Number), args)
+        length(mats) == 1 || return false
+        return all(a -> a === mats[1] || constval(a) > 0, args) && known_posdef(mats[1])
+    end
+    return false
+end
+
+"""
+    known_symmetric(X)
+
+Whether the matrix expression `X` is proven symmetric: an exactly symmetric
+constant, a proven positive definite matrix, a leaf declared `symmetric_domain()`,
+an assembled matrix with mirrored entries, `A + A'`, `A'A`, `A*A'`, or a scalar
+multiple, sum or transpose of proven ones.
+"""
+function known_symmetric(x)
+    x = unwrap(x)
+    v = constval(x)
+    if v isa AbstractMatrix
+        isconstarg(x) || return false
+        m = map(constval, v)
+        return size(m, 1) == size(m, 2) && m == transpose(m)
+    end
+    known_posdef(x) && return true
+    _has_vardomain(x) && return getmetadata(x, VarDomain) === symmetric_domain()
+    iscall(x) || return false
+    f, args = linear_op(x)
+    f in (adjoint, transpose) && return known_symmetric(args[1])
+    f === (+) && return all(known_symmetric, args) || transpose_pair(args)
+    if f === (*)
+        mats = filter(a -> !(constval(a) isa Number), args)
+        length(mats) == 1 && return known_symmetric(mats[1])
+        return length(args) == 2 && transpose_pair(args)
+    end
+    f === SymbolicUtils.array_literal && return mirrored_literal(args)
+    return false
+end
+
+# A matrix plus a constant matrix or a scalar times a matrix traces to `broadcast`.
+function linear_op(x)
+    f, args = operation(x), arguments(x)
+    f === broadcast && constval(args[1]) in (+, *) && return constval(args[1]), args[2:end]
+    return f, args
+end
+
+is_transpose_of(a, b) =
+    iscall(a) && operation(a) in (adjoint, transpose) && isequal(arguments(a)[1], b)
+transpose_pair(args) = length(args) == 2 &&
+    (is_transpose_of(args[1], args[2]) || is_transpose_of(args[2], args[1]))
+
+function mirrored_literal(args)
+    sz = constval(args[1])
+    (length(sz) == 2 && sz[1] == sz[2]) || return false
+    n, el = sz[1], args[2:end]
+    return all(isequal(el[i + (j - 1) * n], el[j + (i - 1) * n]) for i in 1:n, j in 1:n)
+end
+
+# Exact LDLᵀ: `[5.0 11; 11 24.2]` passes float `isposdef` but has det -2⁻⁴⁸.
+pd_constant(B) = exact_semidefinite(B, true)
+
+function exact_semidefinite(B, strict::Bool)
+    real_constant_matrix(B) || return false
+    Bv = map(constval, constval(B))
+    all(x -> x isa Union{Integer, Rational, AbstractFloat}, Bv) || return false
+    size(Bv, 1) == size(Bv, 2) || return false
+    A = Matrix{Rational{BigInt}}(Bv)
+    A == transpose(A) || return false
+    while !isempty(A)
+        d = diag(A)
+        any(<(0), d) && return false
+        k = argmax(d)
+        p = A[k, k]
+        iszero(p) && return !strict && iszero(A)
+        r = [1:(k - 1); (k + 1):size(A, 1)]
+        a = A[r, k]
+        A = A[r, r] - a * transpose(a) / p
+    end
+    return true
+end
+
+function real_constant_matrix(B)
+    isconstarg(B) || return false
+    Bv = constval(B)
+    return Bv isa AbstractMatrix && all(x -> (y = constval(x); y isa Real && isfinite(y)), Bv)
+end
+
+function posdef_rule(X, sign, curvature, monotonicity)
+    dom = definite_domain()
+    known_posdef(X) || return makerule(dom, AnySign, UnknownCurvature, AnyMono), (X,)
+    return makerule(dom, sign, curvature, monotonicity), (X,)
+end
 
 add_dcprule(real, ℂ, AnySign, Affine, Increasing)
 
@@ -964,6 +1223,13 @@ in `dcprule` and restore the scalar law here.
 elementwise_dcprule(f, args...) = dcprule(f, args...)
 elementwise_dcprule(::typeof(^), x, i) = power_rule(x, constval(i))
 elementwise_dcprule(::typeof(exp), x) = @invoke dcprule(exp::Any, x)
+elementwise_dcprule(::typeof(log), x) = @invoke dcprule(log::Any, x)
+elementwise_dcprule(::typeof(sqrt), x) = @invoke dcprule(sqrt::Any, x)
+function elementwise_dcprule(::typeof(inv), x)
+    known_positive(x) ||
+        return makerule(RealLine(), AnySign, UnknownCurvature, AnyMono), (x,)
+    return makerule(HalfLine{Real, :open}(), Positive, Convex, Decreasing), (x,)
+end
 
 """
     dcprule(::typeof(broadcast), f, x...)
@@ -986,7 +1252,13 @@ function dcprule(::typeof(broadcast), f, x...)
         # flip `mul_curvature` has already applied.
         s = const_factor_sign(x)
         mono = s == Negative ? Decreasing : s == Positive ? Increasing : AnyMono
-        return makerule(array_domain(RealLine()), mul_sign(x), mul_curvature(x), mono), x
+        return makerule(
+                array_domain(RealLine()),
+                entrywise_mul_sign(x),
+                mul_curvature(x; elementwise = true),
+                mono
+            ),
+            x
     end
     hasdcprule(g) || return no_rule(array_domain(RealLine()), x)
     return elementwise_dcprule(g, x...)
